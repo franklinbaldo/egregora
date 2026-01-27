@@ -75,7 +75,7 @@ def test_parse_media_result_handles_missing_slug(worker):
     task = {"task_id": "task-2", "_parsed_payload": {"filename": "IMG.jpg"}}
 
     # Empty JSON response -> no slug -> should raise EnrichmentParsingError
-    res = SimpleNamespace(tag="t", error=None, response={"text": "{}"})
+    SimpleNamespace(tag="t", error=None, response={"text": "{}"})
 
     # Should raise EnrichmentParsingError if slug is missing and no pre-existing markdown
     with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):

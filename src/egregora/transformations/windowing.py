@@ -437,7 +437,7 @@ def _window_by_bytes(
 
     # 2. Compute window boundaries (Compute phase)
     # Prefix sum for O(1) range sum queries: accum_bytes[i] = sum(bytes[0]...bytes[i-1])
-    accum_bytes = [0] + list(accumulate(msg_bytes_list))
+    accum_bytes = [0, *list(accumulate(msg_bytes_list))]
 
     current_start_idx = 0
     window_index = 0

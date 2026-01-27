@@ -187,9 +187,9 @@ class TestBuildConversationXML:
             {"author": "Bob", "text": "Hi", "timestamp": "2023-01-02"},
         ]
 
-        with patch("egregora.agents.formatting.Environment") as MockEnv:
+        with patch("egregora.agents.formatting.Environment") as mock_env:
             mock_tmpl = MagicMock()
-            MockEnv.return_value.get_template.return_value = mock_tmpl
+            mock_env.return_value.get_template.return_value = mock_tmpl
             mock_tmpl.render.return_value = "<mocked_xml/>"
 
             result = build_conversation_xml(data, None)
@@ -197,7 +197,7 @@ class TestBuildConversationXML:
             assert result == "<mocked_xml/>"
 
             # Verify data passed to render
-            args, kwargs = mock_tmpl.render.call_args
+            _args, kwargs = mock_tmpl.render.call_args
             messages = kwargs["messages"]
             assert len(messages) == 2
             assert messages[0]["author"] == "Alice"
@@ -219,14 +219,14 @@ class TestBuildConversationXML:
 
         mock_store.list_annotations_for_message.return_value = [ann]
 
-        with patch("egregora.agents.formatting.Environment") as MockEnv:
+        with patch("egregora.agents.formatting.Environment") as mock_env:
             mock_tmpl = MagicMock()
-            MockEnv.return_value.get_template.return_value = mock_tmpl
+            mock_env.return_value.get_template.return_value = mock_tmpl
             mock_tmpl.render.return_value = "<xml/>"
 
             build_conversation_xml(data, mock_store)
 
-            args, kwargs = mock_tmpl.render.call_args
+            _args, kwargs = mock_tmpl.render.call_args
             messages = kwargs["messages"]
             assert len(messages) == 1
             assert len(messages[0]["notes"]) == 1

@@ -18,9 +18,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
+import ibis
+import ibis.common.exceptions  # type: ignore[import-untyped] # ibis missing stubs
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
-from pydantic_ai import AgentRunResult, UsageLimits
+from pydantic_ai import UsageLimits
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
@@ -40,7 +42,6 @@ from egregora.agents.exceptions import AgentError
 from egregora.agents.types import (
     PromptTooLargeError,
     WindowProcessingParams,
-    WriterAgentReturn,
     WriterDeps,
     WriterResources,
 )
@@ -67,11 +68,14 @@ from egregora.llm.api_keys import (
 )
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.orchestration.cache import PipelineCache
-from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
-from egregora.output_sinks.mkdocs.site_generator import SiteGenerator
+from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
+from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink
 
@@ -122,6 +126,15 @@ _KEY_ROTATION_INDEX: int = 0  # Global counter for proactive key rotation
 # ============================================================================
 # Agent Runners & Orchestration
 # ============================================================================
+
+
+def _extract_thinking_content(messages: MessageHistory) -> list[str]:
+    """Extract thinking/reasoning content from agent message history."""
+    thinking_contents: list[str] = []
+    for message in messages:
+        if isinstance(message, ModelResponse):
+            thinking_contents.extend(part.content for part in message.parts if isinstance(part, ThinkingPart))
+    return thinking_contents
 
 
 def _extract_journal_content(messages: MessageHistory) -> str:
@@ -417,8 +430,8 @@ def write_posts_with_pydantic_agent(
     result = None
 
     # Use tenacity for retries
-    def _run_agent_sync(loop: asyncio.AbstractEventLoop) -> AgentRunResult[WriterAgentReturn]:
-        async def _run_async() -> AgentRunResult[WriterAgentReturn]:
+    def _run_agent_sync(loop: asyncio.AbstractEventLoop) -> Any:
+        async def _run_async() -> Any:
             return await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
@@ -765,7 +778,7 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
 
 
 # TODO: [Taskmaster] Refactor complex `write_posts_for_window` function
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
     """Public entry point for the writer agent."""
     if params.smoke_test:
         logger.info("Smoke test mode: skipping writer agent.")
@@ -886,11 +899,11 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     """Helper to regenerate all site indices using SiteGenerator."""
     if not isinstance(adapter, MkDocsAdapter):
         logger.debug("Output format is not MkDocs, skipping site generation.")
-        return None
+        return
 
     if not adapter.site_root:
         logger.warning("Site root is not set, skipping site generation.")
-        return None
+        return
 
     # Load config to get reader database path
     from egregora.config import load_egregora_config
@@ -919,4 +932,38 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     site_generator.regenerate_tags_page()
     site_generator.regenerate_feeds_page()
     logger.info("Successfully regenerated site indices.")
+
+
+def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:
+    """Load output format instructions for the writer agent."""
+    registry = registry or create_default_output_registry()
+
+    if site_root:
+        detected_format = registry.detect_format(site_root)
+        if detected_format:
+            return detected_format.get_format_instructions()
+
+    try:
+        default_format = registry.get_format("mkdocs")
+        return default_format.get_format_instructions()
+    except KeyError:
+        return ""
+
+
+def get_top_authors(table: Table, limit: int = 20) -> list[str]:
+    """Get top N active authors by message count.
+
+    Deprecated: Use Message DTOs filtering instead.
+    """
+    author_counts = (
+        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
+        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.cast("string") != "")
+        .group_by("author_uuid")
+        .aggregate(count=table.author_uuid.count())
+        .order_by(ibis.desc("count"))
+        .limit(limit)
+    )
+    if author_counts.count().execute() == 0:
+        return []
     return cast("list[str]", author_counts.author_uuid.cast("string").execute().tolist())

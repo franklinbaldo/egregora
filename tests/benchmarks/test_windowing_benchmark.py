@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 
 import ibis
-import pandas as pd
+import pandas as pd  # noqa: TID251
 import pytest
 
 from egregora.transformations.windowing import _window_by_bytes

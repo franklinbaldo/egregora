@@ -9,13 +9,13 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 import tomllib
 from pathlib import Path
 
+from egregora.output_adapters import create_default_output_registry, create_output_sink
+from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project, safe_yaml_load
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
 from egregora.config.settings import load_egregora_config
-from egregora.output_sinks import create_default_output_registry, create_output_sink
-from egregora.output_sinks.mkdocs import MkDocsAdapter
-from egregora.output_sinks.mkdocs.scaffolding import ensure_mkdocs_project, safe_yaml_load
 
 runner = CliRunner()
 

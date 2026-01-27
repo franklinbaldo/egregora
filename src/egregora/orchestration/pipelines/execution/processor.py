@@ -224,7 +224,6 @@ def _execute_profile_generator(
         profile_docs = cast(
             "list[Document]",
             generate_profile_posts(ctx=ctx, messages=messages, window_date=window_date),
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
         )
         output_sink = ctx.output_sink
         for profile_doc in profile_docs:

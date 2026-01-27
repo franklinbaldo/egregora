@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 from repo.cli.mail import app
@@ -55,9 +57,6 @@ def create_personas(isolated_fs, names):
     clean_names = [n.strip().replace('"', "") for n in names.split(",")]
     for name in clean_names:
         (isolated_fs / f".team/personas/{name}").mkdir(parents=True, exist_ok=True)
-
-
-from unittest.mock import MagicMock, patch
 
 
 @when(parsers.parse('I run the mail command "{command}" with args:'), target_fixture="last_command_result")

@@ -77,36 +77,11 @@ _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
 ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
-# Combined pattern for efficient single-pass extraction (replaces multiple regex passes)
-COMBINED_ENRICHMENT_PATTERN = re.compile(
-    r"""
-    # 1. Markdown Link (extract filename)
-    (?:(?:!\[|\[)[^\]]*\]\([^)]*?(?P<md_file>[^/)]+\.\w+)\)) |
-
-    # 2. WhatsApp Patterns
-    (?P<wa_file>\b(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+\b) |
-    (?:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) |
-
-    # 3. Generic Filename (matches any filename, optionally with marker)
-    # This covers Attachment Markers, Simple Media, and UUIDs in one pass.
-    # We use a broad pattern and filter in Python to avoid backtracking overhead.
-    \b(?P<gen_file>[\w\-\.]+\.\w+)\b(?P<gen_marker>\s*(?:"""
-    + _MARKERS_REGEX
-    + r"""))?
-    """,
-    re.VERBOSE | re.IGNORECASE,
-)
-
-# Regex for validating UUIDs (extracted from generic match)
-UUID_VALIDATION_PATTERN = re.compile(
-    r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+$", re.IGNORECASE
-)
-
 # Split Patterns for optimized extraction
 FAST_MEDIA_PATTERN = re.compile(
     r"""
     !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
-    \[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |            # Markdown Link
+    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
     \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
     (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
     """,
@@ -114,51 +89,7 @@ FAST_MEDIA_PATTERN = re.compile(
 )
 
 MARKER_PATTERN = re.compile(rf"(?:{_MARKERS_REGEX})", re.IGNORECASE)
-# Anchored validation pattern for manual extraction
-# Matches [\w\-\.]+\.\w+ exactly
-FILENAME_VALIDATION_PATTERN = re.compile(r"^[\w\-\.]+\.\w+$", re.IGNORECASE)
-
-# Quick check pattern to fail fast on strings with no potential media
-# ! = markdown image
-# [ = markdown link
-# I, V, A, P, D = WhatsApp filenames (IMG, VID, AUD, PTT, DOC)
-# \u200e = Unicode marker
-# ( = Attachment marker start (e.g., (file attached))
-# < = Attachment marker start (e.g., <attached:)
-QUICK_CHECK_PATTERN = re.compile(r"[!\[IVAPD\u200e(<]")
-
-COMBINED_MD_PATTERN = re.compile(
-    r"""
-    (?P<img_url>!\[[^\]]*\]\((?P<url1>[^)]+)\)) |
-    (?P<link_url>(?<!!)\[[^\]]+\]\((?P<url2>[^)]+)\))
-    """,
-    re.VERBOSE,
-)
-
-# Note: _MARKERS_REGEX contains escaped strings (via re.escape), so spaces are escaped (e.g. '\ ').
-# This is safe to use within re.VERBOSE where unescaped spaces are ignored.
-COMBINED_RAW_PATTERN = re.compile(
-    r"""
-    (?P<att>(?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:"""
-    + _MARKERS_REGEX
-    + r"""))) |
-    (?P<wa>\b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b) |
-    (?P<uni>(?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)))
-    """,
-    re.VERBOSE,
-)
-
-# Combined Pattern for single-pass extraction
-COMBINED_MEDIA_PATTERN = re.compile(
-    rf"""
-    !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
-    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
-    (?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})) |    # Attachment
-    \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
-    (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
-    """,
-    re.VERBOSE,
-)
+FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
 
 
 # ----------------------------------------------------------------------------
@@ -226,52 +157,6 @@ def find_media_references(text: str) -> list[str]:
     return list(set(media_files))
 
 
-def find_all_media_references(text: str, *, include_uuids: bool = False) -> list[str]:
-    """Find all media references using a single optimized regex pass.
-
-    This combines:
-    - Attachment markers
-    - Markdown links/images (extracting filename)
-    - WhatsApp patterns
-    - Simple media filenames (e.g. foo.jpg)
-    - UUID filenames (optional)
-
-    Args:
-        text: The message text to search.
-        include_uuids: Whether to include UUID filenames (requires row['media_type'] check usually).
-
-    Returns:
-        List of unique media references found.
-
-    """
-    if not text:
-        return []
-
-    refs = set()
-    for match in COMBINED_ENRICHMENT_PATTERN.finditer(text):
-        name = match.lastgroup
-        # Use lastgroup to identify which pattern matched
-        if name == "md_file":
-            refs.add(match.group("md_file"))
-        elif name == "wa_file":
-            refs.add(match.group("wa_file"))
-        elif name == "uni_file":
-            refs.add(match.group("uni_file"))
-        elif name == "gen_file" or name == "gen_marker":
-            filename = match.group("gen_file")
-            # If marker matched, we always include it (legacy behavior for att_file)
-            if match.group("gen_marker"):
-                refs.add(filename)
-            # Else check if it is a known media type
-            elif detect_media_type(filename):
-                refs.add(filename)
-            # Else check if it is a UUID (if requested)
-            elif include_uuids and UUID_VALIDATION_PATTERN.match(filename):
-                refs.add(filename)
-
-    return list(refs)
-
-
 def extract_media_references(table: Table) -> set[str]:
     """Extract all media references (markdown and raw) from message column."""
     references: set[str] = set()
@@ -298,15 +183,10 @@ def extract_media_references(table: Table) -> set[str]:
     # Pre-bind regex methods for optimization
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
-    filename_match = FILENAME_VALIDATION_PATTERN.match
-    quick_check = QUICK_CHECK_PATTERN.search
+    filename_search = FILENAME_LOOKBEHIND_PATTERN.search
 
     for message in messages:
         if not message or not isinstance(message, str):
-            continue
-
-        # Optimization: Fail fast if no potential media indicators are present
-        if not quick_check(message):
             continue
 
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
@@ -324,41 +204,6 @@ def extract_media_references(table: Table) -> set[str]:
                 references.add(val)
             elif group_name == "uni_file":
                 references.add(val)
-
-        # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
-        for match in marker_find(message):
-            start_pos = match.start()
-            lookback_slice = message[:start_pos]
-            if not lookback_slice:
-                continue
-
-            # Optimized lookbehind:
-            # Instead of a greedy regex searching from the end of the string (O(N)),
-            # we manually split the string to find the last token and validate it.
-            # This is ~5000x faster for long strings.
-
-            # Remove trailing whitespace (spaces between filename and marker)
-            lookback_stripped = lookback_slice.rstrip()
-            if not lookback_stripped:
-                continue
-
-            # Get the last word/token
-            # rsplit(None, 1) splits on whitespace from the right, max 1 split
-            parts = lookback_stripped.rsplit(None, 1)
-            candidate = parts[-1]
-
-            # Validate the candidate against the allowed filename characters
-            if filename_match(candidate):
-                references.add(candidate)
-            if img_url := match.group("img_url"):
-                references.add(img_url)
-            elif link_url := match.group("link_url"):
-                if not link_url.startswith(("http://", "https://")):
-                    references.add(link_url)
-            elif wa_file := match.group("wa_file"):
-                references.add(wa_file)
-            elif uni_file := match.group("uni_file"):
-                references.add(uni_file)
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):

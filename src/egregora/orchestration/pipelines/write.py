@@ -11,30 +11,38 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from dataclasses import dataclass
+from datetime import date as date_type
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
 
+from google import genai
 from rich.console import Console
 from rich.panel import Panel
 
+from egregora.agents.banner.worker import BannerWorker
+from egregora.agents.commands import command_to_announcement, filter_commands
+from egregora.agents.commands import extract_commands as extract_commands_list
+from egregora.agents.enricher import EnrichmentWorker
+from egregora.agents.profile.generator import generate_profile_posts
+from egregora.agents.profile.worker import ProfileWorker
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.defaults import PipelineDefaults
+from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
-from egregora.input_adapters import get_adapter_class
+from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.orchestration.context import PipelineRunParams
-from egregora.orchestration.pipelines.coordination.background_tasks import (
-    generate_taxonomy_task,
-    process_background_tasks,
-)
-from egregora.orchestration.pipelines.etl.config_resolution import (
-    prepare_write_config,
-    resolve_sources_to_run,
-    resolve_write_options,
-)
+from egregora.ops.taxonomy import generate_semantic_taxonomy
+from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.etl.preparation import (
+    Conversation,
+    PreparedPipelineData,
     get_pending_conversations,
     prepare_pipeline_data,
     validate_dates,
@@ -45,97 +53,57 @@ from egregora.orchestration.pipelines.etl.setup import (
     pipeline_environment,
     validate_api_key,
 )
-from egregora.orchestration.pipelines.execution.processor import process_item
-from egregora.orchestration.pipelines.types import WhatsAppProcessOptions, WriteCommandOptions
 
 logger = logging.getLogger(__name__)
 console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
-
-def _validate_dates(from_date: str | None, to_date: str | None) -> tuple[date_type | None, date_type | None]:
-    """Validate and parse date arguments."""
-    from_date_obj, to_date_obj = None, None
-    try:
-        if from_date:
-            from_date_obj = parse_date_arg(from_date, "from_date")
-        if to_date:
-            to_date_obj = parse_date_arg(to_date, "to_date")
-    except (ValueError, InvalidDateFormatError) as e:
-        console.print(f"[red]{e}[/red]")
-        raise SystemExit(1) from e
-    return from_date_obj, to_date_obj
+MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
-def _validate_timezone_arg(timezone: str | None) -> None:
-    """Validate timezone argument."""
-    if timezone:
-        try:
-            validate_timezone(timezone)
-            console.print(f"[green]Using timezone: {timezone}[/green]")
-        except (ValueError, InvalidTimezoneError) as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
+@dataclass
+class WriteCommandOptions:
+    """Options for the write command."""
+
+    input_file: Path
+    source: str
+    output: Path
+    step_size: int
+    step_unit: WindowUnit
+    overlap: float
+    enable_enrichment: bool
+    from_date: str | None
+    to_date: str | None
+    timezone: str | None
+    model: str | None
+    max_prompt_tokens: int
+    use_full_context_window: bool
+    max_windows: int | None
+    resume: bool
+    refresh: str | None
+    force: bool
+    debug: bool
 
 
-def _ensure_site_initialized(output_dir: Path) -> None:
-    """Ensure the site is initialized with configuration."""
-    config_path = output_dir / ".egregora.toml"
+@dataclass(frozen=True)
+class WhatsAppProcessOptions:
+    """Runtime overrides for :func:`process_whatsapp_export`."""
 
-    if not config_path.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Initializing site in %s", output_dir)
-        scaffolder = MkDocsSiteScaffolder()
-        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
-
-
-# TODO: [Taskmaster] Refactor API key validation for clarity and separation of concerns
-def _validate_api_key(output_dir: Path) -> None:
-    """Validate that API key is set and valid."""
-    skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    }
-
-    api_keys = get_google_api_keys()
-    if not api_keys:
-        _load_dotenv_if_available(output_dir)
-        api_keys = get_google_api_keys()
-
-    if not api_keys:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
-        )
-        console.print("You can also create a .env file in the output directory or current directory.")
-        raise SystemExit(1)
-
-    if skip_validation:
-        if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
-            os.environ["GOOGLE_API_KEY"] = api_keys[0]
-        return
-
-    console.print("[cyan]Validating Gemini API key...[/cyan]")
-    validation_errors: list[str] = []
-    for key in api_keys:
-        try:
-            validate_gemini_api_key(key)
-            if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
-                os.environ["GOOGLE_API_KEY"] = key
-            console.print("[green]✓ API key validated successfully[/green]")
-            return
-        except ValueError as e:
-            validation_errors.append(str(e))
-        except ImportError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise SystemExit(1) from e
-
-    joined = "\n\n".join(validation_errors)
-    console.print(f"[red]Error: {joined}[/red]")
-    raise SystemExit(1)
+    output_dir: Path = Path("output")
+    step_size: int = 100
+    step_unit: str = "messages"
+    overlap_ratio: float = 0.2
+    enable_enrichment: bool = True
+    from_date: date_type | None = None
+    to_date: date_type | None = None
+    timezone: str | ZoneInfo | None = None
+    gemini_api_key: str | None = None
+    model: str | None = None
+    batch_threshold: int = 10
+    max_prompt_tokens: int = 100_000
+    use_full_context_window: bool = False
+    client: genai.Client | None = None
+    refresh: str | None = None
 
 
 def _prepare_write_config(
@@ -259,18 +227,18 @@ def run_cli_flow(
     *,
     output: Path = Path("site"),
     source: str | None = None,
-    step_size: int = PipelineDefaults.STEP_SIZE,
-    step_unit: WindowUnit = PipelineDefaults.STEP_UNIT,
-    overlap: float = PipelineDefaults.OVERLAP_RATIO,
+    step_size: int = 100,
+    step_unit: WindowUnit = WindowUnit.MESSAGES,
+    overlap: float = 0.0,
     enable_enrichment: bool = True,
-    from_date: str | None = PipelineDefaults.DEFAULT_FROM_DATE,
-    to_date: str | None = PipelineDefaults.DEFAULT_TO_DATE,
-    timezone: str | None = PipelineDefaults.DEFAULT_TIMEZONE,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    timezone: str | None = None,
     model: str | None = None,
-    max_prompt_tokens: int = PipelineDefaults.MAX_PROMPT_TOKENS,
-    use_full_context_window: bool = PipelineDefaults.DEFAULT_USE_FULL_CONTEXT,
-    max_windows: int | None = PipelineDefaults.DEFAULT_MAX_WINDOWS,
-    resume: bool = PipelineDefaults.DEFAULT_RESUME,
+    max_prompt_tokens: int = 400000,
+    use_full_context_window: bool = False,
+    max_windows: int | None = None,
+    resume: bool = True,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -327,18 +295,18 @@ def run_cli_flow(
     base_config = load_egregora_config(output_dir)
 
     # Determine which sources to run
-    sources_to_run = resolve_sources_to_run(source, base_config)
+    sources_to_run = _resolve_sources_to_run(source, base_config)
 
     # Process each source
     for source_key, source_type in sources_to_run:
         # Prepare options with current source
-        parsed_options = resolve_write_options(
+        parsed_options = _resolve_write_options(
             input_file=input_file,
             options_json=options,
             cli_defaults={**cli_values, "source": source_type},
         )
 
-        egregora_config = prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+        egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
         runtime = RuntimeContext(
             output_dir=output_dir,
@@ -437,386 +405,142 @@ def process_whatsapp_export(
     return run(run_params)
 
 
-    _runtime_db_uri, pipeline_backend = create_pipeline_database(site_paths.site_root, run_params.config)
+def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
+    """Execute the agent on an isolated conversation item."""
+    ctx = conversation.context
+    output_sink = ctx.output_sink
 
-    # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    initialize_database(pipeline_backend)
+    # Extract commands (ETL/Processing boundary - commands are side effects)
+    # We do this here or in generator? Generator does "data prep".
+    # Commands might generate announcements which is "output".
+    # But filtering commands from input to writer is "prep".
 
-    client_instance = run_params.client or _create_gemini_client()
-    cache_path = Path(run_params.config.paths.cache_dir)
-    cache_dir = cache_path if cache_path.is_absolute() else site_paths.site_root / cache_path
-    cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
-    site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use the pipeline backend for storage to ensure we share the same connection
-    # This prevents "read-only transaction" errors and database invalidation
-    storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
-    annotations_store = AnnotationStore(storage)
-
-    # Initialize TaskStore for async operations
-    task_store = TaskStore(storage)
-
-    _init_global_rate_limiter(run_params.config.quota)
-
-    output_registry = create_default_output_registry()
-
-    url_ctx = UrlContext(
-        base_url="",
-        site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
-        base_path=site_paths.site_root,
-    )
-
-    config_obj = PipelineConfig(
-        config=run_params.config,
-        output_dir=resolved_output,
-        site_root=site_paths.site_root,
-        docs_dir=site_paths.docs_dir,
-        posts_dir=site_paths.posts_dir,
-        profiles_dir=site_paths.profiles_dir,
-        media_dir=site_paths.media_dir,
-        url_context=url_ctx,
-    )
-
-    state = PipelineState(
-        run_id=run_params.run_id,
-        start_time=run_params.start_time,
-        source_type=run_params.source_type,
-        input_path=run_params.input_path,
-        client=client_instance,
-        storage=storage,
-        cache=cache,
-        annotations_store=annotations_store,
-        usage_tracker=UsageTracker(),
-        output_registry=output_registry,
-        smoke_test=run_params.smoke_test,
-    )
-
-    # Inject TaskStore into state/context
-    state.task_store = task_store
-
-    ctx = PipelineContext(config_obj, state)
-
-    return ctx, pipeline_backend
-
-
-@contextmanager
-def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[PipelineContext]:
-    """Context manager that provisions and tears down pipeline resources."""
-    options = getattr(ibis, "options", None)
-    old_backend = getattr(options, "default_backend", None) if options else None
-    ctx, pipeline_backend = _create_pipeline_context(run_params)
-
-    if options is not None:
-        options.default_backend = pipeline_backend
-
+    # Convert table to list
     try:
-        yield ctx
-    finally:
+        executed = conversation.messages_table.execute()
+        if hasattr(executed, "to_pylist"):
+            messages_list = executed.to_pylist()
+        elif hasattr(executed, "to_dict"):
+            messages_list = executed.to_dict(orient="records")
+        else:
+            messages_list = []
+    except (AttributeError, TypeError):
         try:
-            ctx.cache.close()
-        finally:
-            if options is not None:
-                options.default_backend = old_backend
-
-            backend_close = getattr(pipeline_backend, "close", None)
-            if callable(backend_close):
-                backend_close()
-            elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
-                pipeline_backend.con.close()
-
-
-def _parse_and_validate_source(
-    adapter: Any,
-    input_path: Path,
-    timezone: str,
-    *,
-    output_adapter: OutputSink | None = None,
-) -> ir.Table:
-    """Parse source and return messages table.
-
-    Args:
-        adapter: Source adapter instance
-        input_path: Path to input file
-        timezone: Timezone string
-        output_adapter: Optional output adapter (used by adapters that reprocess existing sites)
-
-    Returns:
-        messages_table: Parsed messages table
-
-    """
-    logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
-    messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
-    total_messages = messages_table.count().execute()
-    logger.info("[green]✅ Parsed[/] %s messages", total_messages)
-
-    metadata = adapter.get_metadata(input_path)
-    logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
-
-    return messages_table
-
-
-def _setup_content_directories(ctx: PipelineContext) -> None:
-    """Create and validate content directories.
-
-    Args:
-        ctx: Pipeline context
-
-    Raises:
-        ValueError: If directories are not inside docs_dir
-
-    """
-    content_dirs = {
-        "posts": ctx.posts_dir,
-        "profiles": ctx.profiles_dir,
-        "media": ctx.media_dir,
-    }
-
-    for label, directory in content_dirs.items():
-        if label == "media":
-            try:
-                directory.relative_to(ctx.docs_dir)
-            except ValueError:
-                try:
-                    directory.relative_to(ctx.site_root)
-                except ValueError as exc:
-                    msg = (
-                        "Media directory must reside inside the MkDocs docs_dir or the site root. "
-                        f"Expected parent {ctx.docs_dir} or {ctx.site_root}, got {directory}."
-                    )
-                    raise ValueError(msg) from exc
-            directory.mkdir(parents=True, exist_ok=True)
-            continue
-
-        try:
-            directory.relative_to(ctx.docs_dir)
-        except ValueError as exc:
-            msg = (
-                f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
-                f"Expected parent {ctx.docs_dir}, got {directory}."
+            messages_list = conversation.messages_table.to_pylist()
+        except (AttributeError, TypeError):
+            messages_list = (
+                conversation.messages_table if isinstance(conversation.messages_table, list) else []
             )
-            raise ValueError(msg) from exc
-        directory.mkdir(parents=True, exist_ok=True)
 
+    # Handle commands (Announcements)
+    command_messages = extract_commands_list(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement: %s", exc)
 
-def _process_commands_and_avatars(
-    messages_table: ir.Table, ctx: PipelineContext, vision_model: str
-) -> ir.Table:
-    """Process egregora commands and avatar commands.
+    clean_messages_list = filter_commands(messages_list)
 
-    Args:
-        messages_table: Input messages table
-        ctx: Pipeline context
-        vision_model: Vision model identifier
+    # Prepare Resources
+    resources = PipelineFactory.create_writer_resources(ctx)
 
-    Returns:
-        Messages table (unchanged, commands are side effects)
-
-    """
-    commands = extract_commands(messages_table)
-    if commands:
-        process_commands(commands, ctx.profiles_dir)
-        logger.info("[magenta]🧾 Processed[/] %s /egregora commands", len(commands))
-    else:
-        logger.info("[magenta]🧾 No /egregora commands detected[/]")
-
-    logger.info("[cyan]🖼️  Processing avatar commands...[/]")
-    avatar_context = AvatarContext(
-        docs_dir=ctx.docs_dir,
-        media_dir=ctx.media_dir,
-        profiles_dir=ctx.profiles_dir,
-        vision_model=vision_model,
-        cache=ctx.cache.enrichment,
-    )
-    avatar_results = process_avatar_commands(
-        messages_table=messages_table,
-        context=avatar_context,
-    )
-    if avatar_results:
-        logger.info("[green]✓ Processed[/] %s avatar command(s)", len(avatar_results))
-
-    return messages_table
-
-
-def _prepare_pipeline_data(
-    adapter: Any,
-    run_params: PipelineRunParams,
-    ctx: PipelineContext,
-) -> PreparedPipelineData:
-    """Prepare messages, filters, and windowing context for processing.
-
-    Args:
-        adapter: Input adapter instance
-        run_params: Aggregated pipeline run parameters
-        ctx: Pipeline context
-
-    Returns:
-        PreparedPipelineData with messages table, windows iterator, and updated context
-
-    """
-    config = run_params.config
-    timezone = config.pipeline.timezone
-    step_size = config.pipeline.step_size
-    step_unit = config.pipeline.step_unit
-    overlap_ratio = config.pipeline.overlap_ratio
-    max_window_time_hours = config.pipeline.max_window_time
-    max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
-    enable_enrichment = config.enrichment.enabled
-
-    from_date: date_type | None = None
-    to_date: date_type | None = None
-    if config.pipeline.from_date:
-        from_date = date_type.fromisoformat(config.pipeline.from_date)
-    if config.pipeline.to_date:
-        to_date = date_type.fromisoformat(config.pipeline.to_date)
-
-    vision_model = config.models.enricher_vision
-    embedding_model = config.models.embedding
-
-    output_sink = PipelineFactory.create_output_adapter(
-        config,
-        run_params.output_dir,
-        site_root=ctx.site_root,
-        registry=ctx.output_registry,
-        url_context=ctx.url_context,
-    )
-    ctx = ctx.with_output_sink(output_sink)
-
-    messages_table = _parse_and_validate_source(
-        adapter, run_params.input_path, timezone, output_adapter=output_sink
-    )
-    _setup_content_directories(ctx)
-    messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
-
-    filter_options = FilterOptions(
-        from_date=from_date,
-        to_date=to_date,
-    )
-    messages_table = _apply_filters(
-        messages_table,
-        ctx,
-        filter_options,
+    params = WindowProcessingParams(
+        table=conversation.messages_table,
+        messages=clean_messages_list,
+        window_start=conversation.window.start_time,
+        window_end=conversation.window.end_time,
+        resources=resources,
+        config=ctx.config,
+        cache=ctx.cache,
+        adapter_content_summary=conversation.adapter_info[0],
+        adapter_generation_instructions=conversation.adapter_info[1],
+        run_id=str(ctx.run_id) if ctx.run_id else None,
+        smoke_test=ctx.state.smoke_test,
     )
 
-    logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-    window_config = WindowConfig(
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap_ratio=overlap_ratio,
-        max_window_time=max_window_time,
-    )
-    windows_iterator = create_windows(
-        messages_table,
-        config=window_config,
-    )
+    # EXECUTE WRITER
+    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
+    # in the generator. If it fails here, it fails.
+    writer_result = write_posts_for_window(params)
+    posts = writer_result.get("posts", [])
+    profiles = writer_result.get("profiles", [])
 
-    # Update context with adapter
-    ctx = ctx.with_adapter(adapter)
-
-    # Index existing documents into RAG
-    if ctx.config.rag.enabled:
-        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
-        try:
-            # Get existing documents from output format
-            existing_docs = list(output_sink.documents())
-            if existing_docs:
-                index_documents(existing_docs)
-                logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
-                reset_backend()
-            else:
-                logger.info("[dim]No existing documents to index[/]")
-        except (ConnectionError, TimeoutError) as exc:
-            logger.warning("[yellow]⚠️ RAG backend unavailable for indexing (non-critical): %s[/]", exc)
-        except (ValueError, TypeError) as exc:
-            logger.warning("[yellow]⚠️ Invalid document data for RAG indexing (non-critical): %s[/]", exc)
-        except (OSError, PermissionError) as exc:
-            logger.warning("[yellow]⚠️ Cannot access RAG storage for indexing (non-critical): %s[/]", exc)
-
-    checkpoint_root = ctx.storage.checkpoint_dir or (ctx.output_dir / ".egregora" / "data")
-    checkpoint_path = checkpoint_root / f"{ctx.run_id}-pipeline.json"
-
-    return PreparedPipelineData(
-        messages_table=messages_table,
-        windows_iterator=windows_iterator,
-        checkpoint_path=checkpoint_path,
-        context=ctx,
-        enable_enrichment=enable_enrichment,
-        embedding_model=embedding_model,
-    )
-
-
-def _apply_date_filters(
-    messages_table: ir.Table, from_date: date_type | None, to_date: date_type | None
-) -> ir.Table:
-    """Apply date range filtering."""
-    if not (from_date or to_date):
-        return messages_table
-
-    original_count = messages_table.count().execute()
-    if from_date and to_date:
-        messages_table = messages_table.filter(
-            (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
+    # Warn if writer processed messages but generated no posts
+    if not posts and clean_messages_list:
+        logger.warning(
+            "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
+            "Check if write_post_tool was called by the agent.",
+            len(clean_messages_list),
+            f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
         )
-        logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
-    elif from_date:
-        messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
-        logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
-    elif to_date:
-        messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
-        logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
 
-    filtered_count = messages_table.count().execute()
-    removed_by_date = original_count - filtered_count
-    if removed_by_date > 0:
-        logger.info("🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count)
-    return messages_table
+    # Persist generated posts
+    # The writer agent returns documents (strings if pending).
+    # Pending posts are handled by background worker?
+    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
+    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
+    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
+    # However, `generate_profile_posts` returns Document objects that need persistence.
+    # If `posts` contains Document objects, we should persist them.
+    for post in posts:
+        if hasattr(post, "document_id"):  # Is a Document
+            try:
+                output_sink.persist(post)
+            except Exception as exc:
+                logger.exception("Failed to persist post: %s", exc)
 
+    # EXECUTE PROFILE GENERATOR
+    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    try:
+        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
 
-@dataclass
-class FilterOptions:
-    """Options for filtering messages."""
+    # Process background tasks (Banner, etc)
+    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
+    # Background tasks are usually global or batched.
+    # We will trigger them here to ensure "isolated item" processing is complete.
+    process_background_tasks(ctx)
 
-    from_date: date_type | None = None
-    to_date: date_type | None = None
-
-
-def _apply_filters(
-    messages_table: ir.Table,
-    ctx: PipelineContext,
-    options: FilterOptions,
-) -> ir.Table:
-    """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
-
-    Args:
-        messages_table: Input messages table
-        ctx: Pipeline context
-        options: Filter configuration
-
-    Returns:
-        Filtered messages table
-
-    """
-    # Filter egregora messages
-    messages_table, egregora_removed = filter_egregora_messages(messages_table)
-    if egregora_removed:
-        logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
-
-    # Filter opted-out authors
-    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
-    if removed_count > 0:
-        logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
-
-    # Date range filtering
-    return _apply_date_filters(messages_table, options.from_date, options.to_date)
-
-    # Checkpoint-based resume logic (Delegated to Runner / Journal check)
-
-
-def _init_global_rate_limiter(quota_config: Any) -> None:
-    """Initialize the global rate limiter."""
-    init_rate_limiter(
-        requests_per_second=quota_config.per_second_limit,
-        max_concurrency=quota_config.concurrency,
+    # Logging
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    logger.info(
+        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
+        len(posts),
+        len(profiles),
+        announcements_generated,
+        window_label,
     )
+
+    return {window_label: {"posts": posts, "profiles": profiles}}
+
+
+def process_background_tasks(ctx: PipelineContext) -> None:
+    """Process pending background tasks."""
+    if not hasattr(ctx, "task_store") or not ctx.task_store:
+        return
+
+    banner_worker = BannerWorker(ctx)
+    banner_worker.run()
+
+    profile_worker = ProfileWorker(ctx)
+    profile_worker.run()
+
+    # Enrichment is already done in generator, but if new tasks were added:
+    if ctx.config.enrichment.enabled:
+        enrichment_worker = EnrichmentWorker(ctx)
+        enrichment_worker.run()
 
 
 def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
@@ -846,7 +570,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
-    adapter_cls = get_adapter_class(run_params.source_type)
+    adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
+    if adapter_cls is None:
+        msg = f"Unknown source type: {run_params.source_type}"
+        raise ValueError(msg)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
@@ -871,7 +598,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 if max_processed_timestamp is None or conversation.window.end_time > max_processed_timestamp:
                     max_processed_timestamp = conversation.window.end_time
 
-            generate_taxonomy_task(dataset)
+            _generate_taxonomy(dataset)
 
             # Final pass for any lingering background tasks
             process_background_tasks(dataset.context)

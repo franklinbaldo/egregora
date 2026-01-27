@@ -9,7 +9,7 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -201,7 +201,6 @@ class PipelineRunner:
             return processed
 
         try:
-            library = cast("ContentLibrary", self.context.library)
             # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
             # Use cast to Protocol to avoid "object has no attribute journal" error
             library = cast("LibraryProtocol", self.context.library)
@@ -415,8 +414,6 @@ class PipelineRunner:
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs_result = generate_profile_posts(
-                ctx=self.context, messages=clean_messages_list, window_date=window_date
             profile_docs = cast(
                 "list[Document]",
                 generate_profile_posts(
@@ -425,7 +422,6 @@ class PipelineRunner:
             )
             # Handle potential awaitable return from generate_profile_posts
             # In sync context, we expect list[Document]
-            profile_docs: list[Document] = cast("list[Document]", profile_docs_result)
 
             for profile_doc in profile_docs:
                 try:

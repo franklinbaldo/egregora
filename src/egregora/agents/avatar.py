@@ -347,22 +347,6 @@ def _handle_download_error(e: Exception, url: str) -> None:
         raise AvatarProcessingError(msg) from e
 
     if isinstance(e, httpx.HTTPError):
-    try:
-        with client.stream("GET", url) as response:
-            response.raise_for_status()
-            content, content_type = _download_image_content(response)
-
-        # _validate_image_content is already called inside _download_image_content for early rejection
-        _validate_image_dimensions(content)
-
-        ext = _get_extension_from_mime_type(content_type, url)
-        avatar_uuid = _generate_avatar_uuid(content)
-        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
-
-    except httpx.TooManyRedirects as e:
-        msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
-        raise AvatarProcessingError(msg) from e
-    except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
@@ -393,68 +377,6 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
         raise e
 
 
-@sleep_and_retry
-@limits(calls=10, period=60)
-def download_avatar_from_url(
-    url: str,
-    media_dir: Path,
-    timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
-    client: httpx.Client | None = None,
-) -> tuple[uuid.UUID, Path]:
-    """Download avatar from URL and save to avatars directory.
-
-    Args:
-        url: URL of the avatar image
-        media_dir: Root media directory (e.g., site_root/media)
-        timeout: HTTP timeout in seconds
-        client: Optional httpx.Client to reuse
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If download fails or image is invalid
-
-    """
-    if client:
-        return _download_avatar_with_client(client, url, media_dir)
-
-    with _create_secure_client(timeout) as new_client:
-        return _download_avatar_with_client(new_client, url, media_dir)
-
-
-# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
-@sleep_and_retry
-@limits(calls=10, period=60)
-def download_avatar_from_url(
-    url: str,
-    media_dir: Path,
-    timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
-    client: httpx.Client | None = None,
-) -> tuple[uuid.UUID, Path]:
-    """Download avatar from URL and save to avatars directory.
-
-    Args:
-        url: URL of the avatar image
-        media_dir: Root media directory (e.g., site_root/media)
-        timeout: HTTP timeout in seconds
-        client: Optional httpx.Client to reuse
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If download fails or image is invalid
-
-    """
-    if client:
-        return _download_avatar_with_client(client, url, media_dir)
-
-    with _create_secure_client(timeout) as new_client:
-        return _download_avatar_with_client(new_client, url, media_dir)
-
-
-# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
 @sleep_and_retry
 @limits(calls=10, period=60)
 def download_avatar_from_url(

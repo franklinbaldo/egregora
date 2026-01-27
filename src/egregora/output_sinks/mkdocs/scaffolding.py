@@ -13,7 +13,7 @@ import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
@@ -242,6 +242,8 @@ class MkDocsSiteScaffolder:
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
+        # Get loader from environment (assumed to be FileSystemLoader)
+        loader = cast("FileSystemLoader", env.loader)
         assets_src = Path(loader.searchpath[0]) / "assets"
         assets_dest = assets_dir
         if assets_src.exists():
