@@ -143,10 +143,18 @@ jobs:
         github.event.workflow_run.head_branch == 'main' ||
         github.event.workflow_run.head_branch == 'jules'))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
+      # Sparse checkout for faster clone - only what scheduler needs
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          sparse-checkout: |
+            .github/actions
+            .github/scripts/jules
+            .team
+            src
+            pyproject.toml
+            uv.lock
 
       - uses: ./.github/actions/setup-python-uv
         with:
