@@ -19,9 +19,13 @@ import importlib
 import logging
 from collections.abc import Mapping
 from importlib.metadata import entry_points
+<<<<<<< HEAD
 from typing import TYPE_CHECKING, cast
 
 from egregora.input_adapters.exceptions import AdapterLoadError, UnknownAdapterError
+=======
+from typing import TYPE_CHECKING, Mapping, cast
+>>>>>>> origin/pr/2741
 
 if TYPE_CHECKING:
     from egregora.input_adapters.base import InputAdapter
@@ -170,7 +174,11 @@ class InputAdapterRegistry:
         """
         # Convert TypedDict to plain dict for broader compatibility
         return [
+<<<<<<< HEAD
             dict(cast("Mapping[str, str]", adapter.get_adapter_metadata()))
+=======
+            dict(cast(Mapping[str, str], adapter.get_adapter_metadata()))
+>>>>>>> origin/pr/2741
             for adapter in self._adapters.values()
         ]
 

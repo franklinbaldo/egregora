@@ -17,7 +17,7 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, List, Protocol, runtime_checkable
 from uuid import UUID, uuid5
 
 from egregora.data_primitives.text import slugify as _slugify
@@ -427,8 +427,13 @@ class OutputSink(Protocol):
     def finalize_window(
         self,
         window_label: str,
+<<<<<<< HEAD
         _posts_created: builtins.list[str],
         profiles_updated: builtins.list[str],
+=======
+        _posts_created: List[str],
+        profiles_updated: List[str],
+>>>>>>> origin/pr/2741
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Hook called after processing a window."""
