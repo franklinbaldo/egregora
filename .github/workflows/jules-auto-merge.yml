@@ -7,4 +7,3 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo 'Jules auto-merge workflow'
-
