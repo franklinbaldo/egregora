@@ -104,40 +104,6 @@ repos:
         language: system
         types: [python]
         files: ^src/
-      - id: unit-tests
-        name: Run unit tests
-        entry: uv run pytest tests/unit/ -x -q --tb=line --ignore=tests/unit/team
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
-      - id: coverage
-        name: Check test coverage
-        entry: uv run pytest
-        args:
-          [
-            "tests/unit/",
-            "--cov=src/egregora",
-            "--cov-report=term-missing",
-            "--cov-branch",
-            "--cov-fail-under=60.0",
-            "-q",
-            "--ignore=tests/unit/team",
-          ]
-        language: system
-        types: [python]
-        pass_filenames: false
-        stages: [pre-push]
-      - id: fix-schedule-csv
-        name: Fix schedule.csv format
-        entry: uv run python -c "import sys; sys.path.insert(0, '.team'); from repo.scheduler.schedule import load_schedule, validate_and_fix, save_schedule; rows = load_schedule(); fixed, issues = validate_and_fix(rows); save_schedule(fixed) if issues else None; print('Fixed:', len(issues), 'issues') if issues else None"
-        language: system
-        files: '\.team/schedule\.csv$'
-      - id: vote-validation
-        name: Validate schedule respects votes
-        entry: uv run python -c "import sys; sys.path.insert(0, '.team'); from repo.features.voting import VoteManager; vm = VoteManager(); violations = vm.validate_schedule_vs_votes(); exit(1) if violations else exit(0)"
-        language: system
-        files: '\.team/(schedule\.csv|votes\.csv)$'
-        pass_filenames: false
       - id: prompt-change-validation
         name: Validate persona prompt changes
         entry: uv run python scripts/dev_tools/check_prompt_changes.py
