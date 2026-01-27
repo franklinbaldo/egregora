@@ -8,6 +8,7 @@
 ## Objectives
 My mission is to complete the "Portal" visual identity and ensure a polished user experience.
 
+- [ ] **Consolidate CSS Architecture:** Address CSS shadowing issues by merging `.about-container` styles from `docs/stylesheets/extra.css` into `overrides/stylesheets/extra.css` and unifying `.post-card-modern` with `.md-post--card` glassmorphism.
 - [ ] **Functional Social Cards:** Ensure `og:image` tags are generated correctly and do not return 404s. (Requires `pillow`, `cairosvg`).
 - [ ] **Custom Favicon:** Implement a unique favicon for the site.
 - [ ] **Refine "Empty State":** Polish the "Welcome" message on the homepage to be engaging even without content.
@@ -20,10 +21,11 @@ My mission is to complete the "Portal" visual identity and ensure a polished use
 Foundational theming was established in Sprint 1 (including the Portal theme and Feeds page). Sprint 2 is about "Finish and Polish".
 
 ## Expected Deliverables
-1. Working Social Cards.
-2. Custom Favicon.
-3. Polished Empty State.
-4. Accessibility Report.
+1. Consolidated CSS file (`overrides/stylesheets/extra.css`) with no shadowing.
+2. Working Social Cards.
+3. Custom Favicon.
+4. Polished Empty State.
+5. Accessibility Report.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
