@@ -232,6 +232,7 @@ class MkDocsSiteScaffolder:
             (site_paths.profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (site_paths.journal_dir / "index.md", "docs/journal/index.md.jinja"),
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
+            (docs_dir / "stylesheets" / "extra.css", "docs/stylesheets/extra.css"),
         ]
 
         # Ensure directories exist
