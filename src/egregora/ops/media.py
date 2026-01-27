@@ -77,8 +77,6 @@ _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
 ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Combined pattern for efficient single-pass extraction (replaces multiple regex passes)
 COMBINED_ENRICHMENT_PATTERN = re.compile(
     r"""
@@ -104,17 +102,11 @@ UUID_VALIDATION_PATTERN = re.compile(
     r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+$", re.IGNORECASE
 )
 
-=======
->>>>>>> origin/pr/2707
 # Split Patterns for optimized extraction
 FAST_MEDIA_PATTERN = re.compile(
     r"""
     !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
-<<<<<<< HEAD
     \[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |            # Markdown Link
-=======
-    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
->>>>>>> origin/pr/2707
     \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
     (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
     """,
@@ -122,7 +114,6 @@ FAST_MEDIA_PATTERN = re.compile(
 )
 
 MARKER_PATTERN = re.compile(rf"(?:{_MARKERS_REGEX})", re.IGNORECASE)
-<<<<<<< HEAD
 # Anchored validation pattern for manual extraction
 # Matches [\w\-\.]+\.\w+ exactly
 FILENAME_VALIDATION_PATTERN = re.compile(r"^[\w\-\.]+\.\w+$", re.IGNORECASE)
@@ -135,15 +126,6 @@ FILENAME_VALIDATION_PATTERN = re.compile(r"^[\w\-\.]+\.\w+$", re.IGNORECASE)
 # ( = Attachment marker start (e.g., (file attached))
 # < = Attachment marker start (e.g., <attached:)
 QUICK_CHECK_PATTERN = re.compile(r"[!\[IVAPD\u200e(<]")
-=======
-FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
->>>>>>> origin/pr/2707
-=======
-# Patterns for Markdown processing
-# Kept for backward compatibility
-MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
->>>>>>> origin/pr/2706
 
 COMBINED_MD_PATTERN = re.compile(
     r"""
@@ -302,99 +284,37 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Optimization: distinct messages to avoid redundant regex processing
         messages = df["text"].dropna().unique().tolist()
-=======
-        # Optimization: Avoid dropna() copy, handle None/NaN in loop
-        messages = df["text"].tolist()
->>>>>>> origin/pr/2711
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
         # Optimization: distinct messages to avoid redundant regex processing
         # Use column iterator to avoid full table conversion
         messages = list({x for x in df["text"].to_pylist() if x})
-=======
-        # Optimization: process only unique messages to avoid redundant regex scans.
-        # Use dropna().unique() to exclude NaNs/Nones from the set.
-        messages = df["text"].dropna().unique()
-    elif hasattr(df, "to_pylist"):
-        # pyarrow Table
-        messages = {r["text"] for r in df.to_pylist() if r["text"] is not None}
->>>>>>> origin/pr/2712
-=======
-        # Optimization: distinct messages to avoid redundant regex processing
-        messages = df["text"].dropna().unique().tolist()
-    elif hasattr(df, "to_pylist"):
-        # pyarrow Table
-        messages = list({r["text"] for r in df.to_pylist() if r["text"]})
->>>>>>> origin/pr/2708
-=======
-        messages = df["text"].dropna().tolist()
-    elif hasattr(df, "to_pylist"):
-        # pyarrow Table
-        messages = [r["text"] for r in df.to_pylist()]
->>>>>>> origin/pr/2703
     else:
         # Fallback for unexpected type
         return references
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     # Pre-bind regex methods for optimization
-<<<<<<< HEAD
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
-<<<<<<< HEAD
     filename_match = FILENAME_VALIDATION_PATTERN.match
     quick_check = QUICK_CHECK_PATTERN.search
-=======
-    filename_search = FILENAME_LOOKBEHIND_PATTERN.search
->>>>>>> origin/pr/2707
-=======
-    # Pre-bind method for optimization
-    md_find_iter = COMBINED_MD_PATTERN.finditer
-    raw_find_iter = COMBINED_RAW_PATTERN.finditer
->>>>>>> origin/pr/2706
-=======
-    combined_find = COMBINED_MEDIA_PATTERN.finditer
->>>>>>> origin/pr/2705
-=======
-    # Pre-bind regex methods for optimization
-    md_img_find = MARKDOWN_IMAGE_PATTERN.findall
-    md_link_find = MARKDOWN_LINK_PATTERN.findall
-    att_find = ATTACHMENT_MARKERS_PATTERN.findall
-    wa_find = WA_MEDIA_PATTERN.findall
-    uni_find = UNICODE_MEDIA_PATTERN.findall
->>>>>>> origin/pr/2703
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Optimization: Fail fast if no potential media indicators are present
         if not quick_check(message):
             continue
 
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
-<<<<<<< HEAD
-=======
-        for match in combined_find(message):
->>>>>>> origin/pr/2708
             # Optimization: Use lastgroup to avoid checking all groups
             group_name = match.lastgroup
             val = match.group(group_name)
 
-<<<<<<< HEAD
             if group_name == "img_url":
                 references.add(val)
             elif group_name == "link_url":
@@ -404,20 +324,6 @@ def extract_media_references(table: Table) -> set[str]:
                 references.add(val)
             elif group_name == "uni_file":
                 references.add(val)
-=======
-            # Optimization: Use match.lastgroup for O(1) dispatch instead of checking all groups
-            group_name = match.lastgroup
-            if group_name == "img_url":
-                references.add(match.group("img_url"))
-            elif group_name == "link_url":
-                link_url = match.group("link_url")
-                if not link_url.startswith(("http://", "https://")):
-                    references.add(link_url)
-            elif group_name == "wa_file":
-                references.add(match.group("wa_file"))
-            elif group_name == "uni_file":
-                references.add(match.group("uni_file"))
->>>>>>> origin/pr/2711
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):
@@ -444,36 +350,15 @@ def extract_media_references(table: Table) -> set[str]:
             # Validate the candidate against the allowed filename characters
             if filename_match(candidate):
                 references.add(candidate)
-=======
-            # Specific validation for markdown links
-            if group_name == "link_url" and val.startswith(("http://", "https://")):
-                continue
-
-            references.add(val)
->>>>>>> origin/pr/2708
-=======
-        # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
-        for match in fast_find(message):
-=======
-        for match in combined_find(message):
-            # Check which group matched (named groups from COMBINED_MEDIA_PATTERN)
->>>>>>> origin/pr/2705
             if img_url := match.group("img_url"):
                 references.add(img_url)
             elif link_url := match.group("link_url"):
                 if not link_url.startswith(("http://", "https://")):
                     references.add(link_url)
-<<<<<<< HEAD
-=======
-            elif att_file := match.group("att_file"):
-                references.add(att_file)
->>>>>>> origin/pr/2705
             elif wa_file := match.group("wa_file"):
                 references.add(wa_file)
             elif uni_file := match.group("uni_file"):
                 references.add(uni_file)
-<<<<<<< HEAD
->>>>>>> origin/pr/2707
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):
@@ -485,44 +370,6 @@ def extract_media_references(table: Table) -> set[str]:
             # Look for filename at the end of the preceding text
             if fm := filename_search(lookback_slice):
                 references.add(fm.group(1))
-=======
-        # 1. Markdown references
-        for match in md_find_iter(message):
-            if match.group("url1"):
-                references.add(match.group("url1"))
-            elif match.group("url2"):
-                ref = match.group("url2")
-                if not ref.startswith(("http://", "https://")):
-                    references.add(ref)
-
-        # 2. Raw references
-        for match in raw_find_iter(message):
-            if match.group("att_file"):
-                references.add(match.group("att_file"))
-            elif match.group("wa_file"):
-                references.add(match.group("wa_file"))
-            elif match.group("uni_file"):
-                references.add(match.group("uni_file"))
->>>>>>> origin/pr/2706
-=======
->>>>>>> origin/pr/2705
-=======
-        # 1. Markdown references
-        # Pattern: !\[([^\]]*)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_img_find(message):
-            references.add(match[1])
-
-        # Pattern: (?<!!)\[([^\]]+)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_link_find(message):
-            ref = match[1]
-            if not ref.startswith(("http://", "https://")):
-                references.add(ref)
-
-        # 2. Raw references (inlined find_media_references logic for speed)
-        references.update(att_find(message))
-        references.update(wa_find(message))
-        references.update(uni_find(message))
->>>>>>> origin/pr/2703
 
     return references
 

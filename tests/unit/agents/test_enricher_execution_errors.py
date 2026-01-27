@@ -29,73 +29,8 @@ def test_enrich_single_url_raises_exception(mock_context):
     task_data = {"task": {"task_id": "test-task"}, "url": "https://example.com", "prompt": "Test prompt"}
 
     # Patch the Agent class to raise an exception when instantiated or run
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
         mock_agent_instance = mock_agent_cls.return_value
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent:
-        mock_agent_instance = mock_agent.return_value
->>>>>>> origin/pr/2893
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2890
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2888
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2881
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
-        mock_agent_instance = mock_agent_cls.return_value
->>>>>>> origin/pr/2879
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2876
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent:
-        mock_agent_instance = mock_agent.return_value
->>>>>>> origin/pr/2874
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2872
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
-        mock_agent_instance = mock_agent_cls.return_value
->>>>>>> origin/pr/2867
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2866
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
-        mock_agent_instance = mock_agent_cls.return_value
->>>>>>> origin/pr/2863
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2862
-=======
-    with patch("egregora.agents.enricher.Agent") as mock_agent_class:
-        mock_agent_instance = mock_agent_class.return_value
->>>>>>> origin/pr/2860
         # Mock the run method to raise a generic exception
         # Note: _enrich_single_url creates an event loop and runs this async,
         # but since we are mocking the sync Agent class wrapper (or pydantic_ai.Agent),

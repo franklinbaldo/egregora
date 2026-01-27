@@ -32,31 +32,11 @@ from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
-<<<<<<< HEAD
 # WebFetchTool is the client-side fetcher suitable for pydantic-ai
 from pydantic_ai import Agent, RunContext, WebFetchTool
-=======
-# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
 # We will migrate to WebFetchTool in a future sprint.
 from pydantic_ai import Agent, RunContext, UrlContextTool
->>>>>>> origin/pr/2885
-=======
-from pydantic_ai import Agent, RunContext
-
-# Pydantic-AI < 0.0.18 uses UrlContextTool, newer uses WebFetchTool.
-# We try to import WebFetchTool first, falling back to UrlContextTool.
-try:
-    from pydantic_ai.tools import WebFetchTool
-except ImportError:
-    from pydantic_ai import UrlContextTool as WebFetchTool
-
->>>>>>> origin/pr/2876
-=======
-from pydantic_ai import Agent, RunContext, WebFetchTool
->>>>>>> origin/pr/2866
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
@@ -1165,10 +1145,6 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-<<<<<<< HEAD
-=======
-            # Memory: client.files.upload requires 'file' keyword argument, not 'path'
->>>>>>> origin/pr/2866
             uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
@@ -1574,11 +1550,7 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
                     query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-<<<<<<< HEAD
                     self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
-=======
-                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
->>>>>>> origin/pr/2713
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 

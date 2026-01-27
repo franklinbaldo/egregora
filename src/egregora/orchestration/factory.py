@@ -14,24 +14,9 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
-<<<<<<< HEAD
-=======
-from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
-from egregora.agents.shared.annotations import AnnotationStore
->>>>>>> origin/pr/2747
 from egregora.agents.types import WriterResources
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
-<<<<<<< HEAD
-=======
-from egregora.database import initialize_database
-from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.profile_cache import scan_and_cache_all_documents
-from egregora.database.repository import ContentRepository
-from egregora.database.utils import resolve_db_uri
-from egregora.llm.usage import UsageTracker
-from egregora.orchestration.cache import PipelineCache
->>>>>>> origin/pr/2654
 from egregora.orchestration.context import (
     PipelineContext,
 )
@@ -109,8 +94,6 @@ class PipelineFactory:
             still using proper connection strings.
 
         """
-<<<<<<< HEAD
-<<<<<<< HEAD
 
         def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
@@ -157,10 +140,6 @@ class PipelineFactory:
 
             return normalized_value, ibis.connect(normalized_value)
 
-=======
->>>>>>> origin/pr/2654
-=======
->>>>>>> origin/pr/2653
         runtime_db_uri, pipeline_backend = _validate_and_connect(
             config.database.pipeline_db, "database.pipeline_db", site_root
         )

@@ -28,10 +28,7 @@ from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
-<<<<<<< HEAD
 from egregora.llm.api_keys import get_google_api_key
-=======
->>>>>>> origin/pr/2736
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
@@ -118,19 +115,7 @@ def init(
                 f"📝 Docs directory: {docs_dir}\n\n"
                 f"[bold]Next steps:[/bold]\n"
                 f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
                 f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material\\[imaging]" --with pillow --with cairosvg --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
-=======
-                f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2658
-=======
-                f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2654
-=======
-                f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2653
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
@@ -494,11 +479,7 @@ def demo(
                 options=None,
                 exit_on_error=False,
             )
-<<<<<<< HEAD
         except Exception as e:
-=======
-        except (AllModelsExhaustedError, RuntimeError) as e:
->>>>>>> origin/pr/2660
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
                 "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"
@@ -515,19 +496,7 @@ def demo(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
             f'[cyan]cd {output_dir} && uv tool run --with "mkdocs-material\\[imaging]" --with pillow --with cairosvg --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
-=======
-            '[cyan]cd demo && uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2658
-=======
-            '[cyan]cd demo && uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2654
-=======
-            '[cyan]cd demo && uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
->>>>>>> origin/pr/2653
             title="🚀 Demo Complete",
             border_style="green",
         )

@@ -81,11 +81,8 @@ class MkDocsPaths:
             return self.docs_dir.relative_to(self.site_root).as_posix()
         return ""
 
-<<<<<<< HEAD
     # Dictionary compatibility for simpler migration if needed (optional)
     def to_dict(self) -> dict[str, Any]:
         return {
             k: getattr(self, k) for k in dir(self) if not k.startswith("_") and not callable(getattr(self, k))
         }
-=======
->>>>>>> origin/pr/2837

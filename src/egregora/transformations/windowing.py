@@ -399,15 +399,9 @@ def _window_by_bytes(
     """Generate windows by packing messages up to a byte limit.
 
     Optimized implementation using "Fetch-then-Compute" pattern:
-<<<<<<< HEAD
     1. Fetches metadata (row_number, timestamp, length) for all rows in one query.
     2. Computes window boundaries efficiently using prefix sums and bisect (O(log N)).
     3. Yields windows with precise row_number filtering.
-=======
-    1. Fetches metadata (timestamp, length) for all rows in one query.
-    2. Computes window boundaries in Python using binary search (bisect) to avoid O(N) loops.
-    3. Yields windows with lazy Ibis table slices.
->>>>>>> origin/pr/2836
 
     Byte-to-token ratio: ~4 bytes per token (industry standard).
 
@@ -438,7 +432,6 @@ def _window_by_bytes(
     if total_count == 0:
         return
 
-<<<<<<< HEAD
     # Extract columns
     row_numbers = metadata["rn"].tolist()
     timestamps = metadata["ts"].tolist()
@@ -459,46 +452,6 @@ def _window_by_bytes(
 
         # Check if we have at least one message
         if current_start_idx >= total_count:
-=======
-    # Extract columns to simple lists/arrays for fast iteration
-    timestamps = metadata["ts"].tolist()
-    msg_bytes_list = metadata["msg_bytes"].tolist()
-
-    # Pre-calculate cumulative bytes for O(log N) window sizing via bisect
-    # cum_bytes[i] is the sum of lengths of messages 0..i inclusive
-    cum_bytes = list(itertools.accumulate(msg_bytes_list))
-
-    window_index = 0
-    offset = 0
-
-    # 2. Compute window boundaries (Compute phase)
-    while offset < total_count:
-        # Determine the end index of the window using binary search.
-        # Condition: Window includes messages [offset, k] such that sum(lengths[offset+1...k]) <= max_bytes.
-        # sum(lengths[offset+1...k]) = cum_bytes[k] - cum_bytes[offset]
-        # So we want max k such that: cum_bytes[k] <= cum_bytes[offset] + max_bytes
-        limit_val = cum_bytes[offset] + max_bytes
-
-        # bisect_right returns insertion point i where all a[:i] <= x.
-        # So a[i-1] <= x. Thus k = next_idx - 1.
-        # Range lo=offset ensures we don't look behind.
-        next_idx = bisect.bisect_right(cum_bytes, limit_val, lo=offset)
-
-        # The window slice is [offset, next_idx).
-        # Note: If next_idx == offset + 1, it means cum_bytes[offset+1] > limit_val?
-        # No, if cum_bytes[offset+1] > limit_val, bisect returns offset+1.
-        # So window includes [offset, offset+1), i.e., just the offset message.
-        # This preserves the "first message always included" behavior.
-        chunk_size = next_idx - offset
-
-        # Ensure we don't exceed bounds (bisect might return len(a))
-        chunk_size = min(chunk_size, total_count - offset)
-
-        start_idx = offset
-        end_idx = offset + chunk_size  # exclusive
-
-        if chunk_size == 0:
->>>>>>> origin/pr/2836
             break
 
         # Calculate target based on start+1 to ignore first message size
@@ -531,40 +484,11 @@ def _window_by_bytes(
         start_time = timestamps[current_start_idx]
         end_time = timestamps[end_idx - 1]
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Construct window table
         window_table = table_with_rn.filter(
             (table_with_rn.row_number >= start_rn) &
             (table_with_rn.row_number <= end_rn)
         ).drop("row_number")
-=======
-        # Create the window with a lazy slice of the original table
-        # We rely on the fact that `table` is already sorted by `ts` (as contract says)
-        # or we explicitly sort it again to be safe.
-
-        # Optimization: Use filter(ts) + small offset instead of large offset
-        # This allows the database to jump to the timestamp index instead of scanning
-        # from the beginning of the table.
-
-        # Calculate how many rows to skip that share the same start_time
-        # (Handle duplicate timestamps)
-        skip_rows = 0
-        curr = start_idx
-        if start_idx > 0 and timestamps[start_idx] == timestamps[start_idx - 1]:
-            # Find the first occurrence of this timestamp in the list
-            # Since we iterate forward, we can just look backwards
-            while curr > 0 and timestamps[curr - 1] == start_time:
-                curr -= 1
-            skip_rows = start_idx - curr
-
-        window_table = (
-            table.filter(table.ts >= start_time).order_by("ts").limit(chunk_size, offset=skip_rows)
-        )
->>>>>>> origin/pr/2900
-=======
-        window_table = table.order_by("ts").limit(chunk_size, offset=offset)
->>>>>>> origin/pr/2836
 
         yield Window(
             window_index=window_index,
@@ -576,7 +500,6 @@ def _window_by_bytes(
 
         window_index += 1
 
-<<<<<<< HEAD
         # Calculate next start index with overlap
         # We want to overlap such that shared bytes <= overlap_bytes.
         # Shared range is [next_start, end).
@@ -588,28 +511,6 @@ def _window_by_bytes(
         # unlike the window limit which might ignore the first message.
         target_overlap = accum_bytes[end_idx] - overlap_bytes
         next_start_idx = bisect_left(accum_bytes, target_overlap, lo=current_start_idx, hi=end_idx)
-=======
-        # Calculate overlap
-        advance = chunk_size
-        if overlap_bytes > 0 and chunk_size > 1:
-            # We want max rows from end such that sum(last rows) <= overlap_bytes.
-            # sum(lengths[j...end_idx-1]) <= overlap_bytes
-            # cum_bytes[end_idx-1] - cum_bytes[j-1] <= overlap_bytes
-            # cum_bytes[j-1] >= cum_bytes[end_idx-1] - overlap_bytes
-            target = cum_bytes[end_idx - 1] - overlap_bytes
-
-            # Find first index p such that cum_bytes[p] >= target.
-            # This p corresponds to j-1. So j = p + 1.
-            # Search range: lo=start_idx (since overlap cannot start before window start).
-            # hi=end_idx-1 (we search up to the item before the last one).
-            p = bisect.bisect_left(cum_bytes, target, lo=start_idx, hi=end_idx - 1)
-
-            # p is the index of the element *before* the overlap starts.
-            # So overlap starts at p+1.
-            # However, we must ensure we advance at least 1.
-            # advance = new_start - old_start = (p + 1) - start_idx.
-            advance = max(1, p + 1 - start_idx)
->>>>>>> origin/pr/2836
 
         # Ensure forward progress
         if next_start_idx <= current_start_idx:

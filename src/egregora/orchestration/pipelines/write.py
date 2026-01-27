@@ -15,36 +15,14 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-<<<<<<< HEAD
-=======
-from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
->>>>>>> origin/pr/2718
 
 from rich.console import Console
 from rich.panel import Panel
 
 from egregora.config import RuntimeContext, load_egregora_config
-<<<<<<< HEAD
 from egregora.config.defaults import PipelineDefaults
-=======
-from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
-from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
->>>>>>> origin/pr/2730
 from egregora.constants import WindowUnit
-<<<<<<< HEAD
 from egregora.input_adapters import get_adapter_class
-=======
-from egregora.data_primitives.document import OutputSink, UrlContext
-from egregora.database import initialize_database
-from egregora.database.backend_factory import create_pipeline_database
-from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.task_store import TaskStore
-from egregora.input_adapters import ADAPTER_REGISTRY
-from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
-from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
->>>>>>> origin/pr/2718
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.coordination.background_tasks import (
@@ -75,67 +53,7 @@ console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 
-<<<<<<< HEAD
-=======
-
-@dataclass
-class WriteCommandOptions:
-    """Options for the write command."""
-
-    input_file: Path
-    source: str
-    output: Path
-    step_size: int
-    step_unit: WindowUnit
-    overlap: float
-    enable_enrichment: bool
-    from_date: str | None
-    to_date: str | None
-    timezone: str | None
-    model: str | None
-    max_prompt_tokens: int
-    use_full_context_window: bool
-    max_windows: int | None
-    resume: bool
-    refresh: str | None
-    force: bool
-    debug: bool
-
-
-@dataclass(frozen=True)
-class WhatsAppProcessOptions:
-    """Runtime overrides for :func:`process_whatsapp_export`."""
-
-    output_dir: Path = Path("output")
-    step_size: int = 100
-    step_unit: str = "messages"
-    overlap_ratio: float = 0.2
-    enable_enrichment: bool = True
-    from_date: date_type | None = None
-    to_date: date_type | None = None
-    timezone: str | ZoneInfo | None = None
-    gemini_api_key: str | None = None
-    model: str | None = None
-    batch_threshold: int = 10
-    max_prompt_tokens: int = 100_000
-    use_full_context_window: bool = False
-    client: genai.Client | None = None
-    refresh: str | None = None
-
-
-def _load_dotenv_if_available(output_dir: Path) -> None:
-    if dotenv:
-        dotenv.load_dotenv(output_dir / ".env")
-        dotenv.load_dotenv()  # Check CWD as well
-
-
-<<<<<<< HEAD
 def _validate_dates(from_date: str | None, to_date: str | None) -> tuple[date_type | None, date_type | None]:
-=======
-def _validate_dates(
-    from_date: str | None, to_date: str | None
-) -> tuple[date_type | None, date_type | None]:
->>>>>>> origin/pr/2730
     """Validate and parse date arguments."""
     from_date_obj, to_date_obj = None, None
     try:
@@ -336,7 +254,6 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
 
 
 # TODO: [Taskmaster] Refactor validation logic into separate functions
->>>>>>> origin/pr/2732
 def run_cli_flow(
     input_file: Path,
     *,
@@ -392,38 +309,19 @@ def run_cli_flow(
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-<<<<<<< HEAD
     from_date_obj, to_date_obj = validate_dates(from_date, to_date)
     validate_timezone_arg(timezone)
 
     output_dir = output.expanduser().resolve()
-<<<<<<< HEAD
     ensure_site_initialized(output_dir)
     try:
         validate_api_key(output_dir)
-=======
-    _ensure_site_initialized(output_dir)
-    try:
-        _validate_api_key(output_dir)
->>>>>>> origin/pr/2735
     except SystemExit as e:
         if exit_on_error:
             raise
         # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
-<<<<<<< HEAD
         msg = f"API key validation failed: {e}"
         raise RuntimeError(msg) from e
-=======
-        raise RuntimeError(f"API key validation failed: {e}") from e
->>>>>>> origin/pr/2735
-=======
-    from_date_obj, to_date_obj = _validate_dates(from_date, to_date)
-    _validate_timezone_arg(timezone)
-
-    output_dir = output.expanduser().resolve()
-    _ensure_site_initialized(output_dir)
-    _validate_api_key(output_dir)
->>>>>>> origin/pr/2730
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
@@ -539,404 +437,7 @@ def process_whatsapp_export(
     return run(run_params)
 
 
-<<<<<<< HEAD
-=======
-@dataclass
-class PreparedPipelineData:
-    """Artifacts produced during dataset preparation."""
-
-    messages_table: ir.Table
-    windows_iterator: Iterator[Window]
-    checkpoint_path: Path
-    context: PipelineContext
-    enable_enrichment: bool
-    embedding_model: str
-
-
-@dataclass
-class Conversation:
-    """A conversation window prepared for processing (ETL completed)."""
-
-    window: Window
-    messages_table: ir.Table
-    media_mapping: dict[str, Any]
-    context: PipelineContext
-    adapter_info: tuple[str, str]
-    depth: int = 0
-
-
-def perform_enrichment(
-    context: PipelineContext,
-    window_table: ir.Table,
-    media_mapping: dict[str, Any],
-    override_config: Any | None = None,
-) -> ir.Table:
-    """Execute enrichment for a window's table."""
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=context.cache.enrichment,
-        output_sink=context.output_sink,
-        site_root=context.site_root,
-        usage_tracker=context.usage_tracker,
-        pii_prevention=None,
-        task_store=context.task_store,
-    )
-
-    schedule_enrichment(
-        window_table,
-        media_mapping,
-        override_config or context.config.enrichment,
-        enrichment_context,
-        run_id=context.run_id,
-    )
-
-    # Execute enrichment worker immediately (synchronous for now in pipeline)
-    # The worker consumes tasks from the store until empty
-    with EnrichmentWorker(context, enrichment_config=override_config) as worker:
-        while True:
-            processed = worker.run()
-            if processed == 0:
-                break
-
-    return window_table
-
-
-def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
-    """Extract content summary and generation instructions from adapter."""
-    adapter = getattr(ctx, "adapter", None)
-    if adapter is None:
-        return "", ""
-
-    summary: str | None = ""
-    try:
-        summary = getattr(adapter, "content_summary", "")
-        if callable(summary):
-            summary = summary()
-    except (AttributeError, TypeError) as exc:
-        logger.debug("Adapter %s failed to provide content_summary: %s", adapter, exc)
-        summary = ""
-
-    instructions: str | None = ""
-    try:
-        instructions = getattr(adapter, "generation_instructions", "")
-        if callable(instructions):
-            instructions = instructions()
-    except (AttributeError, TypeError) as exc:
-        logger.warning("Failed to evaluate adapter generation instructions: %s", exc)
-        instructions = ""
-
-    return (summary or "").strip(), (instructions or "").strip()
-
-
-def _calculate_max_window_size(config: EgregoraConfig) -> int:
-    """Calculate maximum window size based on LLM context window."""
-    use_full_window = getattr(config.pipeline, "use_full_context_window", False)
-    # Corresponds to a 1M token context window, expressed in characters
-    full_context_window_size = 1_048_576
-
-    max_tokens = full_context_window_size if use_full_window else config.pipeline.max_prompt_tokens
-
-    # TODO: [Taskmaster] Externalize hardcoded configuration values.
-    avg_tokens_per_message = 5
-    buffer_ratio = 0.8
-    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
-
-
-def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Conversation]:
-    """Yield prepared conversations ready for processing.
-
-    This generator handles:
-    1. Window iteration
-    2. Size validation and splitting (heuristic)
-    3. Media processing
-    4. Enrichment
-    5. Command extraction (partial)
-    """
-    ctx = dataset.context
-    max_window_size = _calculate_max_window_size(ctx.config)
-
-    # Use a queue to handle splitting
-    # Each item is (window, depth)
-    queue: deque[tuple[Window, int]] = deque([(w, 0) for w in dataset.windows_iterator])
-
-    max_depth = 5
-    min_window_size = 5
-
-    processed_count = 0
-    max_windows = getattr(ctx.config.pipeline, "max_windows", None)
-    if max_windows == 0:
-        max_windows = None
-
-    while queue:
-        if max_windows is not None and processed_count >= max_windows:
-            logger.info("Reached max_windows limit (%d). Stopping.", max_windows)
-            break
-
-        window, depth = queue.popleft()
-
-        # Heuristic splitting check
-        if window.size > max_window_size and depth < max_depth:
-            # Too big, split immediately based on heuristic
-            logger.info(
-                "Window %d too large (%d > %d), splitting...",
-                window.window_index,
-                window.size,
-                max_window_size,
-            )
-            num_splits = max(2, math.ceil(window.size / max_window_size))
-            split_windows = split_window_into_n_parts(window, num_splits)
-            # Add back to front of queue
-            queue.extendleft(reversed([(w, depth + 1) for w in split_windows]))
-            continue
-
-        if window.size < min_window_size and depth > 0:
-            logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
-
-        # ETL Step 1: Media Processing
-        output_sink = ctx.output_sink
-        if output_sink is None:
-            # Should not happen if dataset is prepared correctly
-            msg = "Output sink not initialized"
-            raise ValueError(msg)
-
-        url_context = ctx.url_context or UrlContext()
-        window_table_processed, media_mapping = process_media_for_window(
-            window_table=window.table,
-            adapter=ctx.adapter,
-            url_convention=output_sink.url_convention,
-            url_context=url_context,
-            zip_path=ctx.input_path,
-        )
-
-        # Persist media if enrichment disabled (otherwise enrichment handles it/updates it)
-        if media_mapping and not dataset.enable_enrichment:
-            for media_doc in media_mapping.values():
-                try:
-                    output_sink.persist(media_doc)
-                except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
-
-        # ETL Step 2: Enrichment
-        if dataset.enable_enrichment:
-            enriched_table = perform_enrichment(ctx, window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
-
-        # Prepare metadata
-        adapter_info = _extract_adapter_info(ctx)
-
-        yield Conversation(
-            window=window,
-            messages_table=enriched_table,
-            media_mapping=media_mapping,
-            context=ctx,
-            adapter_info=adapter_info,
-            depth=depth,
-        )
-        processed_count += 1
-
-
-def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
-    """Execute the agent on an isolated conversation item."""
-    ctx = conversation.context
-    output_sink = ctx.output_sink
-
-    # Extract commands (ETL/Processing boundary - commands are side effects)
-    # We do this here or in generator? Generator does "data prep".
-    # Commands might generate announcements which is "output".
-    # But filtering commands from input to writer is "prep".
-
-    # Convert table to list
-    try:
-        executed = conversation.messages_table.execute()
-        if hasattr(executed, "to_pylist"):
-            messages_list = executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
-            messages_list = executed.to_dict(orient="records")
-        else:
-            messages_list = []
-    except (AttributeError, TypeError):
-        try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
-
-    # Handle commands (Announcements)
-    command_messages = extract_commands_list(messages_list)
-    announcements_generated = 0
-    if command_messages:
-        for cmd_msg in command_messages:
-            try:
-                announcement = command_to_announcement(cmd_msg)
-                output_sink.persist(announcement)
-                announcements_generated += 1
-            except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
-
-    clean_messages_list = filter_commands(messages_list)
-
-    # Prepare Resources
-    resources = PipelineFactory.create_writer_resources(ctx)
-
-    params = WindowProcessingParams(
-        table=conversation.messages_table,
-        messages=clean_messages_list,
-        window_start=conversation.window.start_time,
-        window_end=conversation.window.end_time,
-        resources=resources,
-        config=ctx.config,
-        cache=ctx.cache,
-        adapter_content_summary=conversation.adapter_info[0],
-        adapter_generation_instructions=conversation.adapter_info[1],
-        run_id=str(ctx.run_id) if ctx.run_id else None,
-        smoke_test=ctx.state.smoke_test,
-    )
-
-    # EXECUTE WRITER
-    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
-    # in the generator. If it fails here, it fails.
-    writer_result = write_posts_for_window(params)
-    posts = writer_result.get("posts", [])
-    profiles = writer_result.get("profiles", [])
-
-    # Warn if writer processed messages but generated no posts
-    if not posts and clean_messages_list:
-        logger.warning(
-            "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
-            "Check if write_post_tool was called by the agent.",
-            len(clean_messages_list),
-            f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
-        )
-
-    # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
-    for post in posts:
-        if hasattr(post, "document_id"):  # Is a Document
-            try:
-                output_sink.persist(post)
-            except Exception as exc:
-                logger.exception("Failed to persist post: %s", exc)
-
-    # EXECUTE PROFILE GENERATOR
-    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
-    try:
-        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
-        for profile_doc in profile_docs:
-            try:
-                output_sink.persist(profile_doc)
-                profiles.append(profile_doc.document_id)
-            except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
-    except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
-
-    # Process background tasks (Banner, etc)
-    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
-    # Background tasks are usually global or batched.
-    # We will trigger them here to ensure "isolated item" processing is complete.
-    process_background_tasks(ctx)
-
-    # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-    logger.info(
-        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts),
-        len(profiles),
-        announcements_generated,
-        window_label,
-    )
-
-    return {window_label: {"posts": posts, "profiles": profiles}}
-
-
-def process_background_tasks(ctx: PipelineContext) -> None:
-    """Process pending background tasks."""
-    if not hasattr(ctx, "task_store") or not ctx.task_store:
-        return
-
-    banner_worker = BannerWorker(ctx)
-    banner_worker.run()
-
-    profile_worker = ProfileWorker(ctx)
-    profile_worker.run()
-
-    # Enrichment is already done in generator, but if new tasks were added:
-    if ctx.config.enrichment.enabled:
-        enrichment_worker = EnrichmentWorker(ctx)
-        enrichment_worker.run()
-
-
-def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
-    """Resolve site paths for the configured output format and validate structure."""
-    site_paths = _resolve_pipeline_site_paths(output_dir, config)
-
-    # Default validation for MkDocs/standard structure
-    mkdocs_path = site_paths.mkdocs_path
-    if not mkdocs_path or not mkdocs_path.exists():
-        msg = (
-            f"No mkdocs.yml found for site at {output_dir}. "
-            "Run 'egregora init <site-dir>' before processing exports."
-        )
-        raise ValueError(msg)
-
-    docs_dir = site_paths.docs_dir
-    if not docs_dir.exists():
-        msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-        raise ValueError(msg)
-
-    return site_paths
-
-
-def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
-    """Resolve site paths for the configured output format."""
-    output_dir = output_dir.expanduser().resolve()
-    return MkDocsPaths(output_dir, config=config)
-
-
-def _create_gemini_client(api_key: str | None = None) -> genai.Client:
-    """Create a Gemini client."""
-    return genai.Client(api_key=api_key)
-
-
-def _get_safety_settings() -> list[types.SafetySetting]:
-    """Get standard safety settings to avoid blocking content."""
-    return [
-        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-    ]
-
-
-def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
-    """Create pipeline context with all resources and configuration.
-
-    Returns a tuple of the PipelineContext and the pipeline_backend for cleanup.
-    """
-    resolved_output = run_params.output_dir.expanduser().resolve()
-
-    refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
-    site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-<<<<<<< HEAD
-<<<<<<< HEAD
     _runtime_db_uri, pipeline_backend = create_pipeline_database(site_paths.site_root, run_params.config)
-=======
-    _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
-        site_paths.site_root, run_params.config
-    )
->>>>>>> origin/pr/2654
-=======
-    _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
-        site_paths.site_root, run_params.config
-    )
->>>>>>> origin/pr/2653
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
@@ -1331,7 +832,6 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             logger.warning("Auto-taxonomy failed: %s", e)
 
 
->>>>>>> origin/pr/2718
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 

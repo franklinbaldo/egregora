@@ -234,20 +234,11 @@ class MkDocsSiteScaffolder:
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         # Ensure directories exist
         stylesheets_dir = docs_dir / "stylesheets"
         stylesheets_dir.mkdir(parents=True, exist_ok=True)
         javascripts_dir = docs_dir / "javascripts"
         javascripts_dir.mkdir(parents=True, exist_ok=True)
-=======
-        # Stylesheets and Javascripts are now handled exclusively via the 'overrides' directory
-        # (src/egregora/rendering/templates/site/overrides), which is copied to the site root
-        # by the logic below. This prevents shadowing issues with the 'docs' directory.
-
-        loader = cast("FileSystemLoader", env.loader)
->>>>>>> origin/pr/2886
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
@@ -257,8 +248,6 @@ class MkDocsSiteScaffolder:
             # Ensure assets are always copied, even if the directory exists.
             shutil.copytree(assets_src, assets_dest, dirs_exist_ok=True)
 
-=======
->>>>>>> origin/pr/2863
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
                 target_path.parent.mkdir(parents=True, exist_ok=True)

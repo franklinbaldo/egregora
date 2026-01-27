@@ -323,8 +323,6 @@ def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: s
     return avatar_path
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 def _fetch_and_validate_image(client: httpx.Client, url: str) -> tuple[bytearray, str]:
     """Fetch image from URL and validate it."""
     logger.info("Downloading avatar from URL: %s", url)
@@ -349,15 +347,6 @@ def _handle_download_error(e: Exception, url: str) -> None:
         raise AvatarProcessingError(msg) from e
 
     if isinstance(e, httpx.HTTPError):
-=======
-def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
-    """Internal function to download avatar using an existing client."""
-    logger.info("Downloading avatar from URL: %s", url)
-=======
-def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
-    """Internal function to download avatar using an existing client."""
-    logger.info("Downloading avatar from URL: %s", url)
->>>>>>> origin/pr/2702
     try:
         with client.stream("GET", url) as response:
             response.raise_for_status()
@@ -374,7 +363,6 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
     except httpx.HTTPError as e:
->>>>>>> origin/pr/2703
         # If the HTTP error was caused by our own validation, re-raise it directly
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
@@ -383,17 +371,12 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
-<<<<<<< HEAD
 
     if isinstance(e, OSError):
-=======
-    except OSError as e:
->>>>>>> origin/pr/2703
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."
         raise AvatarProcessingError(msg) from e
 
-<<<<<<< HEAD
     raise e  # Re-raise unexpected exceptions
 
 
@@ -438,9 +421,6 @@ def download_avatar_from_url(
 
     with _create_secure_client(timeout) as new_client:
         return _download_avatar_with_client(new_client, url, media_dir)
-=======
-    return avatar_uuid, avatar_path
->>>>>>> origin/pr/2703
 
 
 # TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic

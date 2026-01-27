@@ -146,10 +146,6 @@ def build_conversation_xml(
         }
 
         if msg_id in annotations_map:
-<<<<<<< HEAD
-=======
-            notes = msg_data["notes"]
->>>>>>> origin/pr/2856
             for ann in annotations_map[msg_id]:
                 msg_data["notes"].append({"id": ann.id, "content": ann.commentary})
         messages.append(msg_data)

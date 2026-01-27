@@ -101,7 +101,6 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     """
     ctx = conversation.context
 
-<<<<<<< HEAD
     # 1. Convert messages
     messages_list = _convert_messages_to_list(conversation)
 
@@ -149,15 +148,11 @@ def _convert_messages_to_list(conversation: Conversation) -> list[dict[str, Any]
             if isinstance(conversation.messages_table, list):
                 return conversation.messages_table
     return []
-=======
-    messages_list = _convert_table_to_list(conversation.messages_table)
->>>>>>> origin/pr/2856
 
 
 def _process_announcements(ctx: PipelineContext, messages_list: list[dict[str, Any]]) -> int:
     """Extract and persist announcements from commands."""
     command_messages = extract_commands_list(messages_list)
-<<<<<<< HEAD
     count = 0
     if command_messages:
         output_sink = ctx.output_sink
@@ -170,9 +165,6 @@ def _process_announcements(ctx: PipelineContext, messages_list: list[dict[str, A
             except Exception as exc:
                 logger.exception("Failed to generate announcement: %s", exc)
     return count
-=======
-    announcements_generated = _handle_announcements(command_messages, output_sink)
->>>>>>> origin/pr/2856
 
 
 def _execute_writer(
@@ -197,10 +189,6 @@ def _execute_writer(
         smoke_test=ctx.state.smoke_test,
     )
 
-<<<<<<< HEAD
-=======
-    # EXECUTE WRITER
->>>>>>> origin/pr/2856
     writer_result = write_posts_for_window(params)
     posts = cast("list[Any]", writer_result.get("posts", []))
     profiles = cast("list[Any]", writer_result.get("profiles", []))
@@ -213,7 +201,6 @@ def _execute_writer(
             f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
         )
 
-<<<<<<< HEAD
     # Persist generated posts
     output_sink = ctx.output_sink
     for post in posts:
@@ -223,9 +210,6 @@ def _execute_writer(
             except Exception as exc:
                 logger.exception("Failed to persist post: %s", exc)
     return posts, profiles
-=======
-    _persist_posts(posts, output_sink)
->>>>>>> origin/pr/2856
 
 
 def _execute_profile_generator(
@@ -236,21 +220,11 @@ def _execute_profile_generator(
 ) -> None:
     """Generate and persist profiles."""
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
-<<<<<<< HEAD
     try:
         profile_docs = cast(
             "list[Document]",
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
             generate_profile_posts(ctx=ctx, messages=messages, window_date=window_date),
-=======
-=======
->>>>>>> origin/pr/2835
-=======
->>>>>>> origin/pr/2831
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
->>>>>>> origin/pr/2842
         )
         output_sink = ctx.output_sink
         for profile_doc in profile_docs:
@@ -262,22 +236,3 @@ def _execute_profile_generator(
                 logger.exception("Failed to persist profile: %s", exc)
     except Exception as exc:
         logger.exception("Failed to generate profile posts: %s", exc)
-=======
-    new_profiles = _generate_and_persist_profiles(ctx, clean_messages_list, window_date, output_sink)
-    profiles.extend(new_profiles)
-
-    # Process background tasks (Banner, etc)
-    process_background_tasks(ctx)
-
-    # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-    logger.info(
-        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts),
-        len(profiles),
-        announcements_generated,
-        window_label,
-    )
-
-    return {window_label: {"posts": posts, "profiles": profiles}}
->>>>>>> origin/pr/2856

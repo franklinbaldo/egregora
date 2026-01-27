@@ -6,10 +6,7 @@ import asyncio
 import logging
 import threading
 import time
-<<<<<<< HEAD
 from collections.abc import AsyncIterator
-=======
->>>>>>> origin/pr/2704
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -58,11 +55,7 @@ class AsyncGlobalRateLimiter:
         self._semaphore.release()
 
     @asynccontextmanager
-<<<<<<< HEAD
     async def throttle(self) -> AsyncIterator[None]:
-=======
-    async def throttle(self):
->>>>>>> origin/pr/2704
         """Context manager for rate limiting."""
         await self.acquire()
         try:
@@ -91,13 +84,9 @@ def init_rate_limiter(requests_per_second: float, max_concurrency: int) -> None:
     """Initialize the global rate limiter with specific config."""
     global _limiter
     with _limiter_lock:
-<<<<<<< HEAD
         _limiter = AsyncGlobalRateLimiter(
             requests_per_second=requests_per_second, max_concurrency=max_concurrency
         )
-=======
-        _limiter = AsyncGlobalRateLimiter(requests_per_second=requests_per_second, max_concurrency=max_concurrency)
->>>>>>> origin/pr/2704
     logger.info(
         "Initialized global async rate limiter: %s req/s, %s concurrent",
         requests_per_second,

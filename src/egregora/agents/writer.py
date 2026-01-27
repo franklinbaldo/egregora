@@ -16,15 +16,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-<<<<<<< HEAD
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
-=======
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
-
-import ibis
-import ibis.common.exceptions  # type: ignore[import-untyped] # ibis missing stubs
->>>>>>> origin/pr/2673
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import AgentRunResult, UsageLimits
@@ -210,18 +203,9 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
         elif isinstance(message, ModelRequest):
             # Help mypy with type narrowing in generator
             tool_parts: list[ToolCallPart] = [
-<<<<<<< HEAD
                 cast("ToolCallPart", p) for p in message.parts if isinstance(p, ToolCallPart)
             ]
             entries.extend(_create_tool_call_entry(part, timestamp) for part in tool_parts)
-=======
-                cast(ToolCallPart, p) for p in message.parts if isinstance(p, ToolCallPart)
-            ]
-            entries.extend(
-                _create_tool_call_entry(part, timestamp)
-                for part in tool_parts
-            )
->>>>>>> origin/pr/2673
 
     return entries
 
@@ -358,17 +342,9 @@ def _extract_from_message(
             if isinstance(part, ToolReturnPart):
                 _process_single_tool_result(part.content, part.tool_name, saved_posts, saved_profiles)
     # Fallback for potentially older message structures or other types if Union expands
-<<<<<<< HEAD
     elif hasattr(message, "kind") and message.kind == "tool-return":
         tool_name = getattr(message, "tool_name", None)
         _process_single_tool_result(getattr(message, "content", None), tool_name, saved_posts, saved_profiles)
-=======
-    elif hasattr(message, "kind") and getattr(message, "kind") == "tool-return":
-        tool_name = getattr(message, "tool_name", None)
-        _process_single_tool_result(
-            getattr(message, "content", None), tool_name, saved_posts, saved_profiles
-        )
->>>>>>> origin/pr/2673
 
 
 def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
@@ -392,13 +368,8 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
 
 # Type safe decorators for ratelimit
 F = TypeVar("F", bound=Callable[..., Any])
-<<<<<<< HEAD
 _limits = cast("Callable[..., Callable[[F], F]]", limits)
 _sleep_and_retry = cast("Callable[[F], F]", sleep_and_retry)
-=======
-_limits = cast(Callable[..., Callable[[F], F]], limits)
-_sleep_and_retry = cast(Callable[[F], F], sleep_and_retry)
->>>>>>> origin/pr/2673
 
 
 @_sleep_and_retry
@@ -948,45 +919,4 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     site_generator.regenerate_tags_page()
     site_generator.regenerate_feeds_page()
     logger.info("Successfully regenerated site indices.")
-<<<<<<< HEAD
-=======
-
-
-def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:
-    """Load output format instructions for the writer agent."""
-    registry = registry or create_default_output_registry()
-
-    if site_root:
-        detected_format = registry.detect_format(site_root)
-        if detected_format:
-            return detected_format.get_format_instructions()
-
-    try:
-        default_format = registry.get_format("mkdocs")
-        return default_format.get_format_instructions()
-    except KeyError:
-        return ""
-
-
-def get_top_authors(table: Table, limit: int = 20) -> list[str]:
-    """Get top N active authors by message count.
-
-    Deprecated: Use Message DTOs filtering instead.
-    """
-    author_counts = (
-        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())
-        .filter(table.author_uuid.cast("string") != "")
-        .group_by("author_uuid")
-        .aggregate(count=table.author_uuid.count())
-        .order_by(ibis.desc("count"))
-        .limit(limit)
-    )
-    if author_counts.count().execute() == 0:
-        return []
-<<<<<<< HEAD
     return cast("list[str]", author_counts.author_uuid.cast("string").execute().tolist())
->>>>>>> origin/pr/2676
-=======
-    return cast(list[str], author_counts.author_uuid.cast("string").execute().tolist())
->>>>>>> origin/pr/2673

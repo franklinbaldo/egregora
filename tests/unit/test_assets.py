@@ -1,15 +1,8 @@
-<<<<<<< HEAD
 from pathlib import Path
 
 from egregora.assets import get_demo_chat_path
 
 
-=======
-import pytest
-from pathlib import Path
-from egregora.assets import get_demo_chat_path
-
->>>>>>> origin/pr/2733
 def test_get_demo_chat_path_returns_valid_path():
     """Test that get_demo_chat_path returns a path that exists and is a file."""
     path = get_demo_chat_path()
@@ -18,10 +11,7 @@ def test_get_demo_chat_path_returns_valid_path():
     assert path.is_file(), f"Path at {path} is not a file"
     assert path.name == "demo_chat.zip"
 
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/pr/2733
 def test_get_demo_chat_path_location():
     """Test that the path is within the egregora package structure."""
     path = get_demo_chat_path()

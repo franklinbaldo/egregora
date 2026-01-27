@@ -69,7 +69,6 @@ YAML_FRONTMATTER_DELIMITER_COUNT = 2  # Front matter delimiter occurrences in we
 PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
 _AUTHORS_COMBINED_REGEX = re.compile(
-<<<<<<< HEAD
     rb"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
 )
 
@@ -104,10 +103,6 @@ def _iter_authors_fast(path_str: str) -> Iterator[str]:
             author = match.group("single").strip()
             if author and not author.startswith("["):
                 yield author
-=======
-    r"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
-)
->>>>>>> origin/pr/2700
 
 
 def _find_profile_path(
@@ -1192,7 +1187,6 @@ def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[
     """
     try:
         if fast:
-<<<<<<< HEAD
             # Fast path: Use regex to extract authors without full YAML parsing
             # Use 'rb' to avoid decoding overhead until match found
             # Supports both Path and str for open()
@@ -1205,7 +1199,6 @@ def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[
                     authors_block = match.group("list")
                     # Extract author IDs from "  - author_id" lines
                     authors = set()
-<<<<<<< HEAD
                     for line in authors_block.split(b"\n"):
                         stripped = line.strip()
                         if stripped.startswith(b"-"):
@@ -1219,27 +1212,8 @@ def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[
                     author_bytes = match.group("single").strip()
                     if author_bytes and not author_bytes.startswith(b"["):  # Not a JSON array
                         return {author_bytes.decode("utf-8")}
-=======
-                    for line in authors_block.split("\n"):
-                        stripped = line.strip()
-                        if stripped.startswith("-"):
-                            # Remove the leading "- " and any surrounding whitespace/quotes
-                            author = stripped[1:].strip().strip("'\"")
-                            if author:
-                                authors.add(author)
-                    return authors if authors else set()
-
-                if match.group("single"):
-                    author = match.group("single").strip()
-                    if author and not author.startswith("["):  # Not a JSON array
-                        return {author}
->>>>>>> origin/pr/2700
 
             return set()
-=======
-            return set(_iter_authors_fast(str(md_file)))
-
->>>>>>> origin/pr/2879
         # Slow path: Full YAML parsing (more robust, handles edge cases)
         post = frontmatter.load(str(md_file))
         authors_meta = post.metadata.get("authors")
@@ -1261,7 +1235,6 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     authors_path = find_authors_yml(posts_dir)
 
     all_author_ids: set[str] = set()
-<<<<<<< HEAD
     # Optimization: os.walk avoids Path object overhead compared to rglob
     # and open() accepts string paths natively.
     root_str = str(posts_dir)
@@ -1269,20 +1242,6 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
         for name in files:
             if name.endswith(".md"):
                 all_author_ids.update(extract_authors_from_post(os.path.join(root, name)))
-=======
-    # Optimized walk to avoid Path object overhead and set creation overhead
-    posts_dir_str = str(posts_dir)
-    for root, _, files in os.walk(posts_dir_str):
-        for file in files:
-            if file.endswith(".md"):
-                path = os.path.join(root, file)
-                try:
-                    all_author_ids.update(_iter_authors_fast(path))
-                except OSError:
-                    # Robustness: Skip files that cannot be read (permission, etc)
-                    # This is better than crashing the whole sync
-                    pass
->>>>>>> origin/pr/2879
 
     if not all_author_ids:
         return 0
