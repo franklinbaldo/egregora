@@ -9,7 +9,7 @@ site statistics, and generating author profiles.
 from __future__ import annotations
 
 import logging
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -146,10 +146,31 @@ class SiteGenerator:
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index."""
         profiles = []
-        all_posts = list(self._scan_directory(self.posts_dir, DocumentType.POST))
-
         if not self.profiles_dir.exists():
             return profiles
+
+        # Pre-scan posts to build author index
+        # Map author_uuid -> list of post stats (metadata, word_count)
+        author_posts_map = defaultdict(list)
+
+        if self.posts_dir.exists():
+            # Use _scan_directory generator to process posts one by one
+            # Avoiding loading all content into a list
+            for doc in self._scan_directory(self.posts_dir, DocumentType.POST):
+                try:
+                    # Calculate word count
+                    word_count = len(doc.content.split())
+
+                    # Store lightweight stats
+                    post_stats = {"metadata": doc.metadata, "word_count": word_count}
+
+                    # Index by author (deduplicate to avoid double counting)
+                    for author_uuid in set(doc.metadata.get("authors", [])):
+                        author_posts_map[author_uuid].append(post_stats)
+
+                except Exception as e:
+                    logger.warning("Failed to process post for profiles: %s", e)
+                    continue
 
         for author_dir in sorted([p for p in self.profiles_dir.iterdir() if p.is_dir()]):
             try:
@@ -162,8 +183,11 @@ class SiteGenerator:
                 metadata = post.metadata
                 author_uuid = author_dir.name
 
-                author_posts = [p for p in all_posts if author_uuid in p.metadata.get("authors", [])]
-                topics = Counter(tag for p in author_posts for tag in p.metadata.get("tags", []))
+                # O(1) lookup
+                author_posts = author_posts_map.get(author_uuid, [])
+
+                # Calculate topics
+                topics = Counter(tag for p in author_posts for tag in p["metadata"].get("tags", []))
 
                 profiles.append(
                     {
@@ -172,7 +196,7 @@ class SiteGenerator:
                         "avatar": metadata.get("avatar", generate_fallback_avatar_url(author_uuid)),
                         "bio": metadata.get("bio", "Profile pending."),
                         "post_count": len(author_posts),
-                        "word_count": sum(len(p.content.split()) for p in author_posts),
+                        "word_count": sum(p["word_count"] for p in author_posts),
                         "topics": [topic for topic, count in topics.most_common()],
                         "topic_counts": topics.most_common(),
                         "member_since": metadata.get("member_since", "2024"),
