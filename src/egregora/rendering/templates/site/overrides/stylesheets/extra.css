@@ -200,3 +200,232 @@
   font-size: 1rem;
   margin: 0;
 }
+
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root,
+[data-md-color-primary="custom"] {
+  /* Official Palette */
+  --md-primary-fg-color:        #2c3e50;
+  --md-primary-fg-color--light: #34495e;
+  --md-primary-fg-color--dark:  #2c3e50;
+  --md-accent-fg-color:         #f9d423;
+
+  --md-text-font-size: 1.1rem;
+  --portal-bg: #0a0a0a;
+
+  /* High Contrast Text for Dark Mode */
+  --md-typeset-color: #e0e0e0;
+  --md-default-fg-color: #e0e0e0;
+  --md-default-fg-color--light: #a0a0a0;
+  --md-default-fg-color--lighter: #707070;
+  --md-default-fg-color--lightest: #404040;
+}
+
+/* Global Immersive Overrides */
+body {
+  background-color: var(--portal-bg);
+  color: var(--md-typeset-color);
+  overflow-x: hidden;
+}
+
+.md-header {
+  backdrop-filter: blur(30px) saturate(200%);
+  background-color: rgba(10, 10, 10, 0.4) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.md-header--shadow {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Typography Design System */
+h1,
+h2,
+h3,
+.md-header__title,
+.md-nav__link {
+  font-family: 'Outfit', sans-serif !important;
+  letter-spacing: -0.02em;
+}
+
+body,
+.md-typeset,
+.md-input {
+  font-family: 'Inter', sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Blog Card Evolution - High Fidelity Glassmorphism */
+.md-post--card {
+  background: rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(40px) saturate(250%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 28px !important;
+  padding: 36px !important;
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.md-post--card:hover {
+  transform: scale(1.03) translateY(-12px);
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: var(--md-primary-fg-color--light) !important;
+  box-shadow: 0 30px 60px rgba(0, 242, 254, 0.15);
+}
+
+/* Custom Scrollbar for Premium Feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-primary-fg-color);
+}
+
+/* Focus and Action States */
+.md-button--primary {
+  background-color: var(--md-accent-fg-color) !important;
+  color: #000 !important;
+  border-radius: 50px !important;
+  font-weight: 700 !important;
+  border: none !important;
+  transition: all 0.3s ease !important;
+}
+
+.md-button--primary:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 20px rgba(249, 212, 35, 0.4);
+  transform: scale(1.05);
+}
+
+/* Hero Depth and Atmosphere */
+.homepage-hero {
+  background: linear-gradient(rgba(10, 10, 10, 0.7), rgba(10, 10, 10, 0.7)), linear-gradient(135deg, #1a2a3a 0%, #000 100%) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  height: 65vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  padding: 0 20px !important;
+  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
+.homepage-hero h1 {
+  font-size: 5rem !important;
+  font-weight: 800 !important;
+  margin-bottom: 0.5rem !important;
+  background: linear-gradient(to bottom, #fff, #ccc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(0, 128, 128, 0.3));
+}
+
+.homepage-hero p {
+  font-size: 1.4rem !important;
+  max-width: 800px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  line-height: 1.6 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* Scoped Homepage Overrides */
+/* Only apply full-width layout to the homepage explicitly */
+.md-main__inner:has(.homepage-hero) {
+  max-width: 100% !important;
+}
+
+.md-content__inner.md-typeset:has(.homepage-hero) {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+/* Homepage Footer */
+.homepage-footer {
+  text-align: center;
+  background-color: transparent !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 40px 0;
+}
+
+/* Empty State Card */
+.empty-state-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 3rem;
+  text-align: center;
+  max-width: 600px;
+  margin: 4rem auto;
+  backdrop-filter: blur(10px);
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  color: var(--md-accent-fg-color);
+  opacity: 0.8;
+}
+
+.command-block {
+  margin: 2rem 0;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.command-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.command-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-wrapper code {
+  background: transparent !important;
+  padding: 0 !important;
+  color: #fff !important;
+  font-family: var(--md-code-font) !important;
+}
+
+/* Glassmorphism Admonition */
+.admonition.glass {
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  color: #fff;
+}
+
+.admonition.glass .admonition-title {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
