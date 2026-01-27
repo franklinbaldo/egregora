@@ -1,13 +1,15 @@
 name: Jules
 
 # ==============================================================================
-# JULES ORCHESTRATION WORKFLOW
+# JULES UNIFIED WORKFLOW
 # ==============================================================================
 #
-# This workflow orchestrates the Jules AI agent system. It manages the lifecycle
-# of automated code maintenance sessions performed by Jules personas.
+# This workflow manages the complete Jules AI agent lifecycle:
+# - Session orchestration (scheduler)
+# - PR automation (auto-merge, auto-fix)
+# - Branch synchronization
 #
-# EXPECTED FLOW:
+# COMPLETE FLOW:
 # ==============
 #
 #   ┌─────────────────────────────────────────────────────────────────────────┐
@@ -20,37 +22,38 @@ name: Jules
 #   │      ↓                                                                  │
 #   │   4. Jules works asynchronously, creates PR when done                   │
 #   │      ↓                                                                  │
-#   │   5. jules-pr.yml enables auto-merge on the PR                          │
+#   │   5. AUTO-MERGE enables auto-merge on the PR                            │
 #   │      ↓                                                                  │
 #   │   6. CI runs on the PR                                                  │
 #   │      ↓                                                                  │
-#   │   7. If CI passes → PR is auto-merged                                   │
+#   │   7a. If CI passes → PR is auto-merged → ON-MERGE triggers scheduler    │
+#   │   7b. If CI fails → AUTO-FIXER analyzes and sends fix to Jules          │
 #   │      ↓                                                                  │
-#   │   8. ON-MERGE job detects the merge                                     │
-#   │      ↓                                                                  │
-#   │   9. Triggers SCHEDULER again → cycle repeats                           │
+#   │   8. Cycle repeats                                                      │
 #   │                                                                         │
 #   └─────────────────────────────────────────────────────────────────────────┘
 #
-# JOBS IN THIS WORKFLOW:
-# ======================
+# JOBS:
+# =====
 #
-#   on-merge:   Detects when a Jules PR is merged and triggers next session
-#   scheduler:  Main orchestration - picks persona and creates Jules session
-#   sync-main:  Merges jules branch into main when clean (no conflicts)
+#   on-merge:    Detects Jules PR merge → triggers scheduler
+#   scheduler:   Picks persona, creates Jules session
+#   sync-main:   Merges jules branch into main
+#   auto-merge:  Enables auto-merge for Jules PRs
+#   auto-fixer:  Analyzes CI failures, triggers fixes
 #
 # STATE MANAGEMENT:
 # =================
 #
-#   Schedule state (schedule.csv) is stored as a GitHub Artifact, NOT committed
-#   to the repository. This prevents merge conflicts from concurrent runs.
+#   Schedule state is stored as a GitHub Artifact (not committed).
+#   This prevents merge conflicts from concurrent runs.
 #
-#   - On start: Download artifact from previous successful run
-#   - Fallback: Use .team/schedule.csv from repo as initial seed
-#   - On end: Upload updated state as artifact (90 day retention)
+# SECURITY NOTES:
+# ===============
 #
-# IMPORTANT: Do not modify the trigger conditions or job dependencies without
-# understanding the full cycle. Breaking this flow will stop all Jules automation.
+#   - auto-merge uses pull_request_target (has write access to base repo)
+#   - MUST verify PR is from same repo (not a fork) before running
+#   - Fork PRs are silently skipped to prevent secret exposure
 #
 # ==============================================================================
 
@@ -77,21 +80,29 @@ on:
         required: false
         type: boolean
         default: false
+      pr_number:
+        description: "PR number to analyze and fix (auto-fixer)"
+        required: false
+        type: string
 
   schedule:
     # Fallback polling - primary trigger is on-merge event
     - cron: '*/15 * * * *'
 
-  # On-merge trigger (replaces jules-on-merge.yml)
+  # On-merge trigger
   pull_request:
     types: [closed]
     branches: [main, jules]
+
+  # Auto-merge trigger (SECURITY: has write access even on forks)
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
 
   # Sync-main trigger
   push:
     branches: [jules]
 
-  # Chain from CI completion
+  # Chain from CI completion (success → scheduler, failure → auto-fixer)
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -102,7 +113,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: jules-${{ github.event_name }}
+  group: jules-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -135,7 +146,7 @@ jobs:
   scheduler:
     name: Scheduler
     if: |
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number == '') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
@@ -211,7 +222,7 @@ jobs:
       always() &&
       (needs.scheduler.result == 'success' || needs.scheduler.result == 'skipped') &&
       (github.event_name == 'push' ||
-       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number == '') ||
        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     steps:
@@ -229,3 +240,71 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: .team
         run: uv run python .github/scripts/jules/sync-main.py
+
+  # ==========================================================================
+  # AUTO-MERGE: Enable auto-merge for Jules PRs
+  # ==========================================================================
+  auto-merge:
+    name: Auto-Merge
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    # Security: only run for PRs from same repo (not forks)
+    concurrency:
+      group: jules-auto-merge-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout scripts
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts/jules
+
+      - name: Enable auto-merge
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/jules/enable-auto-merge.sh "${{ github.event.pull_request.number }}"
+
+  # ==========================================================================
+  # AUTO-FIXER: Fix CI failures automatically
+  # ==========================================================================
+  auto-fixer:
+    name: Auto-Fixer
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra jules"
+
+      - name: Identify PR (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        id: manual-pr
+        run: |
+          echo "has_pr=true" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+
+      - name: Identify PR (workflow_run)
+        if: github.event_name == 'workflow_run'
+        id: workflow-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/jules/identify-pr.sh "$GITHUB_EVENT_PATH"
+
+      - name: Run auto-fix
+        if: |
+          steps.manual-pr.outputs.has_pr == 'true' ||
+          steps.workflow-pr.outputs.has_pr == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          PYTHONPATH: .team
+        run: |
+          PR_NUMBER="${{ steps.manual-pr.outputs.pr_number || steps.workflow-pr.outputs.pr_number }}"
+          echo "🔧 Running auto-fix for PR #$PR_NUMBER"
+          uv run python -m repo.cli autofix analyze "$PR_NUMBER"
