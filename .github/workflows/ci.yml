@@ -241,10 +241,22 @@ jobs:
       - name: Run vulture (dead code detection)
         run: uv run vulture src tests tests/vulture_whitelist.py --min-confidence=80
 
+  # Required status check for branch protection - enables auto-merge to work
+  # This job satisfies the "enable-auto-merge" required check for all PRs.
+  # The actual auto-merge logic for Jules PRs is in jules-auto-merge.yml
+  enable-auto-merge:
+    name: enable-auto-merge
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    steps:
+      - name: Auto-merge check passed
+        run: echo "All required checks passed - PR is eligible for auto-merge"
+
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build, enable-auto-merge]
     if: always()
     steps:
       - name: Post summary
@@ -260,4 +272,5 @@ jobs:
           | Security | ${{ needs.security.result || 'skipped' }} |
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
+          | Auto-merge | ${{ needs['enable-auto-merge'].result }} |
           EOF

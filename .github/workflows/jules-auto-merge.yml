@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   enable-auto-merge:
+    name: Jules Auto-Merge
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
