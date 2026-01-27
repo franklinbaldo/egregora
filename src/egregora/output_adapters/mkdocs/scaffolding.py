@@ -230,6 +230,7 @@ class MkDocsSiteScaffolder:
         ]
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Ensure directories exist
         stylesheets_dir = docs_dir / "stylesheets"
         stylesheets_dir.mkdir(parents=True, exist_ok=True)
@@ -251,6 +252,8 @@ class MkDocsSiteScaffolder:
             # Ensure assets are always copied, even if the directory exists.
             shutil.copytree(assets_src, assets_dest, dirs_exist_ok=True)
 
+=======
+>>>>>>> origin/pr/2863
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
                 target_path.parent.mkdir(parents=True, exist_ok=True)
