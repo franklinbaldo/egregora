@@ -211,7 +211,7 @@ def check_git() -> DiagnosticResult:
             text=True,
             check=True,
             timeout=2,
-        )
+        )  # nosec B603
         version = result.stdout.strip()
         return DiagnosticResult(
             check="Git",

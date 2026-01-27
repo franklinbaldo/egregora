@@ -6,6 +6,7 @@
     ":semanticCommits",
     ":enablePreCommit"
   ],
+  "enabledManagers": ["pep621", "github-actions", "pre-commit", "uv"],
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
   "schedule": ["before 6am on Monday"],
@@ -22,7 +23,7 @@
       "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "Python dependencies (non-major)",
-      "automerge": true,
+      "automerge": false,
       "automergeType": "pr",
       "platformAutomerge": false
     },
@@ -38,13 +39,13 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "GitHub Actions",
-      "automerge": true,
+      "automerge": false,
       "automergeType": "pr"
     },
     {
       "description": "Auto-merge pre-commit hook updates",
       "matchManagers": ["pre-commit"],
-      "automerge": true,
+      "automerge": false,
       "automergeType": "pr"
     },
     {
@@ -68,7 +69,7 @@
   "vulnerabilityAlerts": {
     "enabled": true,
     "labels": ["security"],
-    "automerge": true,
+    "automerge": false,
     "schedule": ["at any time"]
   },
   "osvVulnerabilityAlerts": true

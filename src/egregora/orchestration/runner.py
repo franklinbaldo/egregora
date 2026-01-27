@@ -9,7 +9,7 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -17,23 +17,33 @@ from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
-from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
+from egregora.agents.types import (
+    Message,
+    PromptTooLargeError,
+    WindowProcessingParams,
+    WriterResources,
+)
 from egregora.agents.writer import write_posts_for_window
+from egregora.config.settings import EnrichmentSettings
+from egregora.data_primitives import OutputSink
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
+    CommandAnnouncementError,
+    MediaPersistenceError,
     OutputSinkError,
+    ProfileGenerationError,
     WindowSizeError,
     WindowSplitError,
 )
-from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.journal import create_journal_document, window_already_processed
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature, split_window_into_n_parts
 
 if TYPE_CHECKING:
     from datetime import datetime
+    from typing import Protocol
 
     import ibis.expr.types as ir
 
@@ -197,14 +207,9 @@ class PipelineRunner:
             journals = library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
-                # journal is DocumentMetadata (identifier, doc_type, metadata)
-                meta = journal.metadata
-                if not meta:
-                    continue
-
-                # Check timestamps (allowing for string/datetime diffs)
-                j_start = meta.get("window_start")
-                j_end = meta.get("window_end")
+                # journal is a dict with keys matching table columns
+                j_start = journal.get("window_start")
+                j_end = journal.get("window_end")
 
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
@@ -324,14 +329,15 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
+                    msg = f"Failed to write media file {media_doc.filename}: {e}"
+                    raise MediaPersistenceError(msg) from e
 
         if self.context.enable_enrichment:
             enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
         else:
             enriched_table = window_table_processed
 
-        resources = PipelineFactory.create_writer_resources(self.context)
+        resources = WriterResources.from_pipeline_context(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
         # TODO: [Taskmaster] Refactor data type conversion for consistency
@@ -347,7 +353,7 @@ class PipelineRunner:
 
         # CONVERT TO DTOs for Writer
         # Ensure messages_list are dicts, convert to Message objects
-        messages_dtos = []
+        messages_dtos: list[Message] = []
         for msg_dict in messages_list:
             try:
                 # We need to map keys if they don't match exactly or if extra keys exist.
@@ -383,7 +389,8 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    msg = f"Failed to generate announcement for command: {exc}"
+                    raise CommandAnnouncementError(msg) from exc
 
         clean_messages_list = filter_commands(messages_list)
 
@@ -407,21 +414,28 @@ class PipelineRunner:
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs_result = generate_profile_posts(
-                ctx=self.context, messages=clean_messages_list, window_date=window_date
+            profile_docs = cast(
+                "list[Document]",
+                generate_profile_posts(
+                    ctx=self.context, messages=clean_messages_list, window_date=window_date
+                ),
             )
             # Handle potential awaitable return from generate_profile_posts
             # In sync context, we expect list[Document]
-            profile_docs: list[Document] = cast("list[Document]", profile_docs_result)
 
             for profile_doc in profile_docs:
                 try:
                     output_sink.persist(profile_doc)
-                    profiles.append(profile_doc.document_id)
+                    if profile_doc.document_id:
+                        profiles.append(profile_doc.document_id)
                 except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
+                    msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
+                    raise ProfileGenerationError(msg) from exc
         except Exception as exc:
-            logger.exception("Failed to generate profile posts: %s", exc)
+            if isinstance(exc, ProfileGenerationError):
+                raise
+            msg = f"Failed to generate profile posts: {exc}"
+            raise ProfileGenerationError(msg) from exc
 
         # Scheduled tasks are returned as "pending:<task_id>"
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
@@ -475,7 +489,7 @@ class PipelineRunner:
         self,
         window_table: ir.Table,
         media_mapping: MediaMapping,
-        override_config: Any | None = None,
+        override_config: EnrichmentSettings | None = None,
     ) -> ir.Table:
         """Execute enrichment for a window's table."""
         enrichment_context = EnrichmentRuntimeContext(
@@ -520,7 +534,7 @@ class PipelineRunner:
         return str(summary or "").strip(), str(instructions or "").strip()
 
     # TODO: [Taskmaster] Extract command processing logic from _process_single_window
-    def _process_commands(self, messages_list: list[dict], output_sink: Any) -> int:
+    def _process_commands(self, messages_list: list[dict], output_sink: OutputSink) -> int:
         """Processes commands from a list of messages."""
         announcements_generated = 0
         command_messages = extract_commands_list(messages_list)
@@ -531,7 +545,8 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    msg = f"Failed to generate announcement for command: {exc}"
+                    raise CommandAnnouncementError(msg) from exc
         return announcements_generated
 
     # TODO: [Taskmaster] Extract status message generation from _process_single_window

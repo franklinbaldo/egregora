@@ -63,6 +63,28 @@ class TestDocumentsSchemaConstraints:
                 """
             )
 
+    def test_media_constraints_enforced(self, duckdb_conn):
+        """Verify that 'media' documents must have filename."""
+        constraints = get_table_check_constraints("documents")
+        create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
+
+        # Invalid Media (missing filename)
+        with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
+            duckdb_conn.execute(
+                """
+                INSERT INTO documents (id, doc_type, content, status, filename)
+                VALUES ('4', 'media', 'content', 'published', NULL)
+                """
+            )
+
+        # Valid Media
+        duckdb_conn.execute(
+            """
+            INSERT INTO documents (id, doc_type, content, status, filename, media_type)
+            VALUES ('5', 'media', 'content', 'published', 'file.jpg', 'image')
+            """
+        )
+
     def test_migration_adds_constraints(self, duckdb_conn):
         """Verify that migration applies constraints to existing table."""
         # Arrange: Create table WITHOUT constraints

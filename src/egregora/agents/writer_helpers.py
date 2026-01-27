@@ -37,7 +37,7 @@ from egregora.agents.types import (
     WriterDeps,
 )
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
@@ -396,7 +396,8 @@ def validate_prompt_fits(
         )
         raise PromptTooLargeError(
             limit=max_allowed,
-            actual=token_count,
+            token_count=token_count,
+            window_label=window_label,
         )
 
     return token_count

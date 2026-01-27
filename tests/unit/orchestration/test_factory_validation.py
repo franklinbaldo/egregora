@@ -3,8 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
-from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.etl.setup import _create_database_backend, _resolve_site_paths_or_raise
 
 
 def make_config(pipeline_db: str):
@@ -15,15 +14,15 @@ def test_create_database_backends_requires_uri(tmp_path):
     config = make_config("")
 
     with pytest.raises(
-        InvalidDatabaseUriError, match=r"Database setting 'database\.pipeline_db' must be non-empty\."
+        ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty"
     ):
-        PipelineFactory.create_database_backends(tmp_path, config)
+        _create_database_backend(tmp_path, config)
 
 
 def test_create_database_backends_normalizes_duckdb_path(tmp_path):
     config = make_config("duckdb:///./data/pipeline.duckdb")
 
-    runtime_uri, pipeline_backend = PipelineFactory.create_database_backends(tmp_path, config)
+    runtime_uri, pipeline_backend = _create_database_backend(tmp_path, config)
 
     expected_path = (tmp_path / "data" / "pipeline.duckdb").resolve()
     # On Windows, we use duckdb:C:/path to avoid double drive letter issues in Ibis
@@ -32,7 +31,7 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
     if os.name == "nt":
         assert runtime_uri == f"duckdb:{expected_path.as_posix()}"
     else:
-        assert runtime_uri == f"duckdb:///{expected_path}"
+        assert runtime_uri == f"duckdb://{expected_path}"
     assert expected_path.exists()
 
     with contextlib.suppress(Exception):
@@ -40,20 +39,20 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
 
 
 def test_resolve_site_paths_missing_mkdocs(tmp_path, minimal_config):
-    """Test that resolve_site_paths_or_raise raises SiteStructureError if mkdocs.yml is missing."""
+    """Test that resolve_site_paths_or_raise raises ValueError if mkdocs.yml is missing."""
     config = minimal_config
 
-    with pytest.raises(SiteStructureError, match=r"No mkdocs\.yml found"):
-        PipelineFactory.resolve_site_paths_or_raise(tmp_path, config)
+    with pytest.raises(ValueError, match=r"No mkdocs\.yml found"):
+        _resolve_site_paths_or_raise(tmp_path, config)
 
 
 def test_resolve_site_paths_missing_docs_dir(tmp_path, minimal_config):
-    """Test that resolve_site_paths_or_raise raises SiteStructureError if docs/ is missing."""
+    """Test that resolve_site_paths_or_raise raises ValueError if docs/ is missing."""
     config = minimal_config
 
     # Create .egregora/mkdocs.yml so first check passes
     (tmp_path / ".egregora").mkdir()
     (tmp_path / ".egregora" / "mkdocs.yml").touch()
 
-    with pytest.raises(SiteStructureError, match="Docs directory not found"):
-        PipelineFactory.resolve_site_paths_or_raise(tmp_path, config)
+    with pytest.raises(ValueError, match="Docs directory not found"):
+        _resolve_site_paths_or_raise(tmp_path, config)

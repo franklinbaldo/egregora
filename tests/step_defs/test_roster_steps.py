@@ -87,16 +87,33 @@ def run_view_persona(runner, p_id):
     mock_config.prompt_body = f"# {p_id.upper()}\n\nThis is the prompt content."
 
     # roster.py now has 'from repo.scheduler.loader import PersonaLoader' at top level
-    with patch("repo.cli.roster.PersonaLoader") as mock_loader_class:
+    with (
+        patch("repo.cli.roster.PersonaLoader") as mock_loader_class,
+        patch("repo.features.session.SessionManager") as mock_sm_class,
+    ):
         mock_loader = MagicMock()
         mock_loader.load_persona.return_value = mock_config
         mock_loader_class.return_value = mock_loader
+
+        # Mock active session for authentication
+        mock_sm = MagicMock()
+        mock_sm.get_active_persona.return_value = "tester"
+        mock_sm.get_active_sequence.return_value = "seq-1"
+        mock_sm_class.return_value = mock_sm
+
         return runner.invoke(app, ["view", p_id])
 
 
 @when("I list the available personas", target_fixture="result")
 def run_list_personas(runner):
-    return runner.invoke(app, ["list"])
+    with patch("repo.features.session.SessionManager") as mock_sm_class:
+        # Mock active session for authentication
+        mock_sm = MagicMock()
+        mock_sm.get_active_persona.return_value = "tester"
+        mock_sm.get_active_sequence.return_value = "seq-1"
+        mock_sm_class.return_value = mock_sm
+
+        return runner.invoke(app, ["list"])
 
 
 @then("the command should exit successfully")

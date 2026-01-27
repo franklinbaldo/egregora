@@ -8,9 +8,9 @@ import inspect
 
 import pytest
 
-import egregora.output_adapters.conventions as conventions_module
+import egregora.output_sinks.conventions as conventions_module
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
-from egregora.output_adapters.conventions import StandardUrlConvention, _remove_url_extension
+from egregora.output_sinks.conventions import StandardUrlConvention, _remove_url_extension
 
 
 class TestUrlExtensionRemoval:

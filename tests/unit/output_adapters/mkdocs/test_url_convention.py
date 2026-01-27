@@ -4,7 +4,7 @@ from mkdocs.commands.build import build as mkdocs_build
 from mkdocs.config import load_config
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_sinks.mkdocs import MkDocsAdapter
 
 
 def _relative_path_from_url(canonical_url: str, document: Document) -> Path:

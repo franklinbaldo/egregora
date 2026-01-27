@@ -1,5 +1,27 @@
 {% extends "base.html" %}
 
+<<<<<<< HEAD
+=======
+{% block styles %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ 'stylesheets/extra.css' | url }}">
+    {% if page and page.is_homepage %}
+    <style>
+        /* Landing Page Specific Overrides */
+        [data-md-color-scheme="slate"] .md-main__inner {
+            max-width: 100% !important;
+        }
+        .md-content__inner {
+            padding-top: 0 !important;
+        }
+        .main-portal-grid {
+            margin-top: -180px !important;
+        }
+    </style>
+    {% endif %}
+{% endblock %}
+
+>>>>>>> origin/pr/2736
 {% block scripts %}
     {{ super() }}
     <script src="{{ 'javascripts/custom.js' | url }}"></script>

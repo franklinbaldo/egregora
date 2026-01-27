@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import httpx
-from pydantic_ai import Agent
+from pydantic_ai import Agent, BinaryContent
 
 from egregora.agents.enricher import (
     EnrichmentOutput,
@@ -84,12 +84,12 @@ def enrich_avatar(
             provider=provider,
         )
         agent = Agent(model=model, output_type=EnrichmentOutput)
-        message_content = [
+        message_content: list[str | BinaryContent] = [
             prompt,
             binary_content,
         ]
         result = agent.run_sync(message_content)
-        output = result.data
+        output = result.output
         markdown_content = output.markdown.strip()
         if not markdown_content:
             markdown_content = f"[No enrichment generated for avatar: {avatar_path.name}]"

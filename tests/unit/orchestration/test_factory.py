@@ -7,7 +7,7 @@ import pytest
 
 from egregora.config.settings import DatabaseSettings, EgregoraConfig
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.etl.setup import _create_pipeline_context
 
 
 @pytest.fixture
@@ -31,28 +31,19 @@ def mock_run_params(tmp_path):
 def test_create_context(mock_run_params):
     """Tests that create_context initializes PipelineContext and its resources correctly."""
     with (
-        patch.object(
-            PipelineFactory, "resolve_site_paths_or_raise", return_value=MagicMock()
-        ) as mock_resolve_paths,
-        patch.object(
-            PipelineFactory,
-            "create_database_backends",
-            return_value=("mock_db_uri", MagicMock()),
-        ) as mock_create_db,
-        patch("egregora.orchestration.factory.initialize_database") as mock_init_db,
-        patch.object(PipelineFactory, "create_gemini_client") as mock_create_client,
-        patch("egregora.orchestration.factory.PipelineCache") as mock_cache,
-        patch("egregora.orchestration.factory.DuckDBStorageManager") as mock_storage,
-        patch("egregora.orchestration.factory.create_default_output_registry") as mock_create_registry,
-        patch.object(PipelineFactory, "create_output_adapter") as mock_create_adapter,
-        patch("egregora.orchestration.factory.AnnotationStore") as mock_annotation_store,
+        patch("egregora.orchestration.pipelines.etl.setup._resolve_site_paths_or_raise") as mock_resolve_paths,
+        patch("egregora.orchestration.pipelines.etl.setup._create_database_backend", return_value=("mock_db_uri", MagicMock())) as mock_create_db,
+        patch("egregora.orchestration.pipelines.etl.setup.initialize_database") as mock_init_db,
+        patch("egregora.orchestration.pipelines.etl.setup._create_gemini_client") as mock_create_client,
+        patch("egregora.orchestration.pipelines.etl.setup.PipelineCache") as mock_cache,
+        patch("egregora.orchestration.pipelines.etl.setup.DuckDBStorageManager") as mock_storage,
+        patch("egregora.orchestration.pipelines.etl.setup.create_default_output_registry") as mock_create_registry,
+        patch("egregora.orchestration.pipelines.etl.setup.AnnotationStore") as mock_annotation_store,
     ):
-        # Setup mock return value for the adapter
-        mock_adapter = MagicMock()
-        mock_create_adapter.return_value = mock_adapter
+        mock_resolve_paths.return_value = MagicMock()
 
         # Call the method under test
-        context, _ = PipelineFactory.create_context(mock_run_params)
+        context, _ = _create_pipeline_context(mock_run_params)
 
         # Assertions
         assert isinstance(context, PipelineContext)
@@ -63,11 +54,8 @@ def test_create_context(mock_run_params):
         mock_cache.assert_called_once()
         mock_storage.from_ibis_backend.assert_called_once()
         mock_create_registry.assert_called_once()
-        mock_create_adapter.assert_called_once()
         mock_annotation_store.assert_called_once()
 
         assert context.config is not None
         assert context.state is not None
         assert context.state.run_id == "test-run"
-        # Assert that the output_sink is correctly assigned
-        assert context.state.output_sink is mock_adapter

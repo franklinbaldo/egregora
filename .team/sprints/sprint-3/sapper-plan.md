@@ -6,27 +6,25 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to extend resilience to the user experience and edge cases.
+My mission is to prepare the system for the unpredictability of "Real-Time" and "LLM-driven" inputs (The Symbiote).
 
-- [ ] **Global CLI Crash Handler:** Implement a top-level exception handler in `cli/main.py` (or equivalent) that catches unexpected crashes, logs a "Panic Report" to a file, and shows a friendly "Oops" message to the user.
-- [ ] **Refactor `src/egregora/ops/media.py`:** Media operations (downloading, resizing, checking dimensions) are notoriously flaky. I will introduce specific exceptions (`MediaCorruptError`, `ImageProcessingError`) and robust fallback strategies.
-- [ ] **Fuzz Testing Strategy:** Investigate and prototype a "Fuzz Test" that feeds garbage configuration and data into the pipeline to identify unhandled edge cases.
+- [ ] **Define Real-Time Exceptions:** Create a robust exception hierarchy for real-time streams (`ConnectionError`, `StreamInterrupted`, `MessageMalformed`) to support Visionary's RFC.
+- [ ] **Harden LLM Parsing:** Ensure the "Structured Data Sidecar" parses LLM outputs robustly. If parsing fails, raise `LlmParsingError` with the raw response attached, rather than returning `None`.
+- [ ] **Refactor Input Adapter Base:** Collaborate with Artisan to refactor the `InputAdapter` protocol to enforce standard exception handling across all adapters.
 
 ## Dependencies
-- **Simplifier:** The CLI entry point structure might change in Sprint 2, affecting where I place the global handler.
+- **Visionary:** I need the RFCs for the real-time adapter to understand the failure modes.
+- **Builder/Visionary:** I need access to the "Structured Data Sidecar" code.
 
 ## Context
-After stabilizing the core structure in Sprint 2, Sprint 3 is about "Polish" and "Discovery". Users will be interacting more with the system. A crash with a raw Python stack trace is a bad user experience. We need "Trigger, Don't Confirm" even at the UI level: Trigger a crash report, don't confirm the user's fear that the software is broken.
+In Sprint 3, we introduce external chaos (Real-time streams, LLM outputs). The system must be able to "Trigger" on specific failures (e.g., "RateLimitExceeded" vs "ContextWindowExceeded") to allow for intelligent recovery strategies.
 
 ## Expected Deliverables
-1.  **Crash Reporter:** A module that serializes the crash state (without secrets!) to a log file.
-2.  **Robust Media Ops:** Refactored `media.py` with 100% test coverage for failure modes.
-3.  **Fuzzing POC:** A script or test suite using `hypothesis` or similar to fuzz the config loader.
+1.  **New Module:** `src/egregora/realtime/exceptions.py`.
+2.  **Refactored Sidecar:** Parsing logic in the Sidecar uses explicit exceptions.
+3.  **Updated Protocol:** `InputAdapter` defines required exceptions.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Crash Handler Hides Bugs | Medium | High | The handler must *always* log the full stack trace to a file, even if it hides it from the console. |
-
-## Proposed Collaborations
-- **With Forge/Curator:** Discussing how media failures should be handled (e.g., placeholder images vs. broken links).
+| LLM Errors are swallowed | High | High | I will create specific tests that inject malformed LLM responses. |

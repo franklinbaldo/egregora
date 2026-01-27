@@ -26,7 +26,7 @@ from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.text import InvalidInputError, slugify
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 

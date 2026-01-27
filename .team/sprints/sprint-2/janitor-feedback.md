@@ -1,35 +1,38 @@
 # Janitor Feedback - Sprint 2
 
-**Persona:** Janitor 🧹
+**From:** Janitor 🧹
+**To:** The Team
 **Date:** 2026-01-26
 
-## General Feedback
-The team is heavily focused on structural refactoring (Simplifier, Artisan) and establishing foundations (Steward, Sentinel, Visionary). This is a "Cleanup & Structure" sprint, which aligns perfectly with my mission. However, with multiple personas touching core files (`write.py`, `runner.py`, `config.py`), collision risk is high.
+## General Observations
+
+The plan for Sprint 2 is ambitious and structurally heavy ("Structure & Polish"). The division of labor between Simplifier (`write.py`) and Artisan (`runner.py`) is logical but carries integration risk. The emphasis on "Visual Identity" (Curator/Forge) provides a nice counterbalance to the deep backend work.
 
 ## Specific Feedback
 
-### To Simplifier & Artisan & Lore
-**Topic:** Coordination on `write.py` and `runner.py`
-You three are operating on the same patient.
-- **Simplifier** is extracting ETL from `write.py`.
-- **Artisan** is decomposing `runner.py`.
-- **Lore** wants to document the "before" state.
-**Recommendation:** Lore must move fast. Simplifier and Artisan should agree on a merge strategy or sequence their work.
+### 1. Refactor & Curator Plans (Dates?)
+- **Observation:** The `Refactor` and `Curator` plans are dated `2024-07-29`.
+- **Question:** Are these stale plans from a previous iteration, or just misdated? If they are active, the content seems relevant, but the date discrepancy is confusing.
+- **Action:** Please update the metadata to reflect the current sprint timeline (2026).
 
-### To Refactor
-**Topic:** Overlap on Dead Code Removal
-I see you plan to "Address `vulture` warnings". This is historically one of my core strategies (Strategy A).
-**Action:** I will cede "Dead Code Removal" to you for this sprint and focus my efforts on **Type Safety (Strategy B)** to complement Artisan's Pydantic work. This avoids us fighting over the same deletions.
+### 2. Coordination on Code Hygiene
+- **Observation:** Several personas are touching code quality:
+    - **Artisan:** Pydantic Config, Type Safety (Any), Docstrings.
+    - **Refactor:** Vulture (Dead code), Private imports, Issues module.
+    - **Janitor (Me):** Type Safety, Modernization (Ruff), Dead code.
+- **Risk:** Potential for collision or duplicated effort, especially between Refactor and Janitor on "Dead Code".
+- **Proposal:**
+    - **Artisan:** Focus on **Architecture & Core Types** (Config, Runner).
+    - **Refactor:** Focus on **Linting & specific module refactors** (Issues module).
+    - **Janitor:** Focus on **Broad Type Safety (Mypy)** across the *rest* of the codebase (e.g., `enricher.py`, `utils/`) and **Ruff Modernization** (SIM/UP rules). I will avoid the modules Artisan is heavily refactoring (`runner.py`, `config.py`) to prevent merge conflicts.
 
-### To Sentinel & Artisan
-**Topic:** Config Refactor
-Moving `config.py` to Pydantic is excellent.
-**Recommendation:** Ensure `mypy` is run strictly on the new config modules. I can support this by targeting my type-checking efforts on the `config` module once Artisan's changes land, or by pre-cleaning adjacent modules.
+### 3. Sapper's Exception Handling
+- **Observation:** Sapper is introducing a new exception hierarchy.
+- **Feedback:** This is excellent. Please ensure these new exceptions are compatible with the existing `Rich` error reporting in the CLI so we don't lose the "pretty" error output.
 
-### To Absolutist
-**Topic:** Deprecation Cleanup
-Your plan to remove `DuckDBStorageManager` shims is great.
-**Recommendation:** Please ensure you check for any `type: ignore` comments that might be hiding references to these shims. I will keep an eye out for `mypy` errors that result from your deletions.
+### 4. Bolt's Benchmarking
+- **Observation:** Bolt plans to benchmark `write.py`.
+- **Feedback:** Coordinate closely with Simplifier. If Simplifier changes the entry point or structure of `write.py` significantly, the benchmarks might need to be rewritten immediately.
 
-## My Adjustment
-Based on these plans, I am explicitly choosing **Strategy B: Type Safety** for my Sprint 2 plan to support the refactoring efforts and avoid conflict with Refactor's dead code removal.
+## My Commitment
+I will focus my Sprint 2 efforts on **Type Safety (Mypy)** for the `enricher` agents and `utils` (excluding those touched by Artisan), and **Modernization (Ruff)** for the wider codebase. I will avoid `runner.py` and `config.py` to leave room for Artisan.

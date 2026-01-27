@@ -6,9 +6,8 @@ import email
 from email import policy
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Iterable
+from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
-import requests
 import re
 
 from botocore.config import Config

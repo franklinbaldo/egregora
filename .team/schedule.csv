@@ -100,15 +100,33 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 099,shepherd,4593967575048588103,2652,merged,
 100,sheriff,14373741744885001967,2653,closed,
 101,simplifier,4211562496935248730,2654,merged,
+<<<<<<< HEAD
 102,specifier,,,closed,
+<<<<<<< HEAD
 103,steward,13839054398889799990,2669,closed,
 104,streamliner,1652516612879013473,2614,merged,
 105,taskmaster,,,closed,
+<<<<<<< HEAD
+<<<<<<< HEAD
 106,typeguard,2602638207033439254,2680,merged,
 107,visionary,6708424704856151484,2633,merged,
+=======
+106,typeguard,13563329791048448429,2675,open,
+=======
+106,typeguard,15977879793414783820,2675,open,
+>>>>>>> origin/pr/2676
+=======
+103,steward,13839054398889799990,2669,merged,
+104,streamliner,1652516612879013473,2614,merged,
+105,taskmaster,,,closed,
+106,typeguard,7718257831068083613,2616,merged,
+>>>>>>> origin/pr/2674
+107,visionary,,,,
+>>>>>>> origin/pr/2677
 108,weaver,,,closed,
 109,absolutist,1278488902245254732,2686,merged,
 110,artisan,8399847330726783056,2618,merged,
+<<<<<<< HEAD
 111,bolt,13132390584003645169,2710,merged,
 112,builder,1137667183342905890,2713,merged,
 113,curator,881329327051915902,2729,merged,
@@ -128,6 +146,40 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 127,shepherd,,,closed,
 128,sheriff,,,closed,
 129,simplifier,2622996516925966461,2755,merged,
+=======
+111,bolt,1409686998400789494,2636,merged,
+=======
+102,specifier,,,,
+103,steward,,,,
+104,streamliner,,,,
+105,taskmaster,,,,
+106,typeguard,,,,
+107,visionary,,,,
+108,weaver,,,,
+109,absolutist,,,,
+110,artisan,,,,
+111,bolt,,,,
+>>>>>>> origin/pr/2668
+112,builder,,,,
+113,curator,,,,
+114,docs_curator,,,,
+115,essentialist,,,,
+116,forge,,,,
+117,janitor,,,,
+118,lore,,,,
+119,maintainer,,,,
+120,organizer,,,,
+121,palette,,,,
+122,pruner,,,,
+123,refactor,,,,
+124,sapper,,,,
+125,scribe,,,,
+126,sentinel,,,,
+127,shepherd,,,,
+128,sheriff,,,,
+129,simplifier,,,,
+<<<<<<< HEAD
+>>>>>>> origin/pr/2699
 130,specifier,,,closed,
 131,steward,,,closed,
 132,streamliner,,,closed,
@@ -179,3 +231,26 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 178,essentialist,,,,
 179,forge,,,,
 180,janitor,,,,
+=======
+130,specifier,,,,
+131,steward,,,,
+132,streamliner,,,,
+133,taskmaster,,,,
+134,typeguard,,,,
+135,visionary,,,,
+136,weaver,,,,
+137,absolutist,,,,
+138,artisan,,,,
+139,bolt,,,,
+140,builder,,,,
+141,curator,,,,
+142,docs_curator,,,,
+143,essentialist,,,,
+144,forge,,,,
+145,janitor,,,,
+146,lore,,,,
+147,maintainer,,,,
+148,organizer,,,,
+149,palette,,,,
+150,pruner,,,,
+>>>>>>> origin/pr/2668

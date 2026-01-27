@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from egregora.output_adapters.base import (
+from egregora.output_sinks.base import (
     BaseOutputSink,
     OutputSinkRegistry,
     create_output_sink,
 )
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     AdapterNotDetectedError,
     FilenameGenerationError,
     RegistryNotProvidedError,

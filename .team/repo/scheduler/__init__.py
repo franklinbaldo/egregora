@@ -1,14 +1,21 @@
-"""Scheduler package with legacy re-exports."""
+"""Jules Scheduler Package.
 
-from repo.scheduler.legacy import (  # noqa: F401
+This package provides a simplified scheduler for Jules persona execution.
+The scheduler:
+1. Merges completed Jules PRs (drafts that pass CI)
+2. Finds the next persona (round-robin from API state)
+3. Renders the persona prompt with Jinja2
+4. Creates a Jules session
+
+Usage:
+    from repo.scheduler import run_scheduler
+    result = run_scheduler()
+"""
+
+from repo.scheduler.simple import (  # noqa: F401
     JULES_BRANCH,
-    JULES_SCHEDULER_PREFIX,
-    check_schedule,
-    ensure_scheduled_branch_exists,
-    get_open_prs,
-    get_pr_by_session_id_any_state,
-    load_schedule_registry,
-    prepare_session_base_branch,
-    run_cycle_step,
+    SchedulerResult,
+    discover_personas,
+    merge_completed_prs,
+    run_scheduler,
 )
-from repo.core.client import TeamClient  # noqa: F401

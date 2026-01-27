@@ -24,7 +24,7 @@ from egregora.agents.tools.writer_tools import (
     write_profile_impl,
 )
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 
 class TestWriterToolsExtraction:

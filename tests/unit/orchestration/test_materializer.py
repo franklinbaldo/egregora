@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from egregora.data_primitives.document import DocumentType
 from egregora.orchestration.materializer import materialize_site
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 
 def test_materialize_site_handles_document_not_found_error():

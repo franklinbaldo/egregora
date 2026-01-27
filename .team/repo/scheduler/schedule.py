@@ -10,80 +10,23 @@ from typing import Any
 
 SCHEDULE_PATH = Path(".team/schedule.csv")
 ORACLE_SCHEDULE_PATH = Path(".team/oracle_schedule.csv")
-PERSONAS_DIR = Path(".team/personas")
 FIELDNAMES = ["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
 ORACLE_FIELDNAMES = ["session_id", "created_at", "status"]
 ORACLE_SESSION_MAX_AGE_HOURS = 24
 
-# Personas that are excluded from automatic scheduling
-# These exist in the personas directory but should not be scheduled automatically
-EXCLUDED_PERSONAS = [
-    "oracle",        # Runs on-demand, not in rotation
-    "bdd_specialist", # Runs on-demand, not in rotation
-    "franklin"       # Reserved for manual testing
+# Personas that participate in the sequential cycle (excludes oracle, bdd_specialist)
+CYCLE_PERSONAS = [
+    "absolutist", "artisan", "bolt", "builder", "curator", "docs_curator",
+    "essentialist", "forge", "janitor", "lore", "maintainer", "organizer", "palette",
+    "pruner", "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
+    "simplifier", "steward", "streamliner", "taskmaster", "typeguard",
+    "visionary"
 ]
 
-# Fallback list if filesystem discovery fails
-# This should match the actual personas in .team/personas/ (excluding EXCLUDED_PERSONAS)
-# Updated 2026-01-23: Added lore, maya, meta; removed archived personas
-FALLBACK_CYCLE_PERSONAS = [
-    "absolutist", "artisan", "bolt", "builder", "curator",
-    "essentialist", "forge", "janitor", "lore", "maya", "meta",
-    "organizer", "refactor", "sapper", "scribe", "sentinel",
-    "shepherd", "sheriff", "simplifier", "streamliner", "typeguard", "visionary"
+# Personas that are blocked from automatic scheduling
+BLOCKED_PERSONAS = [
+    "franklin"
 ]
-
-
-def discover_personas() -> list[str]:
-    """Discover available personas from the filesystem.
-
-    Returns a sorted list of persona names by scanning .team/personas/ directory,
-    excluding personas in EXCLUDED_PERSONAS.
-
-    Falls back to FALLBACK_CYCLE_PERSONAS if directory doesn't exist or is empty.
-    """
-    if not PERSONAS_DIR.exists():
-        print(f"⚠️  Personas directory not found at {PERSONAS_DIR}, using fallback list")
-        return FALLBACK_CYCLE_PERSONAS
-
-    try:
-        # Find all subdirectories (persona definitions)
-        # Exclude hidden directories (.) and internal directories (_)
-        personas = [
-            p.name for p in PERSONAS_DIR.iterdir()
-            if p.is_dir()
-            and not p.name.startswith('.')
-            and not p.name.startswith('_')
-            and p.name not in EXCLUDED_PERSONAS
-        ]
-
-        if not personas:
-            print(f"⚠️  No personas found in {PERSONAS_DIR}, using fallback list")
-            return FALLBACK_CYCLE_PERSONAS
-
-        return sorted(personas)
-    except Exception as e:
-        print(f"⚠️  Error discovering personas: {e}, using fallback list")
-        return FALLBACK_CYCLE_PERSONAS
-
-
-def validate_persona_exists(persona: str) -> bool:
-    """Check if a persona definition exists in the filesystem."""
-    persona_path = PERSONAS_DIR / persona
-    return persona_path.exists() and persona_path.is_dir()
-
-
-def get_cycle_personas() -> list[str]:
-    """Get the list of personas that should participate in scheduling.
-
-    This is the main function to use when you need the persona rotation list.
-    It automatically discovers personas from the filesystem.
-    """
-    return discover_personas()
-
-
-# For backwards compatibility - use function instead of constant
-CYCLE_PERSONAS = get_cycle_personas()
 
 
 def load_schedule() -> list[dict[str, Any]]:
@@ -104,13 +47,8 @@ def save_schedule(rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, bool]:
+def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Find the first row that needs work.
-
-    Returns:
-        Tuple of (current_row, schedule_modified)
-        - current_row: First row that needs work, or None if all done
-        - schedule_modified: True if rows were modified (invalid personas marked closed)
 
     Returns the first row where:
     - No session_id exists (not started yet)
@@ -122,37 +60,28 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | N
     This prevents creating duplicate sessions for the same sequence when
     the PR is created/merged faster than the PR tracker updates the CSV.
     """
-    modified = False
-
     for row in rows:
         session_id = row.get("session_id", "").strip()
         status = row.get("pr_status", "").strip().lower()
 
         # Skip completed rows
-        if status in ["merged", "closed", "draft", "open"]:
+        if status in ["merged", "closed"]:
             continue
 
-        # If a session exists but is not completed, we must wait.
-        # We should NOT proceed to the next row (strict sequential execution).
+        # Skip rows that have a session (regardless of PR status)
+        # Once a session exists, wait for PR tracker to update the status
         if session_id:
-            return None, modified
-
-        # Skip excluded personas
-        persona = row.get("persona", "").strip().lower()
-        if persona in EXCLUDED_PERSONAS:
             continue
 
-        # Skip personas that don't exist (auto-mark as closed)
-        if not validate_persona_exists(persona):
-            print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
-            row['pr_status'] = 'closed'
-            modified = True
+        # Skip blocked personas
+        persona = row.get("persona", "").strip().lower()
+        if persona in BLOCKED_PERSONAS:
             continue
 
         # This row needs work (no session exists yet)
-        return row, modified
+        return row
 
-    return None, modified
+    return None
 
 
 def get_next_sequence(rows: list[dict[str, Any]], current: dict[str, Any]) -> dict[str, Any] | None:
@@ -183,15 +112,8 @@ def count_remaining_empty(rows: list[dict[str, Any]]) -> int:
 def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, Any]]:
     """Add more rows to the schedule if running low.
 
-    Uses round-robin through discovered personas, skipping any that don't exist.
-    Ensures sequential sequence numbers with no gaps.
+    Uses round-robin through CYCLE_PERSONAS.
     """
-    cycle_personas = get_cycle_personas()
-
-    if not cycle_personas:
-        print("⚠️  No personas available for scheduling")
-        return rows
-
     if not rows:
         last_seq = 0
         last_persona_idx = -1
@@ -199,37 +121,21 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
         last_seq = int(rows[-1]["sequence"])
         last_persona = rows[-1]["persona"]
         try:
-            last_persona_idx = cycle_personas.index(last_persona)
+            last_persona_idx = CYCLE_PERSONAS.index(last_persona)
         except ValueError:
             last_persona_idx = -1
 
-    added = 0
-    attempt = 0
-    # Keep trying until we've added the requested count of valid personas
-    # This prevents gaps in sequence numbers when personas don't exist
-    while added < count and attempt < count * 2:  # Safety limit to prevent infinite loops
-        persona_idx = (last_persona_idx + attempt + 1) % len(cycle_personas)
-        persona = cycle_personas[persona_idx]
-        attempt += 1
-
-        # Double-check persona exists before adding to schedule
-        if not validate_persona_exists(persona):
-            print(f"⚠️  Skipping non-existent persona '{persona}' during schedule extension")
-            continue
-
-        seq = last_seq + added + 1  # Use 'added' count for sequential sequence numbers
+    for i in range(count):
+        seq = last_seq + i + 1
+        persona_idx = (last_persona_idx + i + 1) % len(CYCLE_PERSONAS)
         rows.append({
             "sequence": f"{seq:03d}",
-            "persona": persona,
+            "persona": CYCLE_PERSONAS[persona_idx],
             "session_id": "",
             "pr_number": "",
             "pr_status": "",
             "base_commit": ""
         })
-        added += 1
-
-    if added < count:
-        print(f"⚠️  Only added {added}/{count} sequences due to missing personas")
 
     return rows
 
@@ -238,9 +144,8 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     """Validate and fix schedule rows, returning fixed rows and list of issues found."""
     issues: list[str] = []
     fixed_rows: list[dict[str, Any]] = []
-
+    
     seen_sequences = set()
-    seen_session_ids: set[str] = set()
     
     for i, row in enumerate(rows):
         # Ensure all required fields exist
@@ -261,32 +166,11 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
             issues.append(f"Row {i+1}: Duplicate sequence {fixed_row['sequence']}, skipping")
             continue
         seen_sequences.add(fixed_row["sequence"])
-
-        # Detect duplicate session_ids (indicates scheduler bug)
-        session_id = fixed_row.get("session_id", "").strip()
-        if session_id:
-            if session_id in seen_session_ids:
-                issues.append(
-                    f"Row {i+1}: Duplicate session_id {session_id[:16]}... "
-                    f"(seq {fixed_row['sequence']}), marking as closed"
-                )
-                fixed_row["pr_status"] = "closed"
-            else:
-                seen_session_ids.add(session_id)
         
         # Validate persona
         persona = fixed_row["persona"].strip().lower()
-        cycle_personas = get_cycle_personas()
-
-        if persona:
-            # Check if persona exists in filesystem
-            if not validate_persona_exists(persona):
-                issues.append(f"Row {i+1}: Persona '{persona}' not found in filesystem, marking as closed")
-                fixed_row["pr_status"] = "closed"
-            # Warn if persona is not in rotation (but exists in filesystem)
-            elif persona not in cycle_personas and persona not in EXCLUDED_PERSONAS:
-                issues.append(f"Row {i+1}: Persona '{persona}' exists but not in rotation")
-
+        if persona and persona not in CYCLE_PERSONAS:
+            issues.append(f"Row {i+1}: Unknown persona '{persona}', keeping as-is")
         fixed_row["persona"] = persona
         
         # Normalize pr_status
@@ -430,245 +314,6 @@ def extract_sequence_from_title(title: str) -> str | None:
     return match.group(1) if match else None
 
 
-def extract_persona_from_title(title: str) -> str | None:
-    """Extract persona name from session title.
-
-    Matches pattern: "{seq} {emoji} {persona} {repo}"
-    Example: "002 🎨 artisan egregora"
-
-    Returns persona name or None if not found.
-    """
-    cycle_personas = get_cycle_personas()
-    title_lower = title.lower()
-    for persona in cycle_personas:
-        if persona in title_lower:
-            return persona
-    return None
-
-
-def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int | None, str | None]:
-    """Query Jules API to find the highest sequence number created.
-
-    NOTE: This is used for informational logging only. The CSV is the source
-    of truth for determining what sequence to run next. See
-    get_current_sequence_from_api() for the actual scheduling logic.
-
-    Args:
-        repo_name: Optional repo name to filter sessions (e.g., "egregora")
-
-    Returns:
-        Tuple of (last_sequence_number, last_persona)
-        Returns (None, None) if API error
-        Returns (0, None) if no sessions found in API
-    """
-    from repo.core.client import TeamClient
-
-    try:
-        client = TeamClient()
-        sessions_data = client.list_sessions()
-        sessions = sessions_data.get("sessions", [])
-
-        if not sessions:
-            return 0, None
-
-        max_seq = 0
-        max_persona = None
-
-        for session in sessions:
-            title = session.get("title", "") or ""
-
-            # Filter by repo if specified
-            if repo_name and repo_name.lower() not in title.lower():
-                continue
-
-            seq_str = extract_sequence_from_title(title)
-            if seq_str:
-                seq_num = int(seq_str)
-                if seq_num > max_seq:
-                    max_seq = seq_num
-                    max_persona = extract_persona_from_title(title)
-
-        return max_seq, max_persona
-
-    except Exception as e:
-        print(f"⚠️  Failed to query Jules API for last sequence: {e}")
-        # Return None to signal that we should fall back to CSV-based approach
-        return None, None
-
-
-def get_current_sequence_from_api(
-    rows: list[dict[str, Any]],
-    repo_name: str | None = None
-) -> tuple[dict[str, Any] | None, bool]:
-    """Find the next sequence to execute, using API to prevent duplicates.
-
-    This function finds the first row that needs work (no session_id, not closed).
-    It uses the Jules API to verify we don't create duplicate sessions for
-    sequences that may have been processed but not yet reflected in the CSV.
-
-    The CSV is the primary source of truth for what needs to run. The API is
-    only used for duplicate prevention, not for skipping sequences.
-
-    Args:
-        rows: Schedule rows
-        repo_name: Optional repo name to filter sessions
-
-    Returns:
-        Tuple of (next_row, schedule_modified)
-        - next_row: The next row to execute, or None if all done
-        - schedule_modified: True if rows were modified (invalid personas marked closed)
-    """
-    from datetime import datetime, timezone, timedelta
-    from repo.core.client import TeamClient
-
-    SESSION_TIMEOUT_MINUTES = 30
-
-    # Fetch all sessions once for efficiency
-    try:
-        client = TeamClient()
-        sessions_data = client.list_sessions()
-        all_sessions = sessions_data.get("sessions", [])
-    except Exception as e:
-        print(f"⚠️  Failed to list sessions from API: {e}")
-        all_sessions = []
-
-    # Build lookup maps
-    # session_map: session_id -> session object
-    # active_sequences: set of sequences that have ACTIVE (non-expired) sessions
-    session_map = {}
-    active_sequences = set()
-
-    for session in all_sessions:
-        # Map session ID
-        session_full_id = session.get("name", "")
-        session_id = session_full_id.split("/")[-1] if "/" in session_full_id else session_full_id
-        session_map[session_id] = session
-
-        # Check if session is expired
-        is_expired = False
-        create_time_str = session.get("createTime")
-        if create_time_str:
-            try:
-                # Handle Z or +00:00
-                create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
-                age = datetime.now(timezone.utc) - create_time
-                if age > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                    is_expired = True
-            except Exception:
-                pass
-
-        # If active and relevant to this repo, track the sequence
-        title = session.get("title", "") or ""
-        if not is_expired and (not repo_name or repo_name.lower() in title.lower()):
-            seq = extract_sequence_from_title(title)
-            if seq:
-                active_sequences.add(seq)
-
-    modified = False
-
-    # Find the first row that needs work (CSV is source of truth)
-    for row in rows:
-        # Skip completed rows
-        status = row.get("pr_status", "").strip().lower()
-        if status in ["merged", "closed", "draft", "open"]:
-            continue
-
-        # Check existing session in CSV
-        session_id = row.get("session_id", "").strip()
-        if session_id:
-            # Check if this specific session is expired or missing
-            # If it's missing from API, we assume it's gone/invalid -> allow retry
-            # If it's present but expired -> allow retry
-            # If it's present and active -> block
-
-            # Note: session_map keys are short IDs
-            session = session_map.get(session_id)
-            if not session:
-                 # Session in CSV but not in API? Maybe deleted. Treat as done/retryable?
-                 # If we return None, we block forever.
-                 # If we return row, we create NEW session.
-                 # Let's assume if it's gone from API, we can retry.
-                 pass
-            else:
-                 # Check age again (or use flag if we stored it)
-                 create_time_str = session.get("createTime")
-                 if create_time_str:
-                     try:
-                         create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
-                         age = datetime.now(timezone.utc) - create_time
-                         if age > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                             print(f"⚠️  Session {session_id} timed out ({age.total_seconds()/60:.1f} mins), restarting sequence {row['sequence']}")
-                             # Expired -> Allow retry (fall through to return row)
-                             pass
-                         else:
-                             # Active -> Block
-                             return None, modified
-                     except Exception:
-                         return None, modified # Error parsing -> Block safe
-                 else:
-                     return None, modified # No time -> Block safe
-
-        # Skip excluded personas
-        persona = row.get("persona", "").strip().lower()
-        if persona in EXCLUDED_PERSONAS:
-            continue
-
-        # Skip personas that don't exist (auto-mark as closed)
-        if not validate_persona_exists(persona):
-            print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
-            row['pr_status'] = 'closed'
-            modified = True
-            continue
-
-        # Check API for duplicate prevention
-        # We only skip if there is an ACTIVE (non-expired) session for this sequence
-        seq = row.get("sequence", "").strip()
-        if seq in active_sequences:
-            print(f"⚠️  Sequence {seq} has active session in API, waiting for completion")
-            return None, modified
-
-        # This row needs work
-        return row, modified
-
-    return None, modified
-
-
-def _get_api_session_sequences(repo_name: str | None = None) -> set[str]:
-    """Get set of sequence numbers that have sessions in the Jules API.
-
-    Used for duplicate prevention - if a sequence already has a session
-    in the API, we shouldn't create another one.
-
-    Returns:
-        Set of sequence strings (e.g., {"116", "117", "123"})
-    """
-    from repo.core.client import TeamClient
-
-    try:
-        client = TeamClient()
-        sessions_data = client.list_sessions()
-        sessions = sessions_data.get("sessions", [])
-
-        sequences = set()
-        for session in sessions:
-            title = session.get("title", "") or ""
-
-            # Filter by repo if specified
-            if repo_name and repo_name.lower() not in title.lower():
-                continue
-
-            seq_str = extract_sequence_from_title(title)
-            if seq_str:
-                sequences.add(seq_str)
-
-        return sequences
-
-    except Exception as e:
-        print(f"⚠️  Failed to query Jules API for session sequences: {e}")
-        # Return empty set - we'll rely on CSV session_id for duplicate prevention
-        return set()
-
-
 def list_recent_sessions(limit: int = 20) -> None:
     """List recent sessions with schedule context.
 
@@ -704,8 +349,7 @@ def list_recent_sessions(limit: int = 20) -> None:
 
             # Try to extract persona from title
             persona = "N/A"
-            cycle_personas = get_cycle_personas()
-            for pid in cycle_personas + EXCLUDED_PERSONAS:
+            for pid in CYCLE_PERSONAS:
                 if pid in title.lower():
                     persona = pid
                     break
@@ -729,82 +373,6 @@ def list_recent_sessions(limit: int = 20) -> None:
         print(f"❌ Failed to list sessions: {e}")
 
 
-def health_check() -> None:
-    """Perform a health check on persona configuration and schedule consistency.
-
-    Checks:
-    1. Persona directory exists and is readable
-    2. All personas in schedule have definitions
-    3. All persona definitions are in the cycle or excluded list
-    4. Schedule entries for missing personas are marked closed
-    """
-    print("🔍 Persona Health Check\n")
-
-    # Check 1: Persona directory
-    print(f"1. Checking persona directory: {PERSONAS_DIR}")
-    if not PERSONAS_DIR.exists():
-        print(f"   ❌ Directory not found!")
-        return
-    print(f"   ✅ Directory exists\n")
-
-    # Check 2: Discover personas
-    print("2. Discovering available personas...")
-    discovered = discover_personas()
-    print(f"   ✅ Found {len(discovered)} personas: {', '.join(discovered[:5])}...")
-    if len(discovered) > 5:
-        print(f"      (and {len(discovered) - 5} more)\n")
-    else:
-        print()
-
-    # Check 3: Excluded personas
-    print("3. Checking excluded personas...")
-    for persona in EXCLUDED_PERSONAS:
-        exists = validate_persona_exists(persona)
-        status = "✅" if exists else "⚠️ "
-        print(f"   {status} {persona}: {'exists' if exists else 'not found'}")
-    print()
-
-    # Check 4: Schedule consistency
-    print("4. Checking schedule.csv consistency...")
-    if not SCHEDULE_PATH.exists():
-        print("   ⚠️  schedule.csv not found")
-        return
-
-    rows = load_schedule()
-    print(f"   📊 Total schedule entries: {len(rows)}\n")
-
-    # Count by status
-    by_status = {}
-    missing_personas = []
-    for row in rows:
-        persona = row.get("persona", "").strip()
-        status = row.get("pr_status", "").strip() or "pending"
-        by_status[status] = by_status.get(status, 0) + 1
-
-        # Check if persona exists
-        if persona and not validate_persona_exists(persona):
-            missing_personas.append((row.get("sequence", "?"), persona, status))
-
-    print("   Status breakdown:")
-    for status, count in sorted(by_status.items()):
-        print(f"      {status}: {count}")
-    print()
-
-    # Report missing personas
-    if missing_personas:
-        print(f"   ⚠️  Found {len(missing_personas)} entries with missing persona definitions:")
-        for seq, persona, status in missing_personas[:10]:
-            print(f"      Seq {seq}: {persona} (status: {status or 'pending'})")
-        if len(missing_personas) > 10:
-            print(f"      ... and {len(missing_personas) - 10} more")
-        print()
-        print("   💡 Run with --fix to automatically mark these as closed")
-    else:
-        print("   ✅ All schedule entries reference valid personas")
-
-    print("\n✨ Health check complete!")
-
-
 def main() -> None:
     """CLI entry point for schedule management."""
     import argparse
@@ -815,7 +383,6 @@ def main() -> None:
     parser.add_argument("--show", action="store_true", help="Show current schedule status")
     parser.add_argument("--list-sessions", action="store_true", help="List recent sessions from Jules API")
     parser.add_argument("--sync-states", action="store_true", help="Sync session states from Jules API")
-    parser.add_argument("--health", action="store_true", help="Run health check on persona configuration")
     args = parser.parse_args()
     
     rows = load_schedule()
@@ -835,7 +402,7 @@ def main() -> None:
         print(f"Extended schedule by {args.extend} rows (now {len(rows)} total)")
     
     if args.show:
-        current, _ = get_current_sequence(rows)
+        current = get_current_sequence(rows)
         remaining = count_remaining_empty(rows)
         print(f"Schedule: {len(rows)} total rows, {remaining} not started")
         if current:
@@ -847,9 +414,6 @@ def main() -> None:
     if args.sync_states:
         print("Syncing session states from Jules API...")
         sync_session_states_from_api()
-
-    if args.health:
-        health_check()
 
 
 if __name__ == "__main__":

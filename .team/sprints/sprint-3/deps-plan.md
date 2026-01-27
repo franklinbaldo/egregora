@@ -1,31 +1,63 @@
 # Plan: Deps - Sprint 3
 
-**Persona:** Deps 📦
+**Persona:** deps 📦
 **Sprint:** 3
 **Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
-My mission is to support the shift to "Symbiote" (Real-time/API) by managing the new dependency footprint.
+<<<<<<< HEAD
 
-- [ ] **CI/CD Integration:** Work with Sentinel to integrate `bandit` and `pip-audit` into the automated pipeline.
-- [ ] **API Dependencies:** Review and vet new dependencies for the Context Layer API (e.g., `fastapi`, `mcp`).
-- [ ] **VS Code Plugin Strategy:** Advise on the dependency management for the VS Code plugin (Python vs Node ecosystem isolation).
-- [ ] **Routine Updates:** Weekly audit and update of dependencies (targeting `pandas` 3.0 if viable).
+My mission is to operationalize dependency security and gatekeep new additions for the "Discovery" and "Mobile" features.
+
+- [ ] **Automate Security Audits:** Collaborate with **Sentinel** to add `pip-audit` to the `pre-commit` or CI/CD pipeline, ensuring no vulnerable packages are merged.
+- [ ] **Vet "Discovery" Dependencies:** Review any new packages proposed for the RAG/Content Discovery features (e.g., vector DB clients, NLP libs) to ensure they are well-maintained and minimal.
+- [ ] **Audit Mobile Assets:** Ensure that "Mobile Polish" doesn't introduce heavy frontend assets or Python packages that bloat the install size.
 
 ## Dependencies
-- **Sentinel:** CI/CD integration requires coordination.
-- **Visionary:** New API dependencies depend on RFC decisions.
+
+- **Sentinel:** We share the goal of automated security checks.
+- **Visionary/Forge:** They will likely propose new dependencies for the Discovery features.
 
 ## Context
-Sprint 3 introduces "Real-Time" and "External Access" (API/Plugin). This increases the attack surface and complexity. I must ensure we don't bloat the core `egregora` package with unnecessary heavy dependencies.
+
+Sprint 3 introduces "Smart" features. In the Python ecosystem, "AI" and "Data" libraries are often heavy (numpy, pandas, torch). I must act as the gatekeeper to prevent Egregora from becoming bloated. We prefer "small and focused" over "monolithic and heavy".
 
 ## Expected Deliverables
-1.  **CI Security Jobs:** `pip-audit` running in GitHub Actions.
-2.  **Vetted API Stack:** Minimal dependency set for the new API.
-3.  **Updated `pyproject.toml`:** Reflecting the new architecture (potential new extras/groups).
+
+1.  **CI/CD Security Check:** A GitHub Action or pre-commit hook running `pip-audit`.
+2.  **Dependency Review Report:** A review of any new packages added in Sprint 3.
+=======
+Sprint 3 focuses on the "Symbiote Shift" and Context Layer. My role is to ensure this new layer doesn't bloat the project.
+
+- [ ] **Audit Context Layer Deps:** Review dependencies introduced for Git history and code reference features.
+- [ ] **Minimize "Sidecar" Weight:** Ensure the "Structured Sidecar" architecture doesn't duplicate dependencies or introduce heavy frameworks.
+- [ ] **Routine Maintenance:** Regular updates (minor versions) and security scans.
+
+## Dependencies
+- **Visionary:** Will likely propose new tools for the Context Layer.
+- **Bolt:** May introduce new performance-related libraries.
+
+## Context
+As we add new capabilities (Git understanding), the temptation to add libraries like `GitPython` or complex parsers will be high. I must advocate for "shelling out" to `git` or using simple internal parsers to keep the image size small.
+
+## Expected Deliverables
+1.  **Dependency Review Report:** A review of any new packages proposed for the Context Layer.
+2.  **Updated Lockfile:** Routine maintenance updates.
+>>>>>>> origin/pr/2882
 
 ## Risks and Mitigations
+
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Dependency Bloat | Medium | Medium | Enforce strict review of new packages. Suggest "extras" for API components. |
+<<<<<<< HEAD
+| "Discovery" requires heavy ML libs | High | Medium | I will advocate for lightweight alternatives or API-based solutions (like the existing `google-genai`) to avoid local heavy lifting. |
+| CI becomes too slow with audits | Low | Low | `pip-audit` is fast; we can cache the vulnerability DB. |
+
+## Proposed Collaborations
+
+- **With Sentinel:** Implementing the automated audit.
+- **With Visionary:** Selecting lightweight libraries for RAG.
+=======
+| Feature bloat | Medium | Medium | I will strictly enforce the "stdlib first" philosophy. |
+>>>>>>> origin/pr/2882

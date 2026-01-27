@@ -2,7 +2,7 @@
 
 import pytest
 
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,

@@ -1,6 +1,6 @@
 # Persona System
 
-> How Egregora uses AI personas to maintain and improve the codebase
+> How Egregora uses AI personas to maintain and improve the codebase.
 
 ## Overview
 
@@ -103,7 +103,9 @@ touch .team/personas/your-persona/prompt.md.j2
 
 Create `.team/personas/your-persona/prompt.md.j2`:
 
+{% raw %}
 ```jinja
+{% raw %}
 ---
 description: One-line description of your persona
 emoji: 🔧
@@ -158,7 +160,9 @@ Specific objective this persona achieves.
 2. **STEP 2**: Next action
 3. **STEP 3**: Final verification
 {% endblock %}
+{% endraw %}
 ```
+{% endraw %}
 
 ### Step 4: Test Rendering
 
@@ -200,11 +204,15 @@ You can override any of these by redefining the block in your persona template.
 
 Reference these in your custom blocks:
 
+{% raw %}
 ```jinja
+{% raw %}
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
+{% endraw %}
 ```
+{% endraw %}
 
 ## Persona Communication
 
@@ -259,25 +267,33 @@ Each persona should have **one clear purpose**. Don't create "jack-of-all-trades
 
 Personas must work **independently** without human input:
 
+{% raw %}
 ```jinja
+{% raw %}
 {% block constraints %}
 - Make decisions autonomously
 - Don't ask humans for approval
 - Document uncertainties in journal
 {% endblock %}
+{% endraw %}
 ```
+{% endraw %}
 
 ### 3. Clear Verification
 
 Always define **measurable success criteria**:
 
+{% raw %}
 ```jinja
+{% raw %}
 {% block verification %}
 - All tests pass (run `uv run pytest`)
 - Linter shows 0 errors (run `uv run ruff check`)
 - Documentation updated in docs/
 {% endblock %}
+{% endraw %}
 ```
+{% endraw %}
 
 ### 4. Precise Context
 
@@ -313,14 +329,18 @@ sprint_context = sprint_manager.get_sprint_context("curator")
 
 Use Jinja2 conditionals for flexible prompts:
 
+{% raw %}
 ```jinja
+{% raw %}
 {% if journal_entries %}
 ## Previous Work
 {{ journal_entries }}
 {% else %}
 This is your first session!
 {% endif %}
+{% endraw %}
 ```
+{% endraw %}
 
 ### Custom Password Generation
 
@@ -374,23 +394,52 @@ loader.load_personas(['personas/curator/prompt.md.j2'])
 - `.team/repo/templates/base/persona.md.j2` - Base template
 - `.team/repo/cli/my_tools.py` - CLI for persona operations
 
-### Example Personas
+### Persona Roster
 
-Study these well-implemented personas:
+The team consists of specialized agents:
 
+<<<<<<< HEAD
 - **curator** - UX/UI evaluation with BDD
 - **forge** - Code implementation
 - **lore** - Knowledge base management
-- **oracle** - Technical support
-- **steward** - Strategic alignment & ADRs
-- **meta** - System introspection & validation
+- **oracle** - System coordination
+=======
+- **absolutist** 💯 - Code cleanup & legacy removal
+- **artisan** 🔨 - Code craftsmanship & refactoring
+- **bolt** ⚡ - Performance & latency optimization
+- **curator** 🎭 - UX/UI evaluation & content strategy
+- **forge** ⚒️ - Implementation & frontend polish
+- **lore** 📚 - History, documentation & knowledge base
+- **maya** 💝 - User advocacy & family perspective
+- **meta** 🔍 - System introspection & validation
+- **refactor** 🧹 - Technical debt reduction
+- **sapper** 💣 - Resilience, error handling & edge cases
+- **scribe** ✍️ - Documentation & user guides
+- **sentinel** 🛡️ - Security & compliance
+- **simplifier** 📉 - Architecture reduction & complexity management
+- **steward** 🧠 - Strategic alignment & decisions
+- **streamliner** 🌊 - Data pipeline optimization
+- **visionary** 🔭 - Future features & innovation
+>>>>>>> origin/pr/2867
 
 ### Related Documentation
 
-- [Team Constitution](.team/CONSTITUTION.md)
-- [Parallel Personas](.team/PARALLEL_PERSONAS_README.md)
-- [Code of the Weaver](CLAUDE.md)
+<<<<<<< HEAD
+<<<<<<< HEAD
+- [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
+=======
+- [Team Constitution]({{ config.repo_url }}/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas]({{ config.repo_url }}/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver]({{ config.repo_url }}/blob/main/CLAUDE.md)
+>>>>>>> origin/pr/2872
+=======
+- [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
+>>>>>>> origin/pr/2860
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-26*
+*This documentation is maintained by the team. Last updated: 2026-01-22*

@@ -27,21 +27,11 @@ def test_parse_media_result_constructs_markdown_with_slug_filename(worker):
     Test that _parse_media_result uses the slug to construct the filename
     in the fallback markdown link, NOT the original filename.
     """
-    # Helper to mock payload parsing
-    worker._parse_llm_result = MagicMock(
-        return_value={
-            "slug": "cool-slug-name",
-            "description": "A cool description.",
-            "alt_text": "Alt text for image",
-        }
-    )
-
     # Input task
     original_filename = "IMG-2025-OLD.jpg"
     task = {
         "task_id": "task-1",
         "_parsed_payload": {"filename": original_filename},
-        "llm_result": '{"slug": "cool-slug-name"}',  # Mocked by _parse_llm_result anyway
     }
 
     # Helper result object
@@ -50,7 +40,7 @@ def test_parse_media_result_constructs_markdown_with_slug_filename(worker):
         tag="tag-1",
         error=None,
         response={
-            "text": '{"slug": "cool-slug-name", "description": "A cool description."}'
+            "text": '{"slug": "cool-slug-name", "description": "A cool description.", "alt_text": "Alt text"}'
         },  # Mock Gemini response
     )
 
@@ -82,9 +72,11 @@ def test_parse_media_result_constructs_markdown_with_slug_filename(worker):
 
 def test_parse_media_result_handles_missing_slug(worker):
     """Test fallback when slug is missing/invalid."""
-    worker._parse_llm_result = MagicMock(return_value={"slug": None, "description": "Desc"})
+    task = {"task_id": "task-2", "_parsed_payload": {"filename": "IMG.jpg"}}
 
-    task = {"task_id": "task-2", "_parsed_payload": {"filename": "IMG.jpg"}, "llm_result": "{}"}
+    # Empty JSON response -> no slug -> should raise EnrichmentParsingError
+    SimpleNamespace(tag="t", error=None, response={"text": "{}"})
 
+    # Should raise EnrichmentParsingError if slug is missing and no pre-existing markdown
     with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
         worker._parse_media_result(SimpleNamespace(tag="t", error=None, response={"text": "{}"}), task)

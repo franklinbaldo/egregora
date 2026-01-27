@@ -1,4 +1,4 @@
-# Plan: Essentialist - Sprint 2
+# Plan: Essentialist 💎 - Sprint 2
 
 **Persona:** Essentialist 💎
 **Sprint:** 2
@@ -6,26 +6,48 @@
 **Priority:** High
 
 ## Objectives
-My mission is to enforce architectural simplicity and reduce "lifetime maintenance load" by eliminating structural redundancy and over-layering.
+<<<<<<< HEAD
+My mission is to enforce architectural simplicity and reduce "lifetime maintenance load". In this sprint, I act as a watchdog for the major refactors and optimize critical paths.
 
-- [x] **Consolidate CSS Architecture:** Merge fragmented CSS files (`docs/` vs `overrides/`) to eliminate shadowing bugs and enforce a single source of truth for theming. (Completed in Sprint 1 Planning Session).
-- [ ] **Audit `PipelineFactory`:** The `src/egregora/orchestration/factory.py` file is becoming a "God Class" for instantiation. I will audit it for "Homemade Infra" (e.g., hardcoded retry logic) and refactor it to use declarative configuration.
-- [ ] **Review `etl` Decomposition:** Review the PRs from Simplifier/Artisan for the `write.py` refactor to ensure they are actually simplifying the graph, not just moving complexity around.
+- [ ] **Simplicity Watchdog:** Audit the active refactors by Simplifier (`write.py`) and Artisan (`runner.py`) to ensure they reduce complexity rather than just redistributing it.
+- [x] **Optimize `_window_by_count`:** Refactor the windowing logic in `src/egregora/transformations/windowing.py` to remove the N+1 query loop, aligning with "Data over Logic" and "Fetch-then-Compute".
+- [x] **Janitorial Maintenance:** Fix corrupted or non-compliant plan files (Steward, Visionary) to maintain a clean project state.
 
 ## Dependencies
-- **Simplifier & Artisan:** My audit work depends on their active refactoring of the pipeline.
-- **Forge:** Verification of the CSS consolidation requires Forge's UI checks.
+- **Simplifier & Artisan:** My audit work runs in parallel with their implementation.
+- **Visionary:** I am providing feedback to steer them away from complex infrastructure (Redis).
 
 ## Context
-In Sprint 1/Planning, I identified and fixed a CSS shadowing bug that represented "Over-layering". For the rest of Sprint 2, I will act as a "Simplicity Watchdog" for the major pipeline refactors occurring.
+The team is undertaking major structural changes. Without an Essentialist watchdog, these refactors risk introducing "Over-layering" or "Future-proofing tax". I will also directly tackle a known performance bottleneck (`_window_by_count`) to demonstrate that simplicity (fewer queries) equals performance.
 
 ## Expected Deliverables
-1.  **Refactored CSS:** Single `extra.css` in `overrides/` (Done).
-2.  **PipelineFactory Assessment:** A report or PR streamlining the factory logic.
-3.  **Code Reviews:** High-level architectural reviews of Simplifier's and Artisan's PRs.
+1.  **Optimized `windowing.py`:** A `_window_by_count` function that runs in O(1) queries.
+2.  **Clean Plan Files:** Restored `steward-plan.md` and English `visionary-plan.md`.
+3.  **Feedback Report:** `essentialist-feedback.md` guiding the team.
+=======
+My mission is to support the structural refactoring ("Simplification") by removing dead code and enforcing heuristics.
+
+- [x] **Remove Legacy Migrations:** Remove `migrate_media_table` from `src/egregora/database/migrations.py`. This is dead code from the V2->V3 transition.
+- [ ] **Review Refactors:** Provide architectural review for **Simplifier**'s `write.py` decomposition and **Artisan**'s `runner.py` decomposition, ensuring they don't introduce "Indirection inflation" or "Over-layering".
+- [ ] **Monitor Heuristics:** Scan new PRs for "Meta-config" and "Homemade infra" violations.
+
+## Dependencies
+- **Absolutist:** I am taking a piece of the "cleanup" work that aligns with radical simplicity.
+
+## Context
+Sprint 2 is a "Structure" sprint. While others build new structures, I must remove the old scaffolding to prevent "Ghost Code" (code that exists but is never called). `migrations.py` contains logic for a `media` table that no longer exists in the Pure architecture.
+
+## Expected Deliverables
+1.  Cleaned `src/egregora/database/migrations.py`.
+2.  Feedback on PRs from Simplifier/Artisan.
+>>>>>>> origin/pr/2862
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| CSS Merge breaks visuals | Medium | Low | Forge is tasked with UX verification. |
-| Factory refactor conflicts with Simplifier | Medium | Medium | I will focus on the *instantiation logic* (clients, dbs) while they focus on the *execution flow*. |
+<<<<<<< HEAD
+| Refactor conflicts with Simplifier | Medium | Medium | I will focus on the *internal implementation* of specific functions (windowing) while they focus on structure. |
+| Visionary ignores feedback | Low | High | I have explicitly flagged the Redis risk in the feedback file. |
+=======
+| Deleting code that is secretly used | Low | High | I will usage `grep` to verify zero usage before deletion. |
+>>>>>>> origin/pr/2862

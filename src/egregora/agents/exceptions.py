@@ -33,6 +33,10 @@ class EnrichmentError(AgentError):
     """Base exception for errors during the enrichment process."""
 
 
+class EnrichmentExecutionError(EnrichmentError):
+    """Raised when enrichment execution fails."""
+
+
 class MediaStagingError(EnrichmentError):
     """Raised when a media file cannot be staged for enrichment."""
 
@@ -51,11 +55,3 @@ class EnrichmentFileError(EnrichmentError):
 
 class EnrichmentParsingError(EnrichmentError):
     """Raised when parsing enrichment response fails."""
-
-
-class EnrichmentExecutionError(EnrichmentError):
-    """Raised when an enrichment task execution fails."""
-
-
-class EnrichmentTaskError(EnrichmentError):
-    """Raised when an enrichment task is malformed or cannot be prepared."""

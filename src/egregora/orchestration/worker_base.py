@@ -9,7 +9,8 @@ from typing import Any, Protocol
 class WorkerContext(Protocol):
     """Protocol for context required by workers."""
 
-    task_store: Any
+    @property
+    def task_store(self) -> Any: ...
 
 
 class BaseWorker(ABC):

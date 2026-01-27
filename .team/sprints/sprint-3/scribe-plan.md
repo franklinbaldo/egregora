@@ -1,4 +1,4 @@
-# Plan: Scribe ✍️ - Sprint 3
+# Plan: Scribe - Sprint 3
 
 **Persona:** Scribe ✍️
 **Sprint:** 3
@@ -6,9 +6,12 @@
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the "Discovery" features and "Mobile Polish" theme are fully supported by high-quality documentation.
+My mission is to document the "Symbiote Shift" - the integration of the Context Layer (Git History + Code References) into the core workflow.
 
+<<<<<<< HEAD
 - [ ] **Document "Discovery" Features:** Create a comprehensive guide on how the Content Ranking and Related Content features work, including how users can configure them (or confirming they are zero-config).
+- [ ] **Document Universal Context Layer API (RFC 026):** Create API documentation (likely OpenAPI-based) for the new local API service proposed by **Visionary**.
+- [ ] **Chronicle the "Symbiote Era":** Collaborate with **Lore** to update the high-level architecture documentation (`docs/architecture/`) to reflect the shift from "Batch" to "Symbiote" (Sidecar) architecture.
 - [ ] **Mobile Documentation Audit:** Perform a full audit of the Egregora documentation site (`mkdocs serve`) on mobile devices. Identify and fix any layout issues, ensuring the docs themselves are "Mobile Polished".
 - [ ] **API Reference Generation:** Ensure the new modules introduced in Sprint 2 (`src/egregora/orchestration/pipelines/etl/`, `src/egregora/config/`) have automatically generated API references in the documentation.
 - [ ] **Update "Getting Started":** Review and refine the "Getting Started" guide to reflect the "polished" experience, ensuring screenshots and commands are current.
@@ -16,22 +19,42 @@ My mission is to ensure the "Discovery" features and "Mobile Polish" theme are f
 ## Dependencies
 - **Curator/Forge:** I need the "Discovery" features to be finalized before I can document them accurately.
 - **Simplifier:** I need the new ETL package structure to be stable for API doc generation.
+- **Visionary:** I need the RFC 026 API spec to be drafted.
+- **Lore:** I need the "Batch Era" documentation to be complete before I can write the "Symbiote Era" docs.
 
 ## Context
-Sprint 3 focuses on "Mobile Polish & Discovery". Users will be exploring the "magic" of Egregora (Discovery). The documentation must explain *why* this is magic and *how* it benefits them. Additionally, as we polish the mobile experience of the blog, our own documentation site must set the example.
+Sprint 3 focuses on "Mobile Polish & Discovery", but also marks the beginning of the "Symbiote Era" with the introduction of the Context Layer API. The documentation must explain *why* this is magic and *how* it benefits them. Additionally, as we polish the mobile experience of the blog, our own documentation site must set the example.
 
 ## Expected Deliverables
 1.  **"Understanding Discovery" Guide:** A new concept guide in `docs/concepts/`.
-2.  **Mobile-Optimized Docs:** Fixes to CSS/Layout of the documentation site.
-3.  **Updated API References:** New sections in `docs/reference/`.
-4.  **Refined "Getting Started":** Updated text and visuals.
+2.  **Context Layer API Docs:** `docs/api/context-layer.md`.
+3.  **Symbiote Architecture Overview:** Updated `docs/architecture/overview.md`.
+4.  **Mobile-Optimized Docs:** Fixes to CSS/Layout of the documentation site.
+5.  **Updated API References:** New sections in `docs/reference/`.
+6.  **Refined "Getting Started":** Updated text and visuals.
+=======
+- [ ] **Context Layer Documentation:** Create comprehensive documentation for the "Universal Context Layer" (RFC 026/027), explaining how Egregora links content to code history.
+- [ ] **API Reference Finalization:** With the architecture stabilized in Sprint 2, I will enable and polish `mkdocstrings` for all core modules (`orchestration`, `agents`, `data_primitives`).
+- [ ] **Advanced User Guides:** Create guides for "Semantic Constellation" navigation and "Historical Deep Dives".
+
+## Dependencies
+- **Visionary/Builder:** I rely on the implementation of the Context Layer (Git/Code Refs).
+- **Artisan:** I rely on the completion of the `runner.py` refactor to generate stable API docs.
+
+## Context
+Sprint 3 moves from "Structure" to "Symbiosis". The system becomes aware of its own history. Documenting this abstract concept will be challenging but crucial for adoption.
+
+## Expected Deliverables
+1.  **Context Layer Docs:** `docs/concepts/context-layer.md`.
+2.  **API Reference:** Complete API section in the docs site.
+3.  **Tutorial:** "Navigating Code History with Egregora".
+>>>>>>> origin/pr/2872
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Discovery features are complex to explain | Medium | Medium | I will focus on the "User Benefit" first, then the "How it Works". I will use diagrams if needed. |
-| API Docs generation fails on new structure | Low | Medium | I will test `mkdocs build` with `mkdocs-material`'s python handler early in the sprint. |
+| Abstract Concepts Confuse Users | High | High | I will use diagrams and concrete examples (Before/After) to explain the Context Layer. |
+| API Docs are Noisy | Medium | Low | I will configure `mkdocstrings` filters to show only public interfaces, hiding internal implementation details. |
 
 ## Proposed Collaborations
-- **With Curator:** To understand the intended UX of the Discovery features.
-- **With Forge:** To align on mobile design principles.
+- **With Visionary:** To accurately describe the intent and mechanics of the Context Layer.

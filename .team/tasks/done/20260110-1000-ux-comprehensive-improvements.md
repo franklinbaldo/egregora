@@ -29,7 +29,7 @@ This task consolidates the foundational technical fixes required to implement th
 
 ### 🔵 REFACTOR: How to Implement
 
-All changes must be made to the source template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. **Do not edit the `demo/` directory directly.**
+All changes must be made to the source template in `src/egregora/output_sinks/mkdocs/scaffolding.py`. **Do not edit the `demo/` directory directly.**
 
 1.  **Color Palette:**
     -   In the `MKDOCS_YML_TEMPLATE` string, locate the `theme.palette` section.
@@ -49,6 +49,6 @@ All changes must be made to the source template in `src/egregora/output_adapters
 
 ### 📍 Where to Look
 
--   **Primary Target File:** `src/egregora/output_adapters/mkdocs/scaffolding.py`
+-   **Primary Target File:** `src/egregora/output_sinks/mkdocs/scaffolding.py`
 -   **Reference Vision:** `docs/ux-vision.md`
 -   **Build Command for Verification:** `cd demo && uv run mkdocs build -f .egregora/mkdocs.yml`

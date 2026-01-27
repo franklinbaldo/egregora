@@ -7,7 +7,7 @@ import pytest
 from jinja2 import TemplateError
 from yaml import YAMLError
 
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     ConfigLoadError,
     FileSystemScaffoldError,
     PathResolutionError,
@@ -15,7 +15,7 @@ from egregora.output_adapters.exceptions import (
     SiteNotSupportedError,
     TemplateRenderingError,
 )
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -97,7 +97,7 @@ def test_resolve_paths_raises_config_load_error(scaffolder: MkDocsSiteScaffolder
     (site_root / ".egregora" / "mkdocs.yml").touch()
 
     with patch(
-        "egregora.output_adapters.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")
+        "egregora.output_sinks.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")
     ):
         with pytest.raises(ConfigLoadError) as excinfo:
             scaffolder.resolve_paths(site_root)
@@ -113,7 +113,7 @@ def test_resolve_paths_raises_path_resolution_error(scaffolder: MkDocsSiteScaffo
     (site_root / ".egregora" / "mkdocs.yml").touch()
 
     with patch(
-        "egregora.output_adapters.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")
+        "egregora.output_sinks.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")
     ):
         with pytest.raises(PathResolutionError) as excinfo:
             scaffolder.resolve_paths(site_root)
@@ -130,7 +130,7 @@ def test_scaffold_site_raises_scaffolding_error_on_unexpected_exception(
     site_name = "Test Site"
 
     with patch(
-        "egregora.output_adapters.mkdocs.scaffolding.MkDocsSiteScaffolder._create_site_structure",
+        "egregora.output_sinks.mkdocs.scaffolding.MkDocsSiteScaffolder._create_site_structure",
         side_effect=Exception("Unexpected error"),
     ):
         with pytest.raises(ScaffoldingError) as excinfo:

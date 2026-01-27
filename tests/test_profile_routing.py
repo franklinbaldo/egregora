@@ -11,8 +11,8 @@ import pytest
 
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import ProfileMetadataError
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.exceptions import ProfileMetadataError
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture

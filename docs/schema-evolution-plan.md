@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Owner**: Builder
-**Last Updated**: 2026-01-16
+**Last Updated**: 2026-01-26
 
 ## Philosophy: Structure Before Scale
 
@@ -21,9 +21,9 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
     -   Discriminator: `doc_type` column.
     -   Schema: `UNIFIED_SCHEMA` (Union of all specialized schemas).
 
-2.  **`media`**
-    -   Stores media metadata separately (Legacy/Redundant?).
-    -   *Action Item*: Clarify relationship with `documents`.
+2.  **`media`** (Deprecated/Removed)
+    -   Media metadata is now stored in `documents` with `doc_type='media'`.
+    -   Legacy table removed in Jan 2026.
 
 3.  **`annotations`**
     -   Stores annotations on other documents.
@@ -65,6 +65,13 @@ CHECK (
 
 ## 3. Backlog
 
--   [ ] Add constraints to `documents` table (In Progress).
--   [ ] Migrate `ContentRepository` to use `documents` table instead of individual tables.
--   [ ] Verify `media` table usage and consolidate if needed.
+<<<<<<< HEAD
+-   [x] Add constraints to `documents` table (Completed Jan 2026).
+-   [x] Migrate `ContentRepository` to use `documents` table (Completed Jan 2026).
+-   [x] Verify `media` table usage and consolidate (Completed Jan 2026).
+-   [x] Add indexes to `documents` table (`doc_type`, `slug`, `created_at`, `status`) (Completed Jan 2026).
+=======
+-   [x] Add constraints to `documents` table (Completed Sprint 1).
+-   [x] Migrate `ContentRepository` to use `documents` table instead of individual tables (Completed Sprint 1).
+-   [x] Verify `media` table usage and consolidate if needed (Completed Sprint 1 - V5 Migration).
+>>>>>>> origin/pr/2841

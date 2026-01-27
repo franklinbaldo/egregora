@@ -9,6 +9,7 @@ import pytest
 from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 from egregora.transformations.windowing import (
     WindowConfig,
+    _window_by_bytes,
     create_windows,
     generate_window_signature,
     split_window_into_n_parts,
@@ -332,3 +333,57 @@ def test_window_by_count_scenarios(num_messages, step_size, overlap_ratio, expec
     assert len(windows) == len(expected_windows)
     for i, window in enumerate(windows):
         assert window.window_index == i
+
+def test_window_by_bytes_duplicates():
+    # Create table with duplicate timestamps
+    # 5 messages, first 3 have same TS
+    ts = datetime(2023, 1, 1)
+    data = {
+        "ts": [ts, ts, ts, ts, ts],
+        "text": ["a", "b", "c", "d", "e"],  # 1 byte each
+        "id": [1, 2, 3, 4, 5]
+    }
+    table = ibis.memtable(data)
+
+    # Legacy behavior allows first message to be "free".
+    # max_bytes=2.
+    # W0: a(1) + b(1) + c(1) = 3 bytes. (1 "free", 2 accumulated).
+    # W1: d(1) + e(1) = 2 bytes.
+
+    windows = list(_window_by_bytes(table, max_bytes=2, overlap_bytes=0))
+
+    assert len(windows) == 2
+
+    res0 = windows[0].table.execute()
+    assert res0["text"].tolist() == ["a", "b", "c"]
+
+    res1 = windows[1].table.execute()
+    assert res1["text"].tolist() == ["d", "e"]
+
+
+def test_window_by_bytes_partial_duplicates():
+    # TS: A, B, B, B, C
+    t1 = datetime(2023, 1, 1)
+    t2 = datetime(2023, 1, 2)
+    t3 = datetime(2023, 1, 3)
+
+    data = {
+        "ts": [t1, t2, t2, t2, t3],
+        "text": ["a", "b", "c", "d", "e"],
+        "id": [1, 2, 3, 4, 5]
+    }
+    table = ibis.memtable(data)
+
+    # Same chunking logic applies.
+    # W0: [a, b, c]
+    # W1: [d, e]
+
+    windows = list(_window_by_bytes(table, max_bytes=2, overlap_bytes=0))
+
+    assert len(windows) == 2
+
+    res0 = windows[0].table.execute()
+    assert res0["text"].tolist() == ["a", "b", "c"]
+
+    res1 = windows[1].table.execute()
+    assert res1["text"].tolist() == ["d", "e"]
