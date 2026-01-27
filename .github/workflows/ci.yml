@@ -54,12 +54,6 @@ jobs:
         run: |
           uv run pre-commit run --all-files --show-diff-on-failure
 
-  enable-auto-merge:
-    name: enable-auto-merge
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Auto-merge enabled"
-
   test-unit:
     name: Unit Tests (Python 3.12)
     runs-on: ubuntu-latest
@@ -280,10 +274,3 @@ jobs:
           | Build | ${{ needs.build.result || 'skipped' }} |
           | Auto-merge | ${{ needs['enable-auto-merge'].result }} |
           EOF
-
-  enable-auto-merge:
-    name: enable-auto-merge
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enable auto-merge check satisfied
-        run: echo "Enable auto-merge check satisfied"
