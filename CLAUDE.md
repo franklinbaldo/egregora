@@ -281,18 +281,18 @@ When Gemini is available in the environment (via `gemini` command), you can dele
 ```python
 # You: Analyze requirements
 analysis = """
-Current state: scheduler has no Sprint concept
-Required: Add SprintConfig dataclass, meeting orchestration
-Files to create: meeting_orchestrator.py, sprints.toml
-Files to modify: scheduler_v2.py, scheduler_models.py
+Current state: blog posts have no tags
+Required: Add TagConfig dataclass, tag extraction logic
+Files to create: tag_extractor.py
+Files to modify: writer_agent.py, blog_models.py
 """
 
 # You: Create detailed spec
 spec = create_implementation_spec(analysis)
-save_to_file("/tmp/sprint_spec.md", spec)
+save_to_file("/tmp/tag_feature_spec.md", spec)
 
 # Gemini: Execute implementation
-run_command("gemini --yolo --prompt \"$(cat /tmp/sprint_spec.md)\"")
+run_command("gemini --yolo --prompt \"$(cat /tmp/tag_feature_spec.md)\"")
 
 # You: Validate results
 run_tests()

@@ -50,9 +50,12 @@ from repo.scheduler.loader import PersonaLoader
 from repo.scheduler.models import PersonaConfig
 
 # Constants
-JULES_BOT_AUTHOR = "app/google-labs-jules"
 JULES_BRANCH = "jules"
 ORACLE_TITLE_PREFIX = "🔮 oracle"
+
+# Jules bot login patterns for PR detection (fallback when URL detection not available)
+# Primary detection is via jules.google.com URLs in PR body
+JULES_BOT_LOGINS = {"google-labs-jules[bot]", "google-labs-jules", "app/google-labs-jules"}
 
 # Session states from Jules API
 # Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions#State
@@ -642,19 +645,23 @@ def get_next_persona(last: str | None, personas: list[str]) -> str | None:
 
 
 def merge_completed_prs() -> int:
-    """Merge Jules draft PRs regardless of CI status."""
+    """Merge Jules draft PRs regardless of CI status.
+
+    Jules PRs are identified by:
+    1. PR body containing jules.google.com URL (primary)
+    2. OR author is the Jules bot (fallback)
+    """
     try:
+        # Get all open PRs (not filtered by author since Jules now creates PRs as repo owner)
         result = subprocess.run(
             [
                 "gh",
                 "pr",
                 "list",
-                "--author",
-                JULES_BOT_AUTHOR,
                 "--state",
                 "open",
                 "--json",
-                "number,isDraft,mergeable",
+                "number,isDraft,mergeable,body,author",
                 "--limit",
                 "50",
             ],
@@ -672,6 +679,18 @@ def merge_completed_prs() -> int:
         pr_number = pr["number"]
         is_draft = pr.get("isDraft", False)
         mergeable = pr.get("mergeable", "UNKNOWN")
+        body = pr.get("body", "") or ""
+        author_login = pr.get("author", {}).get("login", "")
+
+        # Check if it's a Jules PR (URL in body OR bot author)
+        is_jules_pr = (
+            "jules.google.com/task" in body
+            or "jules.google.com/session" in body
+            or author_login in JULES_BOT_LOGINS
+        )
+
+        if not is_jules_pr:
+            continue
 
         if mergeable == "CONFLICTING":
             print(f"  PR #{pr_number}: has conflicts, skipping")
@@ -716,21 +735,182 @@ def ensure_jules_branch() -> None:
         print(f"  Created {JULES_BRANCH} branch from main")
 
 
-def check_ci_status_on_main() -> bool:
-    """Check if CI is passing on main branch."""
+def check_ci_status_on_main() -> tuple[bool, str | None]:
+    """Check if CI is passing on main branch.
+
+    Returns:
+        Tuple of (is_passing, failing_commit_sha).
+        If CI is passing, failing_commit_sha is None.
+    """
     try:
         result = subprocess.run(
-            ["gh", "run", "list", "--branch", "main", "--limit", "1", "--json", "conclusion"],
+            [
+                "gh",
+                "run",
+                "list",
+                "--branch",
+                "main",
+                "--limit",
+                "1",
+                "--json",
+                "conclusion,headSha",
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
         runs = json.loads(result.stdout)
         if runs:
-            return runs[0].get("conclusion") == "success"
-        return True
+            is_passing = runs[0].get("conclusion") == "success"
+            commit_sha = runs[0].get("headSha")
+            return is_passing, commit_sha if not is_passing else None
+        return True, None
     except Exception:
+        return True, None
+
+
+def get_existing_ci_fixer_prs() -> list[dict[str, Any]]:
+    """Find existing ci-fixer PRs that are open.
+
+    Jules PRs are identified by:
+    1. PR body containing jules.google.com URL (primary)
+    2. OR author is the Jules bot (fallback)
+    3. AND title contains ci-fixer/fix(ci) keywords
+
+    Returns:
+        List of open ci-fixer PRs with their details.
+    """
+    try:
+        # Get all open PRs (not filtered by author since Jules now creates PRs as repo owner)
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--json",
+                "number,title,isDraft,mergeable,headRefName,body,author",
+                "--limit",
+                "50",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        prs = json.loads(result.stdout)
+    except Exception as e:
+        print(f"  Failed to list PRs: {e}")
+        return []
+
+    ci_fixer_prs = []
+    for pr in prs:
+        title = pr.get("title", "").lower()
+        body = pr.get("body", "") or ""
+        author_login = pr.get("author", {}).get("login", "")
+
+        # Check if it's a ci-fixer PR by title
+        is_ci_fixer_title = "ci-fixer" in title or "fix(ci)" in title or "ci fix" in title
+
+        if not is_ci_fixer_title:
+            continue
+
+        # Check if it's a Jules PR (URL in body OR bot author)
+        is_jules_pr = (
+            "jules.google.com/task" in body
+            or "jules.google.com/session" in body
+            or author_login in JULES_BOT_LOGINS
+        )
+
+        if is_jules_pr:
+            ci_fixer_prs.append(pr)
+
+    return ci_fixer_prs
+
+
+def get_active_ci_fixer_session(client: TeamClient, repo: str) -> dict | None:
+    """Check if there's an active ci-fixer Jules session.
+
+    Args:
+        client: Jules API client
+        repo: Repository name
+
+    Returns:
+        Active ci-fixer session dict, or None if not found.
+    """
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+    except Exception:
+        return None
+
+    repo_lower = repo.lower()
+
+    for session in sessions:
+        title = (session.get("title") or "").lower()
+        state = (session.get("state") or "").upper()
+
+        # Check if this is a ci-fixer session for this repo
+        if "ci-fixer" not in title:
+            continue
+        if repo_lower not in title:
+            continue
+
+        # Skip completed/failed sessions
+        if state in {STATE_COMPLETED, STATE_FAILED}:
+            continue
+
+        # Skip PAUSED sessions
+        if state in SKIPPED_STATES:
+            continue
+
+        # Check for staleness if in PENDING_STATES
+        if state in PENDING_STATES:
+            if _is_session_stale(session):
+                continue
+
+        # Found an active ci-fixer session
+        return session
+
+    return None
+
+
+def merge_ci_fixer_pr(pr: dict[str, Any]) -> bool:
+    """Attempt to merge a ci-fixer PR.
+
+    Args:
+        pr: PR dict with number, isDraft, mergeable
+
+    Returns:
+        True if successfully merged, False otherwise.
+    """
+    pr_number = pr["number"]
+    is_draft = pr.get("isDraft", False)
+    mergeable = pr.get("mergeable", "UNKNOWN")
+
+    if mergeable == "CONFLICTING":
+        print(f"  PR #{pr_number}: has conflicts, cannot merge")
+        return False
+
+    try:
+        if is_draft:
+            subprocess.run(
+                ["gh", "pr", "ready", str(pr_number)],
+                check=True,
+                capture_output=True,
+            )
+            print(f"  PR #{pr_number}: marked ready")
+
+        subprocess.run(
+            ["gh", "pr", "merge", str(pr_number), "--delete-branch", "--admin"],
+            check=True,
+            capture_output=True,
+        )
+        print(f"  PR #{pr_number}: merged (admin override)")
         return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"  PR #{pr_number}: merge failed - {e.stderr if e.stderr else e}")
+        return False
 
 
 CI_FIXER_PROMPT = """# 🔧 CI Fixer
@@ -760,8 +940,18 @@ CI is failing on main. You need to fix it.
 """
 
 
-def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> SchedulerResult:
-    """Create a CI fixer session."""
+def create_fixer_session(
+    client: TeamClient,
+    repo_info: dict[str, str],
+    failing_commit: str | None = None,
+) -> SchedulerResult:
+    """Create a CI fixer session.
+
+    Args:
+        client: Jules API client
+        repo_info: Repository information
+        failing_commit: Optional SHA of the failing commit (for title identification)
+    """
     try:
         ensure_jules_branch()
 
@@ -770,12 +960,16 @@ def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> Sched
             repo=repo_info["repo"],
         )
 
+        # Include short commit SHA in title for identification
+        short_sha = failing_commit[:7] if failing_commit else "unknown"
+        title = f"🔧 ci-fixer {repo_info['repo']} @{short_sha}"
+
         result = client.create_session(
             prompt=prompt,
             owner=repo_info["owner"],
             repo=repo_info["repo"],
             branch=JULES_BRANCH,
-            title=f"🔧 ci-fixer {repo_info['repo']}",
+            title=title,
             automation_mode="AUTO_CREATE_PR",
             require_plan_approval=False,
         )
@@ -784,7 +978,7 @@ def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> Sched
 
         return SchedulerResult(
             success=True,
-            message="Created CI fixer session",
+            message=f"Created CI fixer session for commit {short_sha}",
             session_id=session_id,
         )
 
@@ -897,9 +1091,53 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     # STEP 4: CHECK CI STATUS
     # ==========================================================================
     print("\n4. Checking CI status on main...")
-    ci_ok = check_ci_status_on_main()
+    ci_ok, failing_commit = check_ci_status_on_main()
     if not ci_ok:
-        print("  CI is failing on main - creating fixer session")
+        print(f"  CI is failing on main (commit: {failing_commit[:7] if failing_commit else 'unknown'})")
+
+        # 4a. Check for existing ci-fixer sessions first
+        print("  Checking for existing ci-fixer sessions...")
+        active_fixer = get_active_ci_fixer_session(client, repo_info["repo"])
+        if active_fixer:
+            session_id = active_fixer.get("name", "").split("/")[-1]
+            state = active_fixer.get("state", "UNKNOWN")
+            print(f"  Found active ci-fixer session: {session_id} (state: {state})")
+            return SchedulerResult(
+                success=True,
+                message=f"CI-fixer session already running ({state})",
+                session_id=session_id,
+                merged_count=merged,
+                unblocked_count=unblocked,
+            )
+
+        # 4b. Check for existing ci-fixer PRs and try to merge them
+        print("  Checking for existing ci-fixer PRs...")
+        ci_fixer_prs = get_existing_ci_fixer_prs()
+        if ci_fixer_prs:
+            print(f"  Found {len(ci_fixer_prs)} existing ci-fixer PR(s)")
+            for pr in ci_fixer_prs:
+                pr_number = pr["number"]
+                pr_title = pr.get("title", "")
+                print(f"  Attempting to merge PR #{pr_number}: {pr_title}")
+                if dry_run:
+                    print(f"  [DRY RUN] Would merge ci-fixer PR #{pr_number}")
+                    return SchedulerResult(
+                        success=True,
+                        message=f"[DRY RUN] Would merge ci-fixer PR #{pr_number}",
+                        merged_count=merged,
+                        unblocked_count=unblocked,
+                    )
+                if merge_ci_fixer_pr(pr):
+                    return SchedulerResult(
+                        success=True,
+                        message=f"Merged existing ci-fixer PR #{pr_number}",
+                        merged_count=merged + 1,
+                        unblocked_count=unblocked,
+                    )
+            print("  Could not merge existing ci-fixer PRs, creating new session")
+
+        # 4c. No existing session or PR, create new fixer session
+        print(f"  Creating new CI fixer session for commit {failing_commit[:7] if failing_commit else 'unknown'}...")
         if dry_run:
             print("  [DRY RUN] Would create CI fixer session")
             return SchedulerResult(
@@ -908,7 +1146,7 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
                 merged_count=merged,
                 unblocked_count=unblocked,
             )
-        result = create_fixer_session(client, repo_info)
+        result = create_fixer_session(client, repo_info, failing_commit)
         result.merged_count = merged
         result.unblocked_count = unblocked
         if result.success:
