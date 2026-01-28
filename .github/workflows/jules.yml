@@ -121,10 +121,30 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       (github.event.pull_request.user.login == 'google-labs-jules[bot]' ||
-       github.event.pull_request.user.login == 'google-labs-jules')
+       github.event.pull_request.user.login == 'google-labs-jules' ||
+       github.event.pull_request.user.login == github.repository_owner)
     runs-on: ubuntu-latest
     steps:
+      - name: Check for Jules URL in PR body
+        id: check-jules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Check if PR body contains Jules URL
+          if echo "$PR_BODY" | grep -qE 'jules\.google\.com/(task|session)'; then
+            echo "is_jules=true" >> $GITHUB_OUTPUT
+            echo "✅ Found Jules URL in PR body"
+          elif [[ "${{ github.event.pull_request.user.login }}" == "google-labs-jules"* ]]; then
+            echo "is_jules=true" >> $GITHUB_OUTPUT
+            echo "✅ PR created by Jules bot"
+          else
+            echo "is_jules=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Not a Jules PR, skipping scheduler trigger"
+          fi
+
       - name: Trigger scheduler for next session
+        if: steps.check-jules.outputs.is_jules == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -140,15 +160,47 @@ jobs:
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number == '') ||
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       (startsWith(github.event.workflow_run.head_branch, 'jules-sched-') ||
-        github.event.workflow_run.head_branch == 'main' ||
-        github.event.workflow_run.head_branch == 'jules'))
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check if Jules PR (workflow_run)
+        if: github.event_name == 'workflow_run'
+        id: check-jules-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          echo "Branch: $BRANCH"
+
+          # Always allow main and jules branches
+          if [[ "$BRANCH" == "main" || "$BRANCH" == "jules" || "$BRANCH" == jules-sched-* ]]; then
+            echo "is_jules=true" >> $GITHUB_OUTPUT
+            echo "✅ Core branch ($BRANCH) - running scheduler"
+            exit 0
+          fi
+
+          # For other branches, check if there's a PR with Jules URL
+          PR_JSON=$(gh pr list --head "$BRANCH" --json number,body --limit 1 --repo "${{ github.repository }}" 2>/dev/null || echo "[]")
+
+          if [ "$PR_JSON" == "[]" ] || [ -z "$PR_JSON" ]; then
+            echo "is_jules=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No PR found for branch $BRANCH"
+            exit 0
+          fi
+
+          PR_BODY=$(echo "$PR_JSON" | jq -r '.[0].body // ""')
+
+          if echo "$PR_BODY" | grep -qE 'jules\.google\.com/(task|session)'; then
+            echo "is_jules=true" >> $GITHUB_OUTPUT
+            echo "✅ Found Jules URL in PR body - running scheduler"
+          else
+            echo "is_jules=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No Jules URL in PR body - skipping scheduler"
+          fi
+
       - uses: actions/checkout@v4
+        if: github.event_name != 'workflow_run' || steps.check-jules-pr.outputs.is_jules == 'true'
         with:
           sparse-checkout: |
             .github/actions
@@ -158,11 +210,13 @@ jobs:
             uv.lock
 
       - uses: ./.github/actions/setup-python-uv
+        if: github.event_name != 'workflow_run' || steps.check-jules-pr.outputs.is_jules == 'true'
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra jules"
 
       - name: Run scheduler
+        if: github.event_name != 'workflow_run' || steps.check-jules-pr.outputs.is_jules == 'true'
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
