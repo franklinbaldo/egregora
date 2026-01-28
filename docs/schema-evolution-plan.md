@@ -35,6 +35,10 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
 5.  **`messages`**
     -   Ingestion staging buffer.
 
+6.  **Git Context Layer**
+    -   **`git_commits`**: Stores file modification history.
+    -   **`git_refs`**: Stores snapshot of git references (tags, branches).
+
 ## 2. Planned Improvements
 
 ### 2.1 Enforce `doc_type` Integrity in `documents`

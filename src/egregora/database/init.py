@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     GIT_COMMITS_SCHEMA,
+    GIT_REFS_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
@@ -70,6 +71,7 @@ def initialize_database(backend: BaseBackend) -> None:
     create_index(conn, "documents", "idx_documents_type", "doc_type", index_type="Standard")
     create_index(conn, "documents", "idx_documents_slug", "slug", index_type="Standard")
     create_index(conn, "documents", "idx_documents_created", "created_at", index_type="Standard")
+    create_index(conn, "documents", "idx_documents_status", "status", index_type="Standard")
 
     # 2. Tasks Table
     create_table_if_not_exists(
@@ -89,12 +91,6 @@ def initialize_database(backend: BaseBackend) -> None:
         foreign_keys=get_table_foreign_keys("annotations"),
     )
 
-    # Indexes for unified documents table (Query performance)
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_slug ON documents(slug)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status)")
-
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
@@ -108,6 +104,11 @@ def initialize_database(backend: BaseBackend) -> None:
         conn,
         "CREATE INDEX IF NOT EXISTS idx_git_commits_lookup ON git_commits(repo_path, commit_timestamp DESC)",
     )
+
+    # 6. Git Refs Cache
+    create_table_if_not_exists(conn, "git_refs", GIT_REFS_SCHEMA)
+    create_index(conn, "git_refs", "idx_git_refs_name", "ref_name", index_type="Standard")
+    create_index(conn, "git_refs", "idx_git_refs_sha", "commit_sha", index_type="Standard")
 
     logger.info("✓ Database tables initialized successfully")
 
