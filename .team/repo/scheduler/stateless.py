@@ -97,6 +97,33 @@ SKIPPED_STATES = {STATE_PAUSED}
 PENDING_STALENESS_THRESHOLD = 3600
 
 
+class JulesAPIError(Exception):
+    """Raised when Jules API is not accessible (e.g., 403 Forbidden)."""
+
+
+def check_api_health(client: TeamClient) -> tuple[bool, str]:
+    """Check if Jules API is accessible.
+
+    Returns:
+        Tuple of (is_healthy, error_message).
+        If healthy, error_message is empty.
+
+    """
+    try:
+        # Try to list sessions - this is a lightweight read operation
+        client.list_sessions()
+        return True, ""
+    except Exception as e:
+        error_msg = str(e)
+        if "403" in error_msg:
+            return False, "Jules API returned 403 Forbidden - check JULES_API_KEY"
+        if "401" in error_msg:
+            return False, "Jules API returned 401 Unauthorized - JULES_API_KEY is invalid"
+        if "Connection" in error_msg or "timeout" in error_msg.lower():
+            return False, f"Jules API connection failed: {error_msg}"
+        return False, f"Jules API error: {error_msg}"
+
+
 def _get_repo_root() -> Path:
     """Get the repository root directory."""
     try:
@@ -742,6 +769,7 @@ def check_ci_status_on_main() -> tuple[bool, str | None]:
     Returns:
         Tuple of (is_passing, failing_commit_sha).
         If CI is passing, failing_commit_sha is None.
+
     """
     try:
         result = subprocess.run(
@@ -781,6 +809,7 @@ def get_existing_ci_fixer_prs() -> list[dict[str, Any]]:
 
     Returns:
         List of open ci-fixer PRs with their details.
+
     """
     try:
         # Get all open PRs (not filtered by author since Jules now creates PRs as repo owner)
@@ -839,6 +868,7 @@ def get_active_ci_fixer_session(client: TeamClient, repo: str) -> dict | None:
 
     Returns:
         Active ci-fixer session dict, or None if not found.
+
     """
     try:
         sessions = client.list_sessions().get("sessions", [])
@@ -884,6 +914,7 @@ def merge_ci_fixer_pr(pr: dict[str, Any]) -> bool:
 
     Returns:
         True if successfully merged, False otherwise.
+
     """
     pr_number = pr["number"]
     is_draft = pr.get("isDraft", False)
@@ -953,6 +984,7 @@ def create_fixer_session(
         client: Jules API client
         repo_info: Repository information
         failing_commit: Optional SHA of the failing commit (for title identification)
+
     """
     try:
         ensure_jules_branch()
@@ -1054,6 +1086,22 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     client = TeamClient()
     repo_info = get_repo_info()
     print(f"Repository: {repo_info['owner']}/{repo_info['repo']}")
+
+    # ==========================================================================
+    # STEP 0: API HEALTH CHECK (fail early if API is not accessible)
+    # ==========================================================================
+    print("\n0. Checking Jules API health...")
+    if not dry_run:
+        api_healthy, api_error = check_api_health(client)
+        if not api_healthy:
+            print(f"  ❌ {api_error}")
+            return SchedulerResult(
+                success=False,
+                message=api_error,
+            )
+        print("  ✅ Jules API is accessible")
+    else:
+        print("  [DRY RUN] Skipping API health check")
 
     # ==========================================================================
     # STEP 1: UNBLOCK STUCK SESSIONS (PRIMARY WORKFLOW)
