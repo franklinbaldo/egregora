@@ -10,6 +10,16 @@ def merge_jules_into_main() -> None:
 
     This performs a fast-forward merge if possible, otherwise a regular merge.
     """
+    # Configure git user identity for commits (required in GitHub Actions)
+    subprocess.run(
+        ["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "github-actions[bot]"],
+        check=True,
+    )
+
     # Get current branch to restore later
     result = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
