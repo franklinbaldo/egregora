@@ -49,4 +49,4 @@ fi
 
 # Enable auto-merge
 echo "🔀 Enabling auto-merge for PR #$PR_NUMBER"
-gh pr merge "$PR_NUMBER" --auto --delete-branch
+gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
