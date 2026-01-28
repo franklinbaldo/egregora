@@ -153,7 +153,7 @@ def _process_batches(agent: Any, batches: list[list[str]]) -> list[Any]:
         )
         try:
             result = agent.run_sync(prompt)
-            batch_results.append(result.data.mappings)
+            batch_results.append(result.output.mappings)
         except Exception as e:
             logger.warning("Batch taxonomy generation failed: %s", e)
             batch_results.append([])

@@ -223,8 +223,8 @@ def _extract_summary_from_result(result: Any) -> str:
 
     """
     # Try to get data from result
-    if hasattr(result, "data"):
-        data = result.data
+    if hasattr(result, "output"):
+        data = result.output
         # If data is SkillCompletionResult, extract summary
         if isinstance(data, SkillCompletionResult):
             return f"{_SKILL_COMPLETION_MARKER}\n{data.summary}"

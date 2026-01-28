@@ -108,7 +108,7 @@ Evaluate both posts and determine which is better quality overall.
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
             result = agent.run_sync(prompt)
-    comparison_result = result.data
+    comparison_result = result.output
 
     # Convert to PostComparison (includes full Document references)
     return PostComparison(
