@@ -373,6 +373,8 @@ module = [
     "google.generativeai",
     "ibis.common.exceptions",
     "ibis.backends.duckdb",
+    "ratelimit",
+    "sklearn",
 ]
 ignore_missing_imports = true
 
