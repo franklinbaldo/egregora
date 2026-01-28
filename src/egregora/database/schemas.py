@@ -20,6 +20,8 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
+    "GIT_COMMITS_SCHEMA",
+    "GIT_REFS_SCHEMA",
     "STAGING_MESSAGES_SCHEMA",
     "TASKS_SCHEMA",
     "UNIFIED_SCHEMA",
@@ -488,5 +490,14 @@ GIT_COMMITS_SCHEMA = ibis.schema(
         "commit_timestamp": dt.Timestamp(timezone="UTC"),
         "author": dt.string(nullable=True),
         "message": dt.string(nullable=True),
+    }
+)
+
+GIT_REFS_SCHEMA = ibis.schema(
+    {
+        "ref_name": dt.string,  # e.g., 'refs/heads/main', 'refs/tags/v1.0'
+        "commit_sha": dt.string,  # SHA-1
+        "is_tag": dt.boolean,
+        "is_remote": dt.boolean,
     }
 )
