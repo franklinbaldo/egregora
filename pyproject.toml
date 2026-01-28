@@ -11,7 +11,9 @@ dependencies = [
     "httpx",
     "jinja2",
     "pydantic",
+    "pydantic-core",
     "pydantic-settings",
+    "python-dotenv",
     "python-frontmatter",
     "pyyaml",
     "rich",
@@ -465,6 +467,8 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 DEP001 = ["dotenv", "google", "pydantic_core", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
 DEP002 = [
     "protobuf",
+    "egregora",
+    "grpcio-status",
     "mkdocs",
     "mkdocs-material",
     "mkdocs-glightbox",
