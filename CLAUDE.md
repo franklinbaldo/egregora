@@ -2,98 +2,95 @@
 
 > Guidelines for contributors and AI agents working on Egregora
 
-This document serves as the authoritative reference for coding standards, architectural patterns, and development practices in the Egregora project. It is designed to help both human contributors and AI agents (like Claude and Jules) understand the codebase and contribute effectively.
-
 ---
 
-## 🎯 Project Overview
+## Project Overview
 
-**Egregora** transforms your chat history into stories that remember. It doesn't just convert chats to text—it creates connected narratives with contextual memory, automatically discovers your best memories, and generates loving portraits of the people in your conversations.
+**Egregora** transforms chat history into stories that remember. It creates connected narratives with contextual memory, automatically discovers meaningful conversations, and generates portraits of participants.
 
-### What Makes Egregora Special
+### Three Magical Features
 
-Three "magical" features work automatically to differentiate Egregora from simple chat-to-text tools:
+These features are **enabled by default** and work without configuration:
 
-1. **🧠 Contextual Memory (RAG)**: Posts reference previous discussions, creating connected narratives that feel like a continuing story
-2. **🏆 Content Discovery (Ranking)**: Automatically identifies and surfaces your most meaningful conversations
-3. **💝 Author Profiles**: Creates emotional portraits of participants—storytelling that captures personality, not statistical analysis
+1. **Contextual Memory (RAG)**: Posts reference previous discussions via LanceDB vector search
+2. **Content Discovery (Ranking)**: ELO-based ranking surfaces meaningful conversations
+3. **Author Profiles**: Emotional portraits of chat participants
 
-**These three features are THE PRODUCT, not optional extras.** They must be:
-- ✅ **Enabled by default** for all users
-- ✅ **Zero configuration** for 95% of users
-- ✅ **Invisible to users** (they see value, not technology)
-- ✅ **The differentiating factor** that makes Egregora magical
+### Core Philosophy
 
-### Core Philosophy: "Invisible Intelligence, Visible Magic"
-
-- **Privacy-first**: Runs locally by default, keeping your data private
+- **Privacy-first**: Runs locally by default
 - **Performance-first**: Uses DuckDB and Ibis for efficient data processing
-- **Type-safe AI**: Built with Pydantic-AI for structured, validated outputs
+- **Type-safe AI**: Built with Pydantic-AI for structured outputs
 - **Functional patterns**: Data flows through pure functions (`Table -> Table`)
-- **Magic by default**: RAG, ranking, and profiling work automatically without configuration
+- **Magic by default**: RAG, ranking, and profiling work automatically
 
 ---
 
-## 🏗️ Architecture
-
-### Project Structure
+## Project Structure
 
 ```
 src/egregora/
-├── orchestration/     # High-level workflows coordinating the pipeline
-├── agents/           # AI logic powered by Pydantic-AI
-├── database/         # Data persistence using DuckDB and LanceDB
-├── input_adapters/   # Logic for reading different data sources
-├── output_sinks/  # Logic for writing to different formats
-├── transformations/  # Pure data transformation functions
-├── rag/             # Vector knowledge base using LanceDB
-├── config/          # Configuration management
-└── cli/             # Command-line interface using Typer
+├── agents/              # Pydantic-AI agents
+│   ├── banner/         # Image generation
+│   ├── profile/        # Author profile generation
+│   ├── reader/         # ELO-based content ranking
+│   ├── shared/         # Shared agent infrastructure
+│   ├── tools/          # Agent tools and skill injection
+│   ├── writer.py       # Main writer agent
+│   └── enricher.py     # Media/URL enrichment
+├── database/           # DuckDB persistence
+│   ├── schemas.py      # Table definitions
+│   ├── duckdb_manager.py
+│   ├── repository.py   # Generic data repository
+│   ├── elo_store.py    # ELO ranking storage
+│   ├── task_store.py   # Background task tracking
+│   └── streaming/      # ZIP streaming for large files
+├── input_adapters/     # Platform-specific input handlers
+│   ├── whatsapp/       # WhatsApp export adapter
+│   ├── base.py         # InputAdapter protocol
+│   └── registry.py     # Adapter discovery
+├── output_sinks/       # Output format handlers
+│   ├── mkdocs/         # MkDocs Material implementation
+│   └── base.py         # OutputSink protocol
+├── orchestration/      # Pipeline coordination
+│   ├── pipelines/
+│   │   └── write.py    # Core orchestration logic
+│   ├── runner.py       # Pipeline execution loop
+│   ├── context.py      # Execution context
+│   ├── journal.py      # Idempotent processing journal
+│   └── cache.py        # Caching layer
+├── rag/                # Vector knowledge base (LanceDB)
+│   ├── lancedb_backend.py
+│   ├── embeddings.py   # Embedding generation
+│   ├── chunking.py     # Text chunking strategies
+│   └── ingestion.py    # Document ingestion
+├── config/             # Configuration (Pydantic Settings + TOML)
+├── cli/                # CLI (Typer)
+├── llm/                # LLM provider abstraction
+│   ├── providers/      # Model providers (Gemini)
+│   ├── model_fallback.py
+│   ├── rate_limit.py
+│   └── retry.py
+├── transformations/    # Pure data transformations
+├── data_primitives/    # Core data types (Document, datetime utils)
+├── knowledge/          # Profile extraction
+├── ops/                # Media processing, taxonomy
+├── security/           # Filesystem safety, PII, SSRF, ZIP validation
+├── prompts/            # Jinja2 prompt templates
+└── templates/          # Site templates
 ```
-
-### Key Architectural Patterns
-
-#### 1. **Functional Data Transformations**
-All data transformations use Ibis expressions operating on DuckDB tables:
-```python
-def transform(table: ibis.Table) -> ibis.Table:
-    """Pure function transforming data."""
-    return table.filter(...).mutate(...)
-```
-
-#### 2. **Adapter Pattern**
-Input and output adapters implement protocols for extensibility:
-- `InputAdapter`: Read from different sources (WhatsApp, Slack, etc.)
-- `OutputAdapter`: Write to different formats (MkDocs, SQLite, etc.)
-
-#### 3. **Agent-Based AI**
-AI agents are implemented using Pydantic-AI with structured outputs:
-- `WriterAgent`: Generates blog posts with contextual memory (uses RAG automatically)
-- `ReaderAgent`: Ranks posts using ELO ratings (enables content discovery)
-- `ProfileAgent`: Creates emotional portraits of participants (author profiling)
-- `BannerAgent`: Creates cover images
-- `EnricherAgent`: Analyzes media for context
-
-**⭐ CRITICAL:** The Writer, Reader, and Profile agents implement the three magical features. They must be enabled by default and work without user configuration.
-
-#### 4. **RAG with LanceDB** ⭐ MAGICAL FEATURE
-Vector knowledge base for contextual memory (one of the three magical features):
-- Stores conversation history as embeddings
-- Retrieves related discussions when writing new posts
-- Provides depth and continuity to narratives
-- **Must be enabled by default** and work transparently
-- Users experience: posts that reference "Remember when we discussed..."
 
 ---
 
-## 🛠️ Development Setup
+## Development Setup
 
 ### Prerequisites
-- Python 3.12+ (specified in `.python-version`)
-- [uv](https://github.com/astral-sh/uv) for dependency management
-- Google Gemini API key (free tier available)
 
-### Initial Setup
+- Python 3.12 (see `.python-version`)
+- [uv](https://github.com/astral-sh/uv) for dependency management
+- Google Gemini API key
+
+### Quick Start
 
 ```bash
 # Install dependencies
@@ -102,31 +99,33 @@ uv sync --all-extras
 # Install pre-commit hooks
 uv run pre-commit install
 
-# Set up API key
+# Set API key
 export GOOGLE_API_KEY="your-api-key"
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-uv run pytest tests/
+# Unit tests (parallel)
+uv run pytest tests/unit/ -n auto -v
 
-# Run with coverage
-uv run pytest --cov=egregora --cov-report=term-missing
+# E2E tests
+uv run pytest tests/e2e/ -n auto -v
 
-# Run specific test markers
-uv run pytest -m "not slow"  # Skip slow tests
-uv run pytest -m e2e         # Only end-to-end tests
+# With coverage
+uv run pytest --cov=src/egregora --cov-branch --cov-report=term
+
+# Skip slow tests
+uv run pytest -m "not slow"
 ```
 
-### Code Quality Tools
+### Code Quality
 
 ```bash
-# Linting with Ruff
+# Linting (Ruff)
 uv run ruff check src/ tests/
 
-# Type checking with MyPy
+# Type checking (MyPy)
 uv run mypy src/
 
 # Dead code detection
@@ -134,287 +133,343 @@ uv run vulture src/ tests/
 
 # Security scanning
 uv run bandit -r src/
+
+# All pre-commit hooks
+uv run pre-commit run --all-files
 ```
 
 ---
 
-## 📜 Code Standards
+## Code Standards
 
-### Style Guide
+### Formatting
 
-#### Line Length
-- **Ruff**: 110 characters (slightly generous for strings/logs)
-- **Black**: 100 characters (formatter)
+- **Ruff line length**: 110 characters
+- **Black line length**: 100 characters
+- **Target Python**: 3.12
 
-#### Import Organization
-- **Absolute imports only**: No relative imports (enforced by Ruff)
-- **Banned imports**:
-  - `pandas`: Use `ibis-framework` instead
-  - `pyarrow`: Use `ibis-framework` instead
+### Imports
 
-#### Type Annotations
-- **Required**: All function signatures must have type annotations
-- **MyPy strict mode**: Enabled for most modules
-- Exceptions: Some CLI modules (see `pyproject.toml`)
+- **Absolute imports only** (relative imports banned by Ruff)
+- **Banned imports**: `pandas`, `pyarrow` (use `ibis-framework` instead)
 
-#### Docstrings
-- **Style**: Google-style docstrings
-- **Required for**: Public classes and complex functions
-- **Not required for**: Tests, internal helpers
+### Type Annotations
 
-### Naming Conventions
+- Required for all function signatures
+- MyPy strict mode enabled (some CLI exceptions)
 
-- **Files**: `snake_case.py`
-- **Classes**: `PascalCase`
-- **Functions/methods**: `snake_case`
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Private members**: `_leading_underscore`
+### Docstrings
 
-### Error Handling
+- Google-style docstrings
+- Required for public classes and complex functions
+- Not required for tests or internal helpers
 
-#### Custom Exceptions
-Define domain-specific exceptions in `exceptions.py` modules:
-```python
-class EgregoraError(Exception):
-    """Base exception for all Egregora errors."""
+### Naming
 
-class ConfigurationError(EgregoraError):
-    """Raised when configuration is invalid."""
-```
-
-#### Exception Hierarchy
-- `EgregoraError`: Base for all custom exceptions
-- Module-specific bases inherit from `EgregoraError`
-- Specific errors inherit from module bases
-
-### Testing Philosophy
-
-#### Test Organization
-```
-tests/
-├── unit/          # Fast, isolated unit tests
-├── integration/   # Tests with real dependencies (DB, API)
-├── e2e/          # End-to-end pipeline tests
-└── fixtures/     # Shared test fixtures
-```
-
-#### Test Markers
-- `@pytest.mark.slow`: Tests taking >1 second
-- `@pytest.mark.e2e`: Full pipeline tests
-- `@pytest.mark.benchmark`: Performance baselines
-
-#### Coverage Requirements
-- **Current**: 39% (with branch coverage)
-- **Target**: Gradually increase with new code
-- **Focus**: New code should have high coverage
-
-#### Testing Strategies
-- **Property-based testing**: Use Hypothesis for data validation
-- **Snapshot testing**: Use Syrupy for Atom XML and templates
-- **Mocking**: Use `pytest-mock` and `respx` for HTTP
-- **Time travel**: Use `freezegun` for deterministic timestamps
+| Type | Style | Example |
+|------|-------|---------|
+| Files | snake_case | `writer_agent.py` |
+| Classes | PascalCase | `WriterAgent` |
+| Functions | snake_case | `process_window` |
+| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES` |
+| Private | _leading_underscore | `_internal_method` |
 
 ---
 
-## 🤖 AI Agent Guidelines
+## Exception Hierarchy
 
-### General Principles
-
-1. **Read before modifying**: Always read files before making changes
-2. **Understand context**: Review related code and documentation
-3. **Follow patterns**: Match existing code style and architecture
-4. **Test your changes**: Ensure tests pass before committing
-5. **Document decisions**: Update relevant docs and add comments where needed
-
-### Jules Personas
-
-This repository uses autonomous AI agents (Jules personas) for maintenance tasks:
-- **Weaver**: PR merging and build integration
-- **Janitor**: Code cleanup and technical debt
-- **Artisan**: Refactoring and code quality
-- **Palette**: UI/UX consistency
-- **Essentialist**: Complexity reduction
-
-See [.team/README.md](.team/README.md) for persona definitions.
-
-### Collaborating with Gemini
-
-When Gemini is available in the environment (via `gemini` command), you can delegate large implementation tasks to maximize efficiency and conserve your tokens.
-
-**When to Delegate to Gemini:**
-- ✅ Large code generation tasks (multiple files, hundreds of lines)
-- ✅ Boilerplate implementation following a clear spec
-- ✅ Mechanical refactoring across many files
-- ✅ Creating test suites following patterns
-- ❌ Architecture decisions (you should decide)
-- ❌ Code review and analysis (your specialty)
-- ❌ Complex debugging (requires deep reasoning)
-
-**How to Delegate:**
-
-1. **Analyze and Plan** (You do this):
-   - Read relevant code and understand the context
-   - Identify gaps and requirements
-   - Create a detailed implementation specification
-   - Design the solution architecture
-
-2. **Create Detailed Prompt** (You do this):
-   - Write comprehensive instructions in markdown
-   - Include code examples and patterns to follow
-   - Specify file paths (absolute paths preferred)
-   - List acceptance criteria
-   - Save to temp file for readability
-
-3. **Delegate Execution** (Gemini does this):
-   ```bash
-   gemini --yolo --prompt "$(cat /tmp/implementation_spec.md)"
-   ```
-
-4. **Monitor and Validate** (You do this):
-   - Check Gemini's output
-   - Run tests to verify implementation
-   - Review code quality
-   - Provide feedback or fixes if needed
-
-**Example Workflow:**
-
-```python
-# You: Analyze requirements
-analysis = """
-Current state: blog posts have no tags
-Required: Add TagConfig dataclass, tag extraction logic
-Files to create: tag_extractor.py
-Files to modify: writer_agent.py, blog_models.py
-"""
-
-# You: Create detailed spec
-spec = create_implementation_spec(analysis)
-save_to_file("/tmp/tag_feature_spec.md", spec)
-
-# Gemini: Execute implementation
-run_command("gemini --yolo --prompt \"$(cat /tmp/tag_feature_spec.md)\"")
-
-# You: Validate results
-run_tests()
-review_code_quality()
+```
+EgregoraError (base)
+├── ConfigError
+├── DatabaseError
+├── AgentError
+│   └── PromptTooLargeError
+├── OrchestrationError
+├── TransformationsError
+├── OutputAdapterError
+├── WhatsAppError
+├── RAGError
+├── EmbeddingError
+├── LLMProviderError
+├── ProfileError
+├── DateTimeError
+├── SlugifyError
+├── AvatarProcessingError
+└── ToolRegistryError
 ```
 
-**Benefits:**
-- 💰 Conserves your valuable tokens for analysis and planning
-- 🚀 Faster execution for mechanical tasks
-- 🎯 You focus on architecture and strategy
-- 🔍 Gemini handles detailed implementation
-
-**Remember:** You're the architect and code reviewer. Gemini is your implementation assistant. Always validate Gemini's output before committing.
-
-### Working with the Codebase
-
-#### Before Making Changes
-1. **Search for patterns**: Use grep/glob to find similar code
-2. **Check for tests**: Look for existing tests to understand behavior
-3. **Review exceptions**: Check `exceptions.py` for proper error types
-4. **Verify migrations**: Ensure V2/Pure compatibility if needed
-
-#### Making Changes
-1. **Small commits**: One logical change per commit
-2. **Descriptive messages**: Explain why, not just what
-3. **Update tests**: Add/modify tests for changed behavior
-4. **Run pre-commit**: Let hooks catch issues early
-
-#### Code Review Checklist
-- [ ] Type annotations present and correct
-- [ ] Tests added/updated
-- [ ] No banned imports (pandas, pyarrow)
-- [ ] Docstrings for public APIs
-- [ ] Error handling with custom exceptions
-- [ ] Performance implications considered
+Define domain-specific exceptions inheriting from `EgregoraError`.
 
 ---
 
-## 🎯 Key Patterns
+## Key Patterns
 
 ### 1. Ibis-First Data Processing
 
-**Always use Ibis** for data operations, never pandas directly:
+Always use Ibis for data operations, never pandas:
 
 ```python
-# ✅ Good
+# Correct
 def filter_messages(table: ibis.Table, min_length: int) -> ibis.Table:
     return table.filter(ibis._['message_length'] >= min_length)
-
-# ❌ Bad
-def filter_messages(df: pd.DataFrame, min_length: int) -> pd.DataFrame:
-    return df[df['message_length'] >= min_length]
 ```
 
-### 2. Streaming for Large Files
+### 2. Adapter Pattern
 
-Use streaming for ZIP files and large datasets:
+Input and output adapters implement protocols:
 
 ```python
-from egregora.database.streaming import stream_whatsapp_zip
+class InputAdapter(Protocol):
+    def read(self, source: Path) -> Table: ...
 
-# Streaming prevents loading entire file into RAM
-for chunk in stream_whatsapp_zip(zip_path):
-    process_chunk(chunk)
+class OutputSink(Protocol):
+    def write(self, data: Table, path: Path) -> None: ...
 ```
 
-### 3. Pydantic Models for Validation
+### 3. Pydantic-AI Agents
 
-Use Pydantic for all data models:
+AI agents use structured outputs:
 
 ```python
-from pydantic import BaseModel, Field, field_validator
+agent = Agent(
+    model="google-gla:gemini-2.0-flash-exp",
+    deps_type=WriterDeps,
+    system_prompt_template=template,
+)
 
-class Message(BaseModel):
-    content: str
-    timestamp: datetime
-    author: str
-
-    @field_validator('content')
-    @classmethod
-    def validate_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("Content cannot be empty")
-        return v
+result = agent.run_sync(prompt=prompt, deps=deps, tools=[...])
 ```
 
-### 4. Dependency Injection
+### 4. RAG with LanceDB
 
-Use protocols and dependency injection for testability:
+Vector knowledge base for contextual memory:
 
-```python
-from typing import Protocol
-
-class MessageRepository(Protocol):
-    def get_messages(self) -> list[Message]: ...
-
-def process_messages(repo: MessageRepository) -> None:
-    messages = repo.get_messages()
-    # Process messages
-```
+- Stores conversation history as embeddings
+- Retrieves related discussions when writing
+- Enabled by default, works transparently
 
 ### 5. Configuration Management
 
-Use Pydantic Settings for configuration:
+Use Pydantic Settings:
 
 ```python
 from pydantic_settings import BaseSettings
 
 class EgregoraConfig(BaseSettings):
     google_api_key: str = Field(alias='GOOGLE_API_KEY')
+```
 
-    class Config:
-        env_file = '.env'
+### 6. Streaming for Large Files
+
+```python
+from egregora.database.streaming import stream_whatsapp_zip
+
+for chunk in stream_whatsapp_zip(zip_path):
+    process_chunk(chunk)
 ```
 
 ---
 
-## 🔍 Common Pitfalls
+## Testing
 
-### 1. DuckDB SQL Injection (False Positive)
+### Structure
 
-Ruff rule `S608` is disabled because DuckDB uses parameterized queries through Ibis. This is **safe**:
+```
+tests/
+├── unit/          # Fast, isolated tests
+├── e2e/           # End-to-end pipeline tests
+├── integration/   # Tests with real dependencies
+├── fixtures/      # Shared test data
+│   ├── golden/   # Expected output snapshots
+│   └── input/    # Input test data
+├── benchmarks/    # Performance baselines
+├── evals/         # LLM evaluation tests
+└── conftest.py    # Global fixtures
+```
+
+### Markers
+
+- `@pytest.mark.slow`: Tests > 1 second
+- `@pytest.mark.e2e`: Full pipeline tests
+- `@pytest.mark.benchmark`: Performance baselines
+- `@pytest.mark.quality`: Code quality checks
+
+### Test Dependencies
+
+- `pytest`, `pytest-asyncio`, `pytest-xdist`, `pytest-mock`
+- `hypothesis`: Property-based testing
+- `freezegun`: Deterministic timestamps
+- `syrupy`: Snapshot testing
+- `respx`: HTTP mocking
+- `faker`: Test data generation
+- `moto`: AWS mocking
+
+---
+
+## CI/CD
+
+### GitHub Actions Workflows
+
+**CI (`ci.yml`)** - Runs on push/PR:
+- `pre-commit`: Ruff linting, formatting, vulture
+- `test-unit`: Unit tests with coverage (10 min timeout)
+- `test-e2e`: E2E tests with coverage (30 min timeout)
+- `security`: Dependency vulnerability scanning (safety, pip-audit)
+- `build`: Package build verification
+
+**Jules (`jules.yml`)** - AI agent automation:
+- Stateless persona rotation
+- API-driven session management
+- Auto-merge on CI pass
+- Auto-fix for failed PRs
+
+**Docs (`docs-pages.yml`)** - Documentation deployment
+
+### Pre-commit Hooks
+
+- `ruff check --fix --unsafe-fixes`
+- `vulture` (dead code)
+- `check-private-imports`
+- `check-test-config`
+- Standard hooks: JSON, YAML, merge conflicts, large files
+
+---
+
+## Key Dependencies
+
+```
+Core:
+  ibis-framework[duckdb]    # Data processing
+  pydantic-ai              # Structured LLM outputs
+  google-genai             # Gemini API
+  lancedb==0.27.0          # Vector store
+  diskcache                # Embedding cache
+  typer                    # CLI framework
+
+Database:
+  DuckDB                   # OLAP database
+  LanceDB                  # Vector store
+
+Content:
+  mkdocs-material[imaging] # Static site generation
+  jinja2                   # Template rendering
+  python-frontmatter       # Markdown with YAML
+
+Utilities:
+  pydantic-settings        # Config management
+  tenacity                 # Retry logic
+  ratelimit                # Rate limiting
+  scikit-learn             # ELO algorithm
+```
+
+---
+
+## Jules Automation System
+
+The repository uses autonomous AI agents (Jules personas) for maintenance. See [.team/README.md](.team/README.md) for full documentation.
+
+### 23 Specialized Personas
+
+| Emoji | Name | Role |
+|:---:|:---|:---|
+| 🎯 | Absolutist | Strict rule enforcement |
+| 🔨 | Artisan | Code craftsmanship |
+| 🧪 | BDD Specialist | Behavior-driven testing |
+| ⚡ | Bolt | Performance optimization |
+| 🏗️ | Builder | Data architecture |
+| 🎭 | Curator | UX/UI evaluation |
+| 💎 | Essentialist | Strategic cuts |
+| ⚒️ | Forge | Feature implementation |
+| 🧹 | Janitor | Code cleanup |
+| 📚 | Lore | System historian |
+| 💝 | Maya | User advocate |
+| 🔮 | Oracle | Support agent |
+| 🗂️ | Organizer | Project structure |
+| 🔧 | Refactor | Code quality |
+| 💣 | Sapper | Exception patterns |
+| ✍️ | Scribe | Documentation |
+| 🛡️ | Sentinel | Security audits |
+| 🧑‍🌾 | Shepherd | Test coverage |
+| 🤠 | Sheriff | Test stability |
+| 📉 | Simplifier | Complexity reduction |
+| 🌊 | Streamliner | Data optimization |
+| 🔍 | Typeguard | Type safety |
+| 🔭 | Visionary | Strategic RFCs |
+
+### Running Personas
+
+```bash
+# Run specific persona
+uv run jules schedule tick --prompt-id curator
+
+# Dry run
+uv run jules schedule tick --prompt-id curator --dry-run
+
+# Run all
+uv run jules schedule tick --all
+```
+
+---
+
+## AI Agent Guidelines
+
+### General Principles
+
+1. **Read before modifying**: Always read files before making changes
+2. **Understand context**: Review related code and documentation
+3. **Follow patterns**: Match existing code style
+4. **Test your changes**: Ensure tests pass before committing
+5. **Document decisions**: Update relevant docs where needed
+
+### Before Making Changes
+
+1. Search for similar patterns with grep/glob
+2. Check for existing tests
+3. Review `exceptions.py` for proper error types
+
+### Making Changes
+
+1. Small commits: One logical change per commit
+2. Descriptive messages: Explain why, not just what
+3. Update tests for changed behavior
+4. Run pre-commit hooks
+
+### Code Review Checklist
+
+- [ ] Type annotations present and correct
+- [ ] Tests added/updated
+- [ ] No banned imports (pandas, pyarrow)
+- [ ] Docstrings for public APIs
+- [ ] Error handling with custom exceptions
+
+---
+
+## Ruff Configuration Highlights
+
+### Legitimately Ignored Rules
+
+| Rule | Reason |
+|------|--------|
+| `S608` | False positive with DuckDB parameterized queries |
+| `ARG001/002/005` | Unused args needed for interface compatibility |
+| `ANN401` | `Any` type sometimes necessary |
+| `SLF001` | Private member access needed for testing |
+| `C901`, `PLR*` | Complexity tracked but not blocking |
+| `DTZ*` | Timezone enforcement (gradual migration) |
+
+### Per-File Ignores
+
+- `tests/**/*.py`: Allow asserts, magic values, skip type annotations
+- `src/egregora/cli/*.py`: Allow `B008` (Typer requires Option() in defaults)
+- Fault-tolerant components: Allow `BLE001` for graceful degradation
+
+---
+
+## Common Pitfalls
+
+### 1. DuckDB SQL Injection (S608)
+
+This is a false positive. Ibis handles parameterization safely:
 
 ```python
 # Safe - Ibis handles parameterization
@@ -423,23 +478,15 @@ table.filter(ibis._['user_input'] == user_value)
 
 ### 2. Timezone-Naive Datetimes
 
-Rules `DTZ001-DTZ011` are currently ignored but should be addressed gradually. Always use timezone-aware datetimes for new code:
+Use timezone-aware datetimes for new code:
 
 ```python
 from datetime import datetime, timezone
 
-# ✅ Good
-now = datetime.now(tz=timezone.utc)
-
-# ❌ Bad (but currently allowed)
-now = datetime.now()
+now = datetime.now(tz=timezone.utc)  # Correct
 ```
 
-### 3. Complexity Limits
-
-Complexity rules (`C901`, `PLR*`) are currently ignored. Keep functions simple, but focus on readability over rigid metrics.
-
-### 4. Test Isolation
+### 3. Test Isolation
 
 Always clean up test resources:
 
@@ -448,33 +495,22 @@ Always clean up test resources:
 def temp_db():
     db_path = "test.db"
     yield db_path
-    # Cleanup
     if Path(db_path).exists():
         Path(db_path).unlink()
 ```
 
 ---
 
-## 📚 Key Documents
-
-- [README.md](README.md): User-facing documentation
-- [CHANGELOG.md](CHANGELOG.md): Version history
-- [.team/README.md](.team/README.md): AI agent personas
-- [docs/](docs/): Full documentation site
-
----
-
-## 🚀 Contributing
+## Contributing
 
 ### Workflow
 
-1. **Create a branch**: `git checkout -b feature/your-feature`
-2. **Make changes**: Follow the code standards above
-3. **Run tests**: `uv run pytest tests/`
-4. **Run pre-commit**: `uv run pre-commit run --all-files`
-5. **Commit**: Use descriptive commit messages
-6. **Push**: `git push origin feature/your-feature`
-7. **Open PR**: Describe changes and link issues
+1. Create branch: `git checkout -b feature/your-feature`
+2. Make changes following code standards
+3. Run tests: `uv run pytest tests/`
+4. Run pre-commit: `uv run pre-commit run --all-files`
+5. Commit with descriptive message
+6. Push and open PR
 
 ### Commit Message Format
 
@@ -482,48 +518,22 @@ def temp_db():
 <type>: <description>
 
 [optional body]
-
-[optional footer]
 ```
 
-Types:
-- `feat`: New feature
-- `fix`: Bug fix
-- `refactor`: Code refactoring
-- `test`: Adding/updating tests
-- `docs`: Documentation changes
-- `chore`: Maintenance tasks
-
-### Pre-commit Hooks
-
-The pre-commit hooks run:
-- Ruff linting
-- Black formatting
-- MyPy type checking
-- Pytest (selected tests)
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 ---
 
-## 🎓 Learning Resources
+## Resources
 
-### Ibis
 - [Ibis Documentation](https://ibis-project.org/)
-- [Ibis Tutorial](https://ibis-project.org/tutorial/intro)
-
-### Pydantic-AI
-- [Pydantic-AI Docs](https://ai.pydantic.dev/)
-- [Type-safe AI](https://ai.pydantic.dev/why/)
-
-### DuckDB
+- [Pydantic-AI Documentation](https://ai.pydantic.dev/)
 - [DuckDB Documentation](https://duckdb.org/docs/)
-- [Why DuckDB?](https://duckdb.org/why_duckdb)
-
-### Material for MkDocs
 - [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)
 
 ---
 
-## 💬 Questions?
+## Questions?
 
 - **Issues**: Open an issue on GitHub
 - **Discussions**: Use GitHub Discussions
@@ -531,4 +541,4 @@ The pre-commit hooks run:
 
 ---
 
-*This document is maintained by the Weaver persona and human contributors. Last updated: 2026-01-01*
+*Maintained by the Weaver persona and human contributors. Last updated: 2026-01-28*
