@@ -131,9 +131,9 @@ class TestWriterToolsExtraction:
 
         # Mock a Document-like object that save_annotation would return
         mock_annotation = Mock()
-        mock_annotation.document_id = "ann-123"
+        mock_annotation.id = "ann-123"
         mock_annotation.parent_id = "msg-456"
-        mock_annotation.metadata = {"parent_type": "message"}
+        mock_annotation.parent_type = "message"
 
         mock_store.save_annotation.return_value = mock_annotation
         ctx = AnnotationContext(annotations_store=mock_store)
