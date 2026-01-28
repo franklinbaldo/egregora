@@ -528,7 +528,7 @@ def get_repo_info() -> dict[str, str]:
     """Get owner and repo from environment or git."""
     owner = os.environ.get("GITHUB_REPOSITORY_OWNER")
     repo_full = os.environ.get("GITHUB_REPOSITORY")
-    
+
     if not owner or not repo_full:
         import subprocess
         try:
@@ -540,13 +540,29 @@ def get_repo_info() -> dict[str, str]:
                 check=True
             )
             url = result.stdout.strip()
-            # Handle both HTTPS and SSH formats
-            # https://github.com/owner/repo.git or git@github.com:owner/repo.git
+            # Handle various URL formats:
+            # - https://github.com/owner/repo.git
+            # - git@github.com:owner/repo.git
+            # - http://local_proxy@127.0.0.1:PORT/git/owner/repo (proxy format)
             if "github.com" in url:
                 parts = url.replace(".git", "").replace(":", "/").split("/")
                 if len(parts) >= 2:
                     owner = parts[-2]
                     repo_full = f"{owner}/{parts[-1]}"
+            else:
+                # Handle proxy/generic URL format: .../git/owner/repo or .../owner/repo
+                url_clean = url.replace(".git", "")
+                # Try to find /git/owner/repo pattern first
+                git_match = re.search(r"/git/([^/]+)/([^/]+)$", url_clean)
+                if git_match:
+                    owner = git_match.group(1)
+                    repo_full = f"{owner}/{git_match.group(2)}"
+                else:
+                    # Fallback: last two path segments
+                    parts = url_clean.split("/")
+                    if len(parts) >= 2:
+                        owner = parts[-2]
+                        repo_full = f"{owner}/{parts[-1]}"
         except Exception:
             pass
 
