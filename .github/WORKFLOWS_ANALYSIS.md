@@ -162,4 +162,13 @@ the Oracle automatically:
 |--------|---------|
 | `enable-auto-merge.sh` | Enable auto-merge on PR |
 | `identify-pr.sh` | Find PR from workflow_run |
-| `sync-main.py` | Merge jules → main |
+| `sync-main.py` | Merge jules → main (creates jules from main if missing) |
+
+### sync-main.py Behavior
+
+The `sync-main.py` script handles two scenarios:
+
+1. **Jules branch exists:** Merges `jules` into `main` (fast-forward if possible, otherwise regular merge)
+2. **Jules branch missing:** Creates `jules` branch from `main` and pushes it to origin
+
+This ensures Jules sessions always have a base branch to work from, even if the `jules` branch was deleted or never existed.
