@@ -7,14 +7,41 @@ description: Delegate asynchronous coding tasks to Jules (Google's AI coding age
 
 This skill enables interaction with Google's Jules API for programmatic creation and management of asynchronous coding tasks.
 
+> **API Status**: The Jules API is in alpha release (v1alpha). Specifications may change as Google works toward stabilization.
+
+## Changelog Highlights
+
+### January 26, 2026 - Repoless Sessions
+- **Repoless support in REST API**: Create sessions without a repository
+- Spawns serverless ephemeral dev environments (Node, Python, Rust, Bun preloaded)
+- Download file outputs when session completes
+
+### December 10, 2025 - Proactive AI Features
+- **Scheduled Tasks**: Define recurring tasks (weekly dependency checks, nightly lint, monthly cleanup)
+- **Suggested Tasks**: AI scans code to propose improvements (Pro/Ultra subscribers, up to 5 repos)
+- **Render Integration**: Self-healing deployments with automatic PR creation for failed builds
+
+### November 19, 2025 - Gemini 3 Integration
+- Gemini 3 Pro available in Jules for improved agentic capabilities
+- Clearer reasoning, stronger intent alignment, better reliability
+- Multi-step tasks hold together more naturally
+
+### October 2, 2025 - Jules Tools CLI & API Launch
+- Initial API release for programmatic Jules integration
+- File selector for specifying particular files in conversations
+- Memory capability for retaining preferences across sessions
+- Environment Variables management for secure credential handling
+
 ## Overview
 
 The Jules API allows you to:
 - Create coding sessions with specific prompts and repository context
+- Create **repoless sessions** for ephemeral serverless environments
 - Monitor session progress through various states
 - Send messages and feedback to active sessions
 - Approve generated plans before execution
-- Retrieve session outputs (pull requests, artifacts)
+- Retrieve session outputs (pull requests, artifacts, file downloads)
+- List and manage connected sources (GitHub repositories)
 
 ## Delegation Philosophy
 
@@ -30,6 +57,7 @@ Claude should **proactively suggest** creating Jules sessions for:
 4. **Bug Fixes** - Well-defined bugs with clear reproduction steps
 5. **Documentation** - Improve comments, docstrings, READMEs
 6. **Iterative Improvements** - Enhance previous work based on feedback
+7. **Scheduled Maintenance** - Weekly dependency updates, nightly linting
 
 ### Effective Delegation Patterns
 
@@ -58,31 +86,39 @@ Claude should **proactively suggest** creating Jules sessions for:
 4. Jules fixes and adds regression tests
 ```
 
+**Pattern 4: Repoless Exploration**
+```
+1. User needs to prototype something quickly
+2. Claude creates repoless session with requirements
+3. Jules creates code in ephemeral environment
+4. Download and integrate results
+```
+
 ### Best Practices for Prompts
 
 **Good prompts are:**
-- ✅ **Specific**: "Add unit tests for authentication module"
-- ✅ **Contextual**: "Review PR #123, focus on error handling"
-- ✅ **Actionable**: "Refactor parser.py to use Polars instead of Pandas"
-- ✅ **Scoped**: "Fix the timezone bug in commit abc123"
-- ✅ **Test-Driven**: "Use TDD approach with behavior-relevant tests"
+- **Specific**: "Add unit tests for authentication module"
+- **Contextual**: "Review PR #123, focus on error handling"
+- **Actionable**: "Refactor parser.py to use Polars instead of Pandas"
+- **Scoped**: "Fix the timezone bug in commit abc123"
+- **Test-Driven**: "Use TDD approach with behavior-relevant tests"
 
 **Avoid vague prompts:**
-- ❌ "Improve the code"
-- ❌ "Make it better"
-- ❌ "Fix everything"
-- ❌ "Add features"
+- "Improve the code"
+- "Make it better"
+- "Fix everything"
+- "Add features"
 
 ### Test-Driven Development (TDD) Requirement
 
 **IMPORTANT**: Always instruct Jules to use Test-Driven Development (TDD) approach for better results.
 
 **Why TDD with Jules:**
-- ✅ Ensures code correctness before implementation
-- ✅ Creates behavior-relevant tests that validate actual requirements
-- ✅ Prevents regressions and edge case bugs
-- ✅ Provides clear acceptance criteria
-- ✅ Makes code more maintainable and documented
+- Ensures code correctness before implementation
+- Creates behavior-relevant tests that validate actual requirements
+- Prevents regressions and edge case bugs
+- Provides clear acceptance criteria
+- Makes code more maintainable and documented
 
 **How to Request TDD:**
 
@@ -128,17 +164,17 @@ Add user authentication to the API.
 ```
 
 **What are "Behavior-Relevant" Tests:**
-- ✅ Test **what** the code does, not **how** it does it
-- ✅ Validate actual business requirements
-- ✅ Cover edge cases and error conditions
-- ✅ Test from user/caller perspective
-- ❌ Don't test implementation details
-- ❌ Don't test private methods directly
-- ❌ Don't create brittle tests that break on refactoring
+- Test **what** the code does, not **how** it does it
+- Validate actual business requirements
+- Cover edge cases and error conditions
+- Test from user/caller perspective
+- Don't test implementation details
+- Don't test private methods directly
+- Don't create brittle tests that break on refactoring
 
 **Example of Behavior-Relevant Test:**
 ```python
-# ✅ Good - Tests behavior
+# Good - Tests behavior
 def test_send_message_creates_event_in_log():
     """When sending a message, it should be appended to the event log."""
     send_message(from_persona="curator", to_persona="refactor", subject="Review", body="Check this")
@@ -149,7 +185,7 @@ def test_send_message_creates_event_in_log():
     assert events[0]['from_persona'] == 'curator'
     assert events[0]['to_persona'] == 'refactor'
 
-# ❌ Bad - Tests implementation
+# Bad - Tests implementation
 def test_send_message_calls_append_event():
     """Tests implementation detail, not behavior."""
     with mock.patch('mail.append_event') as mock_append:
@@ -157,7 +193,7 @@ def test_send_message_calls_append_event():
         assert mock_append.called  # Brittle, breaks on refactoring
 ```
 
-### 🔄 Jules Automatically Resumes From PR Comments
+### Jules Automatically Resumes From PR Comments
 
 **IMPORTANT DISCOVERY**: Jules monitors PRs and automatically resumes sessions when you comment!
 
@@ -181,12 +217,12 @@ def test_send_message_calls_append_event():
 ```
 
 **Best practices:**
-- ✅ **DO**: Comment on PRs with specific, actionable feedback
-- ✅ **DO**: Check if session auto-resumed before creating duplicate session
-- ✅ **DO**: Approve Jules' new plan if it looks good
-- ✅ **DO**: Use detailed comments - Jules understands context
-- ❌ **DON'T**: Create new session if existing one can resume
-- ❌ **DON'T**: Use vague PR comments like "fix this"
+- **DO**: Comment on PRs with specific, actionable feedback
+- **DO**: Check if session auto-resumed before creating duplicate session
+- **DO**: Approve Jules' new plan if it looks good
+- **DO**: Use detailed comments - Jules understands context
+- **DON'T**: Create new session if existing one can resume
+- **DON'T**: Use vague PR comments like "fix this"
 
 **This creates a powerful feedback loop!** Comment on PRs to iterate with Jules.
 
@@ -207,9 +243,9 @@ Claude: "I'll create a Jules session to review your authentication code.
          Jules works asynchronously and will create a PR with feedback.
 
          Session ID: 123456789
-         URL: https://jules.google.com/sessions/123456789
+         URL: https://jules.google.com/session/123456789
 
-         ⏱️  Jules typically completes tasks in ~10 minutes.
+         Jules typically completes tasks in ~10 minutes.
          You can continue other work while Jules reviews. I can check
          the status in ~10 minutes and help you integrate the changes."
 ```
@@ -255,14 +291,120 @@ python .claude/skills/jules-api/feed_feedback.py --author my-bot-name
 ## Usage Philosophy
 
 **IMPORTANT**: This skill prioritizes **direct API usage** via HTTP calls (curl, httpx, requests) rather than relying on custom Python scripts. This ensures:
-- ✅ Language-agnostic (works with any language/environment)
-- ✅ Portable (no dependency on jules_client.py)
-- ✅ Transparent (clear what API calls are being made)
-- ✅ Maintainable (follows API documentation directly)
+- Language-agnostic (works with any language/environment)
+- Portable (no dependency on jules_client.py)
+- Transparent (clear what API calls are being made)
+- Maintainable (follows API documentation directly)
 
 **When using this skill**:
 1. **Primary**: Use direct HTTP calls (curl in bash, httpx/requests in Python)
 2. **Secondary**: Use jules_client.py only as a convenience for complex workflows
+
+## Core API Resources
+
+### Session Resource
+
+The Session resource represents an asynchronous coding task.
+
+**Resource Fields**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Output only. Full resource name: `sessions/{session}` |
+| `id` | string | Output only. Session identifier |
+| `prompt` | string | **Required**. Initial prompt for the session |
+| `sourceContext` | SourceContext | **Required** for repo sessions. Source specification |
+| `title` | string | Optional. Auto-generated if not provided |
+| `requirePlanApproval` | boolean | Optional. Require explicit approval before execution |
+| `automationMode` | AutomationMode | Optional. Automation behavior |
+| `createTime` | Timestamp | Output only. RFC 3339 creation timestamp |
+| `updateTime` | Timestamp | Output only. RFC 3339 last modification timestamp |
+| `state` | State | Output only. Current session status |
+| `url` | string | Output only. Jules web app URL |
+| `outputs[]` | SessionOutput[] | Output only. Generated outputs |
+
+**Session States**:
+| State | Description |
+|-------|-------------|
+| `STATE_UNSPECIFIED` | Unspecified state |
+| `QUEUED` | Awaiting processing |
+| `PLANNING` | Agent developing strategy |
+| `AWAITING_PLAN_APPROVAL` | Requires user confirmation |
+| `AWAITING_USER_FEEDBACK` | Needs additional input |
+| `IN_PROGRESS` | Actively executing |
+| `PAUSED` | Temporarily halted |
+| `FAILED` | Execution unsuccessful |
+| `COMPLETED` | Successfully finished |
+
+**Automation Modes**:
+| Mode | Description |
+|------|-------------|
+| `AUTOMATION_MODE_UNSPECIFIED` | Default (no automation) |
+| `AUTO_CREATE_PR` | Automatically creates branch and PR from final patches |
+
+### Source Resource
+
+The Source resource represents an input data source (GitHub repository).
+
+**Resource Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Full resource name: `sources/{source}` |
+| `id` | string | Output only. Source identifier |
+| `githubRepo` | GitHubRepo | GitHub repository data |
+
+**GitHubRepo Object**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `owner` | string | Repository owner from `github.com/<owner>/<repo>` |
+| `repo` | string | Repository name |
+| `isPrivate` | boolean | Whether the repository is private |
+| `defaultBranch` | GitHubBranch | Primary branch configuration |
+| `branches[]` | GitHubBranch[] | Active branches list |
+
+**GitHubBranch Object**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `displayName` | string | The GitHub branch name |
+
+### Activity Resource
+
+Activities represent units of work within a session.
+
+**Resource Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Full resource name: `sessions/{session}/activities/{activity}` |
+| `id` | string | Activity identifier |
+| `description` | string | Human-readable summary |
+| `createTime` | Timestamp | RFC 3339 creation timestamp |
+| `originator` | string | Source: "user", "agent", or "system" |
+| `artifacts[]` | Artifact[] | Data units produced by the activity |
+
+**Activity Types** (union field - exactly one present):
+| Type | Description |
+|------|-------------|
+| `agentMessaged` | Agent posted a message |
+| `userMessaged` | User posted a message |
+| `planGenerated` | Plan was created (contains Plan object with steps) |
+| `planApproved` | Plan was approved (references plan by ID) |
+| `progressUpdated` | Progress notification (title + description) |
+| `sessionCompleted` | Session finished |
+| `sessionFailed` | Session encountered failure (includes reason) |
+
+**Artifact Types** (union field):
+| Type | Description |
+|------|-------------|
+| `changeSet` | Code modifications via Git patches (source + gitPatch) |
+| `media` | Files like images/videos (base64-encoded + MIME type) |
+| `bashOutput` | Command execution results (command + output + exit code) |
+
+**GitPatch Object**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `patch` | string | Unidiff format patch content |
+| `baseCommitId` | string | Base commit ID |
+| `suggestedCommitMessage` | string | Suggested commit message |
 
 ## Core Operations
 
@@ -272,7 +414,7 @@ Create a new coding session with a prompt and repository context.
 
 **Endpoint**: `POST /v1alpha/sessions`
 
-**Request Body**:
+**Request Body (with repository)**:
 ```json
 {
   "prompt": "Your coding task description",
@@ -280,7 +422,8 @@ Create a new coding session with a prompt and repository context.
     "source": "sources/github/username/repository",
     "githubRepoContext": {
       "startingBranch": "main"
-    }
+    },
+    "environmentVariablesEnabled": true
   },
   "title": "Optional session title",
   "requirePlanApproval": false,
@@ -288,7 +431,16 @@ Create a new coding session with a prompt and repository context.
 }
 ```
 
-**Example using curl**:
+**Request Body (repoless session)**:
+```json
+{
+  "prompt": "Create a Python CLI that fetches weather data from an API",
+  "title": "Weather CLI Prototype",
+  "requirePlanApproval": false
+}
+```
+
+**Example using curl (with repository)**:
 ```bash
 curl -X POST https://jules.googleapis.com/v1alpha/sessions \
   -H "X-Goog-Api-Key: YOUR_API_KEY" \
@@ -299,11 +451,23 @@ curl -X POST https://jules.googleapis.com/v1alpha/sessions \
       "source": "sources/github/myorg/myrepo",
       "githubRepoContext": {
         "startingBranch": "main"
-      }
+      },
+      "environmentVariablesEnabled": true
     },
     "title": "Add Auth Tests",
     "requirePlanApproval": true,
     "automationMode": "AUTO_CREATE_PR"
+  }'
+```
+
+**Example using curl (repoless session)**:
+```bash
+curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+  -H "X-Goog-Api-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Create a Node.js script that parses CSV files and outputs JSON",
+    "title": "CSV Parser Prototype"
   }'
 ```
 
@@ -319,26 +483,39 @@ curl https://jules.googleapis.com/v1alpha/sessions/abc123 \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
-**Session States**:
-- `QUEUED`: Session is waiting to start
-- `PLANNING`: Generating execution plan
-- `AWAITING_PLAN_APPROVAL`: Waiting for user approval
-- `AWAITING_USER_FEEDBACK`: Needs user input
-- `IN_PROGRESS`: Actively executing
-- `PAUSED`: Temporarily stopped
-- `COMPLETED`: Successfully finished
-- `FAILED`: Encountered error
-
 ### 3. List All Sessions
 
-Retrieve all sessions.
+Retrieve all sessions with pagination support.
 
 **Endpoint**: `GET /v1alpha/sessions`
 
+**Query Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pageSize` | integer | Number of sessions to return (1-100, default 30) |
+| `pageToken` | string | Token from previous call for pagination |
+
 **Example**:
 ```bash
-curl https://jules.googleapis.com/v1alpha/sessions \
+# First page (default 30 sessions)
+curl "https://jules.googleapis.com/v1alpha/sessions" \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
+
+# Custom page size
+curl "https://jules.googleapis.com/v1alpha/sessions?pageSize=50" \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+
+# Next page
+curl "https://jules.googleapis.com/v1alpha/sessions?pageToken=NEXT_TOKEN" \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+```
+
+**Response**:
+```json
+{
+  "sessions": [...],
+  "nextPageToken": "TOKEN_FOR_NEXT_PAGE"
+}
 ```
 
 ### 4. Send Message to Session
@@ -362,6 +539,8 @@ curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:sendMessage \
   -d '{"prompt": "Please add more test coverage for edge cases"}'
 ```
 
+**Response**: Empty body on success.
+
 ### 5. Approve Plan
 
 Approve a generated plan (when requirePlanApproval is true).
@@ -375,6 +554,8 @@ curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:approvePlan \
   -H "Content-Type: application/json"
 ```
 
+**Response**: Empty body on success.
+
 ### 6. Get Session Activities
 
 Retrieve activity logs for a session to understand the conversation history.
@@ -387,17 +568,36 @@ Retrieve activity logs for a session to understand the conversation history.
   "activities": [
     {
       "name": "sessions/123/activities/abc",
+      "id": "abc",
       "createTime": "2026-01-11T12:00:00Z",
-      "originator": "agent",  // or "user"
+      "originator": "agent",
+      "description": "Generated initial plan",
       "agentMessaged": {
         "agentMessage": "Message from Jules..."
       },
-      "id": "abc"
+      "artifacts": []
     },
     {
+      "name": "sessions/123/activities/def",
+      "id": "def",
+      "createTime": "2026-01-11T12:01:00Z",
       "originator": "user",
       "userMessaged": {
         "userMessage": "Response from user..."
+      }
+    },
+    {
+      "name": "sessions/123/activities/ghi",
+      "id": "ghi",
+      "createTime": "2026-01-11T12:02:00Z",
+      "originator": "agent",
+      "planGenerated": {
+        "plan": {
+          "steps": [
+            {"id": "1", "title": "Step 1", "description": "...", "index": 0},
+            {"id": "2", "title": "Step 2", "description": "...", "index": 1}
+          ]
+        }
       }
     }
   ]
@@ -410,37 +610,76 @@ curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
-**Key Usage Patterns**:
+### 7. Get Single Activity
 
-1. **Debugging Stuck Sessions**: When a session is in `AWAITING_USER_FEEDBACK`, read activities to see what Jules is asking:
-   ```python
-   activities = client.get_activities(session_id)
-   for activity in activities['activities'][-5:]:  # Last 5 activities
-       if activity['originator'] == 'agent':
-           print(activity['agentMessaged']['agentMessage'])
-   ```
+Retrieve a specific activity by ID.
 
-2. **Understanding Context**: Activities show the full conversation, useful for providing targeted feedback:
-   ```python
-   # Find last question from Jules
-   for activity in reversed(activities['activities']):
-       if activity['originator'] == 'agent':
-           last_question = activity['agentMessaged']['agentMessage']
-           break
-   ```
+**Endpoint**: `GET /v1alpha/sessions/{sessionId}/activities/{activityId}`
 
-3. **Monitoring Progress**: Track what Jules is doing during implementation:
-   ```python
-   recent_activities = activities['activities'][-10:]
-   agent_messages = [a for a in recent_activities if a['originator'] == 'agent']
-   print(f"Jules sent {len(agent_messages)} messages in last 10 activities")
-   ```
+**Example**:
+```bash
+curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities/def456 \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+```
 
-**Important Notes**:
-- Activities can be large (40+ activities in complex sessions)
-- Always check `originator` to distinguish agent vs user messages
-- Activities are ordered chronologically (oldest first)
-- Use slicing to get recent activities: `activities['activities'][-10:]`
+### 8. List Sources
+
+List connected GitHub repositories.
+
+**Endpoint**: `GET /v1alpha/sources`
+
+**Query Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filter` | string | Filter expression (AIP-160 syntax) |
+| `pageSize` | integer | Number of sources to return (1-100, default 30) |
+| `pageToken` | string | Token from previous call for pagination |
+
+**Example**:
+```bash
+# List all sources
+curl "https://jules.googleapis.com/v1alpha/sources" \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+
+# Filter by name
+curl "https://jules.googleapis.com/v1alpha/sources?filter=name:myrepo" \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+```
+
+**Response**:
+```json
+{
+  "sources": [
+    {
+      "name": "sources/github/myorg/myrepo",
+      "id": "github/myorg/myrepo",
+      "githubRepo": {
+        "owner": "myorg",
+        "repo": "myrepo",
+        "isPrivate": false,
+        "defaultBranch": {"displayName": "main"},
+        "branches": [
+          {"displayName": "main"},
+          {"displayName": "develop"}
+        ]
+      }
+    }
+  ],
+  "nextPageToken": "..."
+}
+```
+
+### 9. Get Single Source
+
+Retrieve details about a specific source.
+
+**Endpoint**: `GET /v1alpha/sources/{source}`
+
+**Example**:
+```bash
+curl "https://jules.googleapis.com/v1alpha/sources/github/myorg/myrepo" \
+  -H "X-Goog-Api-Key: YOUR_API_KEY"
+```
 
 ## Authentication Setup
 
@@ -478,7 +717,7 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# Create session
+# Create session with repository
 response = httpx.post(
     f"{BASE_URL}/sessions",
     headers=headers,
@@ -486,7 +725,8 @@ response = httpx.post(
         "prompt": "Add error handling to API endpoints",
         "sourceContext": {
             "source": "sources/github/myorg/myproject",
-            "githubRepoContext": {"startingBranch": "main"}
+            "githubRepoContext": {"startingBranch": "main"},
+            "environmentVariablesEnabled": True
         },
         "requirePlanApproval": True,
         "automationMode": "AUTO_CREATE_PR"
@@ -496,10 +736,28 @@ session = response.json()
 session_id = session['name'].split('/')[-1]
 print(f"Created: {session_id}")
 
+# Create repoless session
+response = httpx.post(
+    f"{BASE_URL}/sessions",
+    headers=headers,
+    json={
+        "prompt": "Create a Python script that generates random passwords",
+        "title": "Password Generator"
+    }
+)
+repoless_session = response.json()
+print(f"Repoless session: {repoless_session['id']}")
+
 # Get status
 response = httpx.get(f"{BASE_URL}/sessions/{session_id}", headers=headers)
 status = response.json()
 print(f"State: {status['state']}")
+
+# List sessions with pagination
+response = httpx.get(f"{BASE_URL}/sessions?pageSize=50", headers=headers)
+sessions_data = response.json()
+sessions = sessions_data['sessions']
+next_token = sessions_data.get('nextPageToken')
 
 # Get activities
 response = httpx.get(f"{BASE_URL}/sessions/{session_id}/activities", headers=headers)
@@ -519,6 +777,12 @@ if status['state'] == 'AWAITING_PLAN_APPROVAL':
         f"{BASE_URL}/sessions/{session_id}:approvePlan",
         headers=headers
     )
+
+# List sources
+response = httpx.get(f"{BASE_URL}/sources", headers=headers)
+sources = response.json()['sources']
+for source in sources:
+    print(f"Source: {source['name']} - {source['githubRepo']['owner']}/{source['githubRepo']['repo']}")
 ```
 
 ### Bash with curl
@@ -527,7 +791,7 @@ if status['state'] == 'AWAITING_PLAN_APPROVAL':
 export JULES_API_KEY="your-api-key"
 export BASE_URL="https://jules.googleapis.com/v1alpha"
 
-# Create session
+# Create session with repository
 curl -X POST "$BASE_URL/sessions" \
   -H "X-Goog-Api-Key: $JULES_API_KEY" \
   -H "Content-Type: application/json" \
@@ -535,14 +799,28 @@ curl -X POST "$BASE_URL/sessions" \
     "prompt": "Add error handling to API endpoints",
     "sourceContext": {
       "source": "sources/github/myorg/myproject",
-      "githubRepoContext": {"startingBranch": "main"}
+      "githubRepoContext": {"startingBranch": "main"},
+      "environmentVariablesEnabled": true
     },
     "requirePlanApproval": true,
     "automationMode": "AUTO_CREATE_PR"
   }' | jq .
 
+# Create repoless session
+curl -X POST "$BASE_URL/sessions" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Build a REST API with Flask that has CRUD endpoints for users",
+    "title": "Flask User API"
+  }' | jq .
+
 # Get status
 curl "$BASE_URL/sessions/123456789" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" | jq .
+
+# List sessions with pagination
+curl "$BASE_URL/sessions?pageSize=50" \
   -H "X-Goog-Api-Key: $JULES_API_KEY" | jq .
 
 # Get activities
@@ -558,6 +836,10 @@ curl -X POST "$BASE_URL/sessions/123456789:sendMessage" \
 # Approve plan
 curl -X POST "$BASE_URL/sessions/123456789:approvePlan" \
   -H "X-Goog-Api-Key: $JULES_API_KEY"
+
+# List sources
+curl "$BASE_URL/sources" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" | jq .
 ```
 
 ## Alternative: Python Client Library
@@ -589,6 +871,9 @@ session = client.create_session(
 3. **Enable Plan Approval**: Set `requirePlanApproval: true` for sensitive operations
 4. **Handle States**: Implement proper handling for AWAITING_USER_FEEDBACK and AWAITING_PLAN_APPROVAL states
 5. **Check Outputs**: Review the `outputs` array for generated pull requests and artifacts
+6. **Use Pagination**: Always handle `nextPageToken` for large result sets
+7. **Enable Environment Variables**: Set `environmentVariablesEnabled: true` when credentials are needed
+8. **Use Repoless for Prototypes**: Quick experiments don't need a repository
 
 ## Common Workflows
 
@@ -609,6 +894,18 @@ session = client.create_session(
 2. Monitor for AWAITING_USER_FEEDBACK
 3. Use sendMessage to provide feedback
 4. Continue monitoring until completion
+
+### Workflow 4: Repoless Prototype
+1. Create session without sourceContext
+2. Jules creates ephemeral environment
+3. Monitor until completion
+4. Download file outputs from session
+
+### Workflow 5: Scheduled Maintenance (via UI)
+1. Set up recurring task in Jules UI (e.g., weekly dependency update)
+2. Jules runs automatically on schedule
+3. Creates PRs for each run
+4. Review and merge PRs
 
 ## Real-World Delegation Scenarios
 
@@ -682,17 +979,33 @@ Claude Action:
 4. Review and merge
 ```
 
+### Scenario 6: Quick Prototype (Repoless)
+```
+User: "Can you quickly prototype a CLI that parses JSON logs?"
+
+Claude Action:
+1. Create repoless Jules session:
+   "Create a Python CLI using Click that:
+    1. Reads JSON log files
+    2. Filters by log level
+    3. Outputs to console or file
+    Include usage examples and basic tests."
+2. Jules creates code in ephemeral environment
+3. Download and share results with user
+```
+
 ## Proactive Delegation Triggers
 
 Claude should **automatically suggest** Jules delegation when:
 
-- ✅ User pushes a branch and asks "what do you think?"
-- ✅ User says "add tests" or "improve tests"
-- ✅ User mentions "review", "refactor", or "optimize"
-- ✅ Feature is complete and needs polish
-- ✅ Code works but needs improvement
-- ✅ User reports a well-defined bug
-- ✅ Documentation needs updating
+- User pushes a branch and asks "what do you think?"
+- User says "add tests" or "improve tests"
+- User mentions "review", "refactor", or "optimize"
+- Feature is complete and needs polish
+- Code works but needs improvement
+- User reports a well-defined bug
+- Documentation needs updating
+- Recurring maintenance tasks are mentioned
 
 **Example proactive response:**
 ```
@@ -757,7 +1070,7 @@ Proceed autonomously with this guidance.
 """
 
 client.send_message(session_id, feedback)
-print("✅ Feedback sent - session should resume")
+print("Feedback sent - session should resume")
 ```
 
 ### Real Example: Unsticking Session 14848423526856432295
@@ -810,7 +1123,21 @@ Always check response status codes:
 - Both formats work in API calls (with or without `sessions/` prefix)
 - Client library handles both formats automatically
 
+## Subscription Tiers
+
+| Feature | Free | Google AI Pro | Google AI Ultra |
+|---------|------|---------------|-----------------|
+| Session limits | Base | 5x higher | 20x higher |
+| Suggested Tasks | No | Yes (5 repos) | Yes (5 repos) |
+| Scheduled Tasks | Limited | Full | Full |
+| Gemini 3 Pro | No | Yes | Yes (first access) |
+
 ## References
 
-- Official Documentation: https://developers.google.com/repo/api/reference/rest
-- Sessions API: https://developers.google.com/repo/api/reference/rest/v1alpha/sessions
+- **Official API Documentation**: https://developers.google.com/jules/api/reference/rest
+- **Sessions API**: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions
+- **Sources API**: https://developers.google.com/jules/api/reference/rest/v1alpha/sources
+- **Activities API**: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions.activities
+- **Changelog**: https://jules.google.com/docs/changelog/
+- **Jules Blog**: https://blog.google/technology/google-labs/jules-tools-jules-api/
+- **Proactive Features**: https://blog.google/technology/developers/jules-proactive-updates/
