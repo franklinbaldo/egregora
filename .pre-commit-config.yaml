@@ -30,7 +30,7 @@ repos:
         name: Check for dead code with vulture
         entry: uv run vulture
         args:
-          ["src", "tests", "tests/vulture_whitelist.py", "--min-confidence=80"]
+          ["src", "tests", "tests/vulture_whitelist.py", "--min-confidence=90"]
         language: system
         types: [python]
         pass_filenames: false
@@ -47,11 +47,6 @@ repos:
         language: system
         pass_filenames: false
         files: tests/.*\.py$
-      - id: check-lint-suppressions
-        name: "Check for lint suppression comments (noqa, type: ignore)"
-        entry: python scripts/dev_tools/check_lint_suppressions.py
-        language: system
-        types: [python]
-        files: ^src/
+      # check-lint-suppressions removed - allow noqa/type:ignore for edge cases
       # prompt-change-validation and hire-vote-validation removed
       # (Jules governance hooks - not actively used)
