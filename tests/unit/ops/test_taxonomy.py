@@ -108,7 +108,7 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
             ClusterTags(cluster_id=1, tags=["GlobalTagC", "GlobalTagD"]),
         ]
 
-        mock_result.data.mappings = mappings
+        mock_result.output.mappings = mappings
         mock_agent.run_sync = MagicMock(return_value=mock_result)
         mock_create_agent.return_value = mock_agent
 
@@ -143,7 +143,7 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
         # Agent will be called multiple times.
         # We simulate it returning empty mappings for simplicity of this test
         # (we just want to verify batching logic triggers multiple calls)
-        mock_result.data.mappings = []
+        mock_result.output.mappings = []
         mock_agent.run_sync = MagicMock(return_value=mock_result)
         mock_create_agent.return_value = mock_agent
 
