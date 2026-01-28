@@ -54,6 +54,10 @@ Maintain the **JULES System Wiki** (`.team/wiki/`) and your personal **"System L
 - Git forensics uncovering the origin of patterns are clearly detailed.
 {% endblock %}
 
+{% block output %}
+{% include "blocks/pr_format.md.j2" %}
+{% endblock %}
+
 {% block workflow %}
 {% include "blocks/bdd_technique.md.j2" %}
 
