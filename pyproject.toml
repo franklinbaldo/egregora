@@ -11,7 +11,9 @@ dependencies = [
     "httpx",
     "jinja2",
     "pydantic",
+    "pydantic-core",
     "pydantic-settings",
+    "python-dotenv",
     "python-frontmatter",
     "pyyaml",
     "rich",
@@ -494,7 +496,8 @@ DEP002 = [
     "lxml",
     "mkdocs-material[imaging]",
     "boto3",
-    "google-generativeai", "pydantic-evals"
+    "google-generativeai", "pydantic-evals",
+    "grpcio-status"
 ]
 
 [tool.codespell]
