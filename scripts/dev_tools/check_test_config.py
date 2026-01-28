@@ -25,7 +25,7 @@ VIOLATIONS = [
         "Use test_model_settings fixture instead of ModelSettings()",
     ),
     (
-        r'Path(["\\]\.egregora/',
+        r'Path\((["\\])\.egregora/',
         "Use tmp_path fixture instead of hardcoded .egregora/ paths",
     ),
 ]
@@ -51,9 +51,11 @@ def check_file(file_path: Path) -> list[str]:
                 line_num = content[: match.start()].count("\n") + 1
                 errors.append(f"{file_path}:{line_num}: {message}")
         except re.error as e:
-            # Skip invalid regex matches on some file content edge cases
-            print(f"Warning: Regex error in {file_path}: {e}")
-            continue
+            # Fail on invalid regex matches
+            print(f"Error: Regex error in {file_path}: {e}")
+            # Raise exception to be caught in main or just treat as error?
+            # Better to append to errors so it fails the check
+            errors.append(f"{file_path}:0: Regex error: {e}")
 
     return errors
 
