@@ -150,6 +150,49 @@ class TeamClient:
         response = _request_with_retry("POST", url, self._get_headers(), json=data)
         return response.json()
 
+    def create_repoless_session(
+        self,
+        prompt: str,
+        title: str | None = None,
+        require_plan_approval: bool = False,
+    ) -> dict[str, Any]:
+        """Create a repoless Jules session (Jan 2026 API).
+
+        Repoless sessions create ephemeral cloud dev environments with
+        Node, Python, Rust, Bun, and other runtimes preloaded. These
+        sessions don't require GitHub repository context and are ideal
+        for tasks like:
+        - Technical support/guidance (Oracle-like)
+        - Research and analysis
+        - Code generation without commit context
+        - Generic programming tasks
+
+        Repoless sessions can be reused to avoid hitting session limits
+        (currently 100/day).
+
+        Args:
+            prompt: The task prompt for the session.
+            title: Optional title for the session.
+            require_plan_approval: Whether to require plan approval.
+
+        Returns:
+            Session response dict with 'name' field containing session ID.
+
+        """
+        url = f"{self.base_url}/sessions"
+        data: dict[str, Any] = {
+            "prompt": prompt,
+            # No sourceContext = repoless ephemeral session
+            "automationMode": "MANUAL",  # Repoless can't create PRs
+            "requirePlanApproval": require_plan_approval,
+        }
+
+        if title:
+            data["title"] = title
+
+        response = _request_with_retry("POST", url, self._get_headers(), json=data)
+        return response.json()
+
     def get_session(self, session_id: str) -> dict[str, Any]:
         """Get details of a specific session."""
         # Sanitize session_id if it's full resource name
