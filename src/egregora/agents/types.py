@@ -34,6 +34,9 @@ from egregora.exceptions import EgregoraError
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    RunId = uuid.UUID | str
+
 
 class PromptTooLargeError(EgregoraError):
     """Exception raised when a prompt exceeds the model's context window.

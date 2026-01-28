@@ -1,6 +1,5 @@
 """CLI commands for reader agent (post evaluation and ranking)."""
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -9,6 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from egregora.agents.reader.models import RankingResult
 from egregora.agents.reader.reader_runner import run_reader_evaluation
 from egregora.config import load_egregora_config
 from egregora.output_sinks.mkdocs import MkDocsPaths
@@ -108,12 +108,10 @@ def main(
 
     # Run evaluation
     try:
-        rankings = asyncio.run(
-            run_reader_evaluation(
-                posts_dir=posts_dir,
-                config=config.reader,
-                model=model,
-            )
+        rankings: list[RankingResult] = run_reader_evaluation(
+            posts_dir=posts_dir,
+            config=config.reader,
+            model=model,
         )
     except Exception as e:
         console.print(f"[red]Error during evaluation: {e}[/red]")

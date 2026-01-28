@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from google import genai
@@ -31,10 +31,12 @@ from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
+from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
+from egregora.data_primitives.document import Document
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
@@ -446,12 +448,25 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     clean_messages_list = filter_commands(messages_list)
 
+    # Convert to DTOs
+    messages_dtos: list[Message] = []
+    for msg_dict in clean_messages_list:
+        try:
+            # Basic conversion - assuming keys match
+            if "event_id" in msg_dict and "ts" in msg_dict and "author_uuid" in msg_dict:
+                # Filter only valid keys
+                valid_keys = Message.model_fields.keys()
+                filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
+                messages_dtos.append(Message(**filtered_dict))
+        except (ValueError, TypeError):
+            continue
+
     # Prepare Resources
     resources = PipelineFactory.create_writer_resources(ctx)
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
-        messages=clean_messages_list,
+        messages=messages_dtos,
         window_start=conversation.window.start_time,
         window_end=conversation.window.end_time,
         resources=resources,
@@ -497,7 +512,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
+        profile_docs = cast(
+            "list[Document]",
+            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
+        )
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)

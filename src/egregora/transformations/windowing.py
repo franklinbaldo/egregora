@@ -431,7 +431,6 @@ def _window_by_bytes(
         return
 
     # Extract columns
-    row_numbers = metadata["rn"].tolist()
     timestamps = metadata["ts"].tolist()
     msg_bytes_list = metadata["msg_bytes"].tolist()
 
@@ -472,20 +471,16 @@ def _window_by_bytes(
         chunk_size = end_idx - current_start_idx
 
         # Get boundaries
-        start_rn = row_numbers[current_start_idx]
-        # row_number logic: inclusive start, exclusive end for logic, but filter works on values.
-        # If we use range(start_idx, end_idx), we want rows with indices start_idx ... end_idx - 1.
-        # Their row_numbers are row_numbers[start_idx] ... row_numbers[end_idx - 1].
-        # So filter(rn >= start_rn & rn <= end_rn)
-        end_rn = row_numbers[end_idx - 1]
-
         start_time = timestamps[current_start_idx]
         end_time = timestamps[end_idx - 1]
 
         # Construct window table
-        window_table = table_with_rn.filter(
-            (table_with_rn.row_number >= start_rn) & (table_with_rn.row_number <= end_rn)
-        ).drop("row_number")
+        # Use limit/offset for efficient slicing (avoids re-computing row_number)
+        # Note: We re-apply order_by("ts") to match the metadata fetch order.
+        # If timestamps are not unique, the sort order may be unstable across queries
+        # depending on the backend, but this matches the stability of the previous
+        # implementation and the parallel _window_by_count implementation.
+        window_table = table.order_by("ts").limit(chunk_size, offset=current_start_idx)
 
         yield Window(
             window_index=window_index,

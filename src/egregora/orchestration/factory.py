@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 import ibis
@@ -319,4 +319,4 @@ class PipelineFactory:
                 "http_status_codes": [429, 503],
             }
         }
-        return genai.Client(http_options=http_options)
+        return genai.Client(http_options=cast("Any", http_options))
