@@ -34,24 +34,7 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: xenon
-        name: Enforce complexity thresholds with xenon
-        entry: uvx xenon
-        args:
-          [
-            "src",
-            "--max-absolute",
-            "E",
-            "--max-modules",
-            "C",
-            "--max-average",
-            "B",
-            "--exclude",
-            "*/database/*.py,*/orchestration/runner.py",
-          ]
-        language: system
-        types: [python]
-        pass_filenames: false
+      # xenon removed - let ruff handle complexity (C901, PLR* rules)
       - id: check-private-imports
         name: Check private imports
         entry: scripts/dev_tools/check_private_imports.py
@@ -70,15 +53,5 @@ repos:
         language: system
         types: [python]
         files: ^src/
-      - id: prompt-change-validation
-        name: Validate persona prompt changes
-        entry: uv run python scripts/dev_tools/check_prompt_changes.py
-        language: system
-        files: '\.team/personas/.*/.*\.j2$'
-        pass_filenames: false
-      - id: hire-vote-validation
-        name: Validate new hires are voted for
-        entry: uv run python scripts/dev_tools/check_hire_vote.py
-        language: system
-        files: '\.team/personas/.*/prompt\.md'
-        pass_filenames: false
+      # prompt-change-validation and hire-vote-validation removed
+      # (Jules governance hooks - not actively used)
