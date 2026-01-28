@@ -171,7 +171,7 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
             raise ModelRetry(msg)
 
     # Validate and cast metadata to the expected type
-    metadata_dict = cast(dict[str, Any], metadata) if isinstance(metadata, dict) else {}
+    metadata_dict = cast("dict[str, Any]", metadata) if isinstance(metadata, dict) else {}
 
     doc = Document(
         content=content,
@@ -321,7 +321,8 @@ def annotate_conversation_impl(
         raise RuntimeError(msg)
 
     if parent_type not in ("message", "annotation"):
-        raise ValueError(f"Invalid parent_type: {parent_type}")
+        msg = f"Invalid parent_type: {parent_type}"
+        raise ValueError(msg)
 
     # Cast to literal for mypy
     validated_parent_type = cast("Literal['message', 'annotation']", parent_type)

@@ -75,7 +75,6 @@ The rendering system automatically injects these variables:
 | `description` | Brief role description | `"UX/UI designer"` |
 | `journal_entries` | Last 10 journal entries | Recent session notes |
 | `password` | Session UUID | `"6b67ff37-a96b..."` |
-| `sprint_context_text` | Current sprint info | Sprint goals, tasks |
 
 ## Creating a New Persona
 
@@ -313,17 +312,6 @@ Use the persona's emoji in all outputs:
 ```
 
 ## Advanced Features
-
-### Sprint Planning Integration
-
-Personas receive sprint context automatically:
-
-```python
-from repo.features.sprints import sprint_manager
-
-sprint_context = sprint_manager.get_sprint_context("curator")
-# Injects current sprint goals into prompt
-```
 
 ### Conditional Rendering
 
