@@ -73,3 +73,45 @@ class TestTeamClientRefactor:
     def test_team_client_error_wrapping(self):
         """Ensure client methods wrap exceptions in TeamClientError (to be implemented)."""
         # To be added after initial refactor
+
+    @patch("repo.core.client._request_with_retry")
+    def test_get_activities_without_filter(self, mock_request, client):
+        """Test get_activities without createTime filter."""
+        mock_response = Mock()
+        mock_response.json.return_value = {"activities": []}
+        mock_request.return_value = mock_response
+
+        client.get_activities("sessions/abc123")
+
+        mock_request.assert_called_once()
+        url = mock_request.call_args[0][1]
+        assert "createTime" not in url
+        assert "/sessions/abc123/activities" in url
+
+    @patch("repo.core.client._request_with_retry")
+    def test_get_activities_with_create_time_filter(self, mock_request, client):
+        """Test get_activities with createTime filter (Jan 2026 API)."""
+        mock_response = Mock()
+        mock_response.json.return_value = {"activities": []}
+        mock_request.return_value = mock_response
+
+        timestamp = "2026-01-15T10:30:00.000Z"
+        client.get_activities("sessions/abc123", create_time_after=timestamp)
+
+        mock_request.assert_called_once()
+        url = mock_request.call_args[0][1]
+        assert f"createTime={timestamp}" in url
+
+    @patch("repo.core.client._request_with_retry")
+    def test_get_activities_strips_sessions_prefix(self, mock_request, client):
+        """Test get_activities properly strips 'sessions/' prefix from ID."""
+        mock_response = Mock()
+        mock_response.json.return_value = {"activities": []}
+        mock_request.return_value = mock_response
+
+        client.get_activities("sessions/abc123")
+
+        url = mock_request.call_args[0][1]
+        # Should have /sessions/abc123/ not /sessions/sessions/abc123/
+        assert "/sessions/abc123/activities" in url
+        assert "/sessions/sessions/" not in url

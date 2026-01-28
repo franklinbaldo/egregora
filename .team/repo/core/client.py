@@ -116,7 +116,7 @@ class TeamClient:
         if not self.api_key:
             msg = "JULES_API_KEY not set."
             raise ValueError(msg)
-            
+
         headers["X-Goog-Api-Key"] = self.api_key
         return headers
 
@@ -208,12 +208,32 @@ class TeamClient:
         # API returns empty body on success
         return response.json() if response.text.strip() else {}
 
-    def get_activities(self, session_id: str) -> dict[str, Any]:
-        """Get activities for a session."""
+    def get_activities(
+        self,
+        session_id: str,
+        create_time_after: str | None = None,
+    ) -> dict[str, Any]:
+        """Get activities for a session.
+
+        Args:
+            session_id: The session ID or full resource name.
+            create_time_after: Optional RFC 3339 timestamp to filter activities.
+                Only returns activities created after this timestamp.
+                Works as a range cursor for incremental polling (Jan 2026 API).
+
+        Returns:
+            Dictionary with 'activities' list.
+
+        """
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}/activities"
+
+        # Add createTime filter parameter if provided (Jules API Jan 2026)
+        if create_time_after:
+            url = f"{url}?createTime={create_time_after}"
+
         response = _request_with_retry("GET", url, self._get_headers())
         return response.json()
 

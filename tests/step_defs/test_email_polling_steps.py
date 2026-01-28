@@ -58,12 +58,14 @@ def activity_appears(mock_client, session_resource, docstring):
     # We need to ensure get_activities returns this patch when called for session_resource
 
     # Simple mock behavior: if name matches, return the activity
-    def side_effect(res_name):
+    # Updated to accept create_time_after parameter (Jan 2026 Jules API)
+    def side_effect(res_name, create_time_after=None):
         if res_name == session_resource or res_name.split("/")[-1] == session_resource.split("/")[-1]:
             return {
                 "activities": [
                     {
                         "name": f"{session_resource}/activities/pulse-1",
+                        "createTime": "2026-01-15T10:30:00.000Z",
                         "artifacts": [{"contents": {"changeSet": {"gitPatch": {"unidiffPatch": docstring}}}}],
                     }
                 ]
