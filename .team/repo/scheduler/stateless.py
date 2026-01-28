@@ -707,7 +707,7 @@ def merge_completed_prs() -> int:
                 print(f"  PR #{pr_number}: marked ready")
 
             subprocess.run(
-                ["gh", "pr", "merge", str(pr_number), "--delete-branch", "--admin"],
+                ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch", "--admin"],
                 check=True,
                 capture_output=True,
             )
@@ -903,7 +903,7 @@ def merge_ci_fixer_pr(pr: dict[str, Any]) -> bool:
             print(f"  PR #{pr_number}: marked ready")
 
         subprocess.run(
-            ["gh", "pr", "merge", str(pr_number), "--delete-branch", "--admin"],
+            ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch", "--admin"],
             check=True,
             capture_output=True,
         )
