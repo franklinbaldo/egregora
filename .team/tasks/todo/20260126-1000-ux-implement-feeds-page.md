@@ -6,81 +6,30 @@
 **Assignee**: Forge
 
 ## Context
-The homepage contains a "Quick Navigation" card for "RSS Feeds" that links to `feeds/`. Currently, this page does not exist, resulting in a 404 error. The `mkdocs-rss-plugin` generates XML/JSON feed files, but provides no user-facing index page.
+The homepage contains a "Quick Navigation" card for "RSS Feeds" that links to `feeds/`. Currently, this page does not exist in the generated site, resulting in a 404 error. The `mkdocs-rss-plugin` generates XML/JSON feed files, but provides no user-facing index page.
+
+The template for this page already exists in the source, but it is not being rendered by the scaffolding logic.
 
 ## Requirements
-Create a dedicated "Feeds" page that matches the "Portal" design aesthetic (glassmorphism cards) and provides links to all available feeds.
 
-### 1. Create Template File
-Create a new file: `src/egregora/rendering/templates/site/docs/feeds/index.md.jinja`
-
-**Content:**
-```markdown
----
-title: RSS Feeds
-hide:
-  - toc
----
-
-# Subscribe to Updates
-
-Stay connected with the collective consciousness through our open feeds.
-
-<div class="grid cards" markdown>
-
--   **RSS Feed (Recent)**
-
-    ![RSS](https://upload.wikimedia.org/wikipedia/commons/4/46/Generic_Feed-icon.svg){ width="24" }
-
-    Standard RSS 2.0 feed of the latest posts. Best for feed readers.
-
-    [:material-rss: Subscribe](../feed_rss_created.xml){ .md-button .md-button--primary }
-
--   **RSS Feed (Updated)**
-
-    ![RSS](https://upload.wikimedia.org/wikipedia/commons/4/46/Generic_Feed-icon.svg){ width="24" }
-
-    RSS 2.0 feed sorted by most recently updated content.
-
-    [:material-rss: Subscribe](../feed_rss_updated.xml){ .md-button }
-
--   **JSON Feed (Recent)**
-
-    ![JSON](https://upload.wikimedia.org/wikipedia/commons/c/c9/JSON_vector_logo.svg){ width="24" }
-
-    JSON Feed version 1.1. Good for programmatic consumption.
-
-    [:material-code-json: Subscribe](../feed_json_created.json){ .md-button }
-
--   **JSON Feed (Updated)**
-
-    ![JSON](https://upload.wikimedia.org/wikipedia/commons/c/c9/JSON_vector_logo.svg){ width="24" }
-
-    JSON Feed version 1.1 sorted by update time.
-
-    [:material-code-json: Subscribe](../feed_json_updated.json){ .md-button }
-
-</div>
-```
+### 1. Verify Template Exists
+Confirm the existence of `src/egregora/rendering/templates/site/docs/feeds/index.md.jinja`.
+It should contain the "Subscribe to Updates" content and glassmorphism card grid.
+(Do not overwrite if it exists and looks correct).
 
 ### 2. Update Scaffolding
-Update `src/egregora/output_sinks/mkdocs/scaffolding.py` to:
-1.  Register the new template in `templates_to_render`.
-2.  Ensure the `docs/feeds` directory is created.
+Update `src/egregora/output_sinks/mkdocs/scaffolding.py` to register the template so it is generated during site creation.
 
-**Snippet for `templates_to_render`:**
-```python
-(docs_dir / "feeds" / "index.md", "docs/feeds/index.md.jinja"),
-```
-
-**Snippet for directory creation (inside `_create_template_files` or similar):**
-```python
-(docs_dir / "feeds").mkdir(parents=True, exist_ok=True)
-```
-*(Note: `mkdir` might happen automatically if the scaffolding logic handles parent directories for templates, which it seems to do: `target_path.parent.mkdir(parents=True, exist_ok=True)` in `_create_template_files`. Please verify.)*
+**Action:**
+1.  Open `src/egregora/output_sinks/mkdocs/scaffolding.py`.
+2.  Locate the `templates_to_render` list in the `_create_template_files` method.
+3.  Add the following entry:
+    ```python
+    (docs_dir / "feeds" / "index.md", "docs/feeds/index.md.jinja"),
+    ```
+4.  Verify that directory creation handles nested paths (it should, as `target_path.parent.mkdir` is called).
 
 ## Verification
-1.  Run `egregora demo`.
-2.  Verify `docs/feeds/index.md` is created.
-3.  Serve the site and click "RSS Feeds" on the homepage. It should load the new page.
-4.  Click "Subscribe" buttons on the new page. They should open the XML/JSON files.
+1.  Run `egregora demo` (or `uv run egregora demo`).
+2.  Verify `demo/docs/feeds/index.md` is created.
+3.  Serve the site and click "RSS Feeds" on the homepage. It should load the new page successfully.
