@@ -104,7 +104,7 @@ class BaseOutputSink(OutputSink, ABC):
         return self.get(doc_type, identifier)
 
     @abstractmethod
-    def initialize(self, site_root: Path) -> None:
+    def initialize(self, site_root: Path, **kwargs: Any) -> None:
         """Initialize internal state for a specific site."""
 
     # ===== Common Utility Methods (Concrete) =====

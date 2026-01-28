@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import duckdb
 from pydantic import BaseModel
@@ -170,10 +170,13 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
             logger.warning(msg)
             raise ModelRetry(msg)
 
+    # Validate and cast metadata to the expected type
+    metadata_dict = cast(dict[str, Any], metadata) if isinstance(metadata, dict) else {}
+
     doc = Document(
         content=content,
         type=DocumentType.POST,
-        metadata=metadata,
+        metadata=metadata_dict,
         source_window=ctx.window_label,
     )
 
@@ -208,6 +211,8 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
     try:
         doc = ctx.output_sink.get(DocumentType.PROFILE, author_uuid)
         content = doc.content
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
     except DocumentNotFoundError:
         content = "No profile exists yet."
     return ReadProfileResult(content=content)
@@ -315,16 +320,22 @@ def annotate_conversation_impl(
         msg = "Annotation store is not configured"
         raise RuntimeError(msg)
 
+    if parent_type not in ("message", "annotation"):
+        raise ValueError(f"Invalid parent_type: {parent_type}")
+
+    # Cast to literal for mypy
+    validated_parent_type = cast("Literal['message', 'annotation']", parent_type)
+
     try:
         # Persistence to OutputSink is now handled internally by AnnotationStore
         annotation = ctx.annotations_store.save_annotation(
-            parent_id=parent_id, parent_type=parent_type, commentary=commentary
+            parent_id=parent_id, parent_type=validated_parent_type, commentary=commentary
         )
         return AnnotationResult(
             status="success",
-            annotation_id=annotation.document_id,
-            parent_id=annotation.parent_id or parent_id,
-            parent_type=annotation.metadata.get("parent_type", parent_type),
+            annotation_id=annotation.id,
+            parent_id=annotation.parent_id,
+            parent_type=annotation.parent_type,
         )
     except (RuntimeError, ValueError, OSError, AttributeError, duckdb.Error) as exc:
         # We catch expected persistence exceptions here to prevent a single
