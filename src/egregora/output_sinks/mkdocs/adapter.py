@@ -91,7 +91,11 @@ class MkDocsAdapter(BaseOutputSink):
         self._storage: StorageProtocol | None = storage
 
     def initialize(
-        self, site_root: Path, url_context: UrlContext | None = None, storage: StorageProtocol | None = None
+        self,
+        site_root: Path,
+        url_context: UrlContext | None = None,
+        storage: StorageProtocol | None = None,
+        **kwargs: Any,
     ) -> None:
         """Initializes the adapter with all necessary paths and dependencies.
 
@@ -273,7 +277,10 @@ class MkDocsAdapter(BaseOutputSink):
                         )
                 if related_posts_list:
                     metadata["related_posts"] = related_posts_list
-            write_markdown_post(document.content, metadata, self.posts_dir)
+            content = document.content
+            if isinstance(content, bytes):
+                content = content.decode("utf-8")
+            write_markdown_post(content, metadata, self.posts_dir)
         else:
             # Dispatch to specific writer if available, else generic
             writer = self._writers.get(document.type, self._write_generic_doc)
@@ -1061,7 +1068,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        content = document.content
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        full_content = f"---\n{yaml_front}---\n\n{content}"
         try:
             path.write_text(full_content, encoding="utf-8")
         except OSError as e:
@@ -1078,7 +1088,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        content = document.content
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        full_content = f"---\n{yaml_front}---\n\n{content}"
         try:
             path.write_text(full_content, encoding="utf-8")
         except OSError as e:
@@ -1119,7 +1132,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Avatar is in frontmatter only - not prepended to content
         # This allows the template/theme to handle avatar rendering
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        content = document.content
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        full_content = f"---\n{yaml_front}---\n\n{content}"
         try:
             path.write_text(full_content, encoding="utf-8")
         except OSError as e:
@@ -1138,7 +1154,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        content = document.content
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        full_content = f"---\n{yaml_front}---\n\n{content}"
         try:
             path.write_text(full_content, encoding="utf-8")
         except OSError as e:
