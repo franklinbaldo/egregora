@@ -15,7 +15,7 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import ibis
@@ -200,7 +200,7 @@ def _create_gemini_client(api_key: str | None = None) -> genai.Client:
             "http_status_codes": [429, 503],
         }
     }
-    return genai.Client(api_key=api_key, http_options=http_options)
+    return genai.Client(api_key=api_key, http_options=cast("Any", http_options))
 
 
 def _get_safety_settings() -> list[types.SafetySetting]:
