@@ -60,6 +60,7 @@ def activity_appears(mock_client, session_resource, docstring):
     # Simple mock behavior: if name matches, return the activity
     # Updated to accept create_time_after parameter (Jan 2026 Jules API)
     def side_effect(res_name, create_time_after=None):
+        _ = create_time_after  # Mark as intentionally unused for API compatibility
         if res_name == session_resource or res_name.split("/")[-1] == session_resource.split("/")[-1]:
             return {
                 "activities": [

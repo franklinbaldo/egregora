@@ -168,6 +168,7 @@ class TestEmailPollerTimestampFiltering:
 
         # First poll returns different timestamps for each session
         def get_activities_side_effect(session_name, create_time_after=None):
+            _ = create_time_after  # Mark as intentionally unused for API compatibility
             if "session-a" in session_name:
                 return {
                     "activities": [

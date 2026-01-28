@@ -14,8 +14,8 @@ if str(TEAM_PATH) not in sys.path:
 
 from repo.features.ephemeral_pool import (  # noqa: E402
     PERSONA_TITLE_PREFIX,
-    REVIEWER_TITLE_PREFIX,
     REUSABLE_STATES,
+    REVIEWER_TITLE_PREFIX,
     EphemeralSessionPool,
 )
 from repo.features.maya_analyst import (  # noqa: E402
@@ -412,10 +412,7 @@ class TestPersonaAnalyst:
 
     def test_request_analysis_sends_message(self, analyst, mock_client, mock_pool):
         """Request analysis sends message to persona session."""
-        request = AnalysisRequest(
-            content="Button is hard to find",
-            source="support ticket"
-        )
+        request = AnalysisRequest(content="Button is hard to find", source="support ticket")
 
         result = analyst.request_analysis(request)
 
@@ -429,10 +426,7 @@ class TestPersonaAnalyst:
 
     def test_request_analysis_includes_context(self, analyst, mock_client, mock_pool):
         """Request analysis includes context in message."""
-        request = AnalysisRequest(
-            content="Page loads slowly",
-            context="User on mobile network"
-        )
+        request = AnalysisRequest(content="Page loads slowly", context="User on mobile network")
 
         analyst.request_analysis(request)
 
