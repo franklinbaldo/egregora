@@ -454,7 +454,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         try:
             # Basic conversion - assuming keys match
             if "event_id" in msg_dict and "ts" in msg_dict and "author_uuid" in msg_dict:
-                 # Filter only valid keys
+                # Filter only valid keys
                 valid_keys = Message.model_fields.keys()
                 filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
                 messages_dtos.append(Message(**filtered_dict))
@@ -513,7 +513,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
         profile_docs = cast(
-            list[Document],
+            "list[Document]",
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
         )
         for profile_doc in profile_docs:
