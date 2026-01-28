@@ -224,14 +224,19 @@ class BannerBatchProcessor:
         )
 
     def _attach_task_metadata(self, task: BannerTaskEntry, document: Document) -> Document:
+        updates: dict[str, Any] = {}
         if document.metadata is None:
-            document.metadata = {}
+            # Should not happen with default_factory but for safety
+            updates = {}
+        else:
+            updates = document.metadata.copy()
 
-        document.metadata.setdefault("slug", task.slug)
-        document.metadata.setdefault("language", task.language)
-        document.metadata.setdefault("task_id", task.task_id)
-        document.metadata.setdefault("generated_at", datetime.now(UTC).isoformat())
-        return document
+        updates.setdefault("slug", task.slug)
+        updates.setdefault("language", task.language)
+        updates.setdefault("task_id", task.task_id)
+        updates.setdefault("generated_at", datetime.now(UTC).isoformat())
+
+        return document.with_metadata(**updates)
 
     def _build_metadata(
         self,

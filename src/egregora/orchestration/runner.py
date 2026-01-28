@@ -207,9 +207,9 @@ class PipelineRunner:
             journals = library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
-                # journal is a dict with keys matching table columns
-                j_start = journal.get("window_start")
-                j_end = journal.get("window_end")
+                # journal is a DocumentMetadata object
+                j_start = journal.metadata.get("window_start")
+                j_end = journal.metadata.get("window_end")
 
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
@@ -329,7 +329,8 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    msg = f"Failed to write media file {media_doc.filename}: {e}"
+                    filename = media_doc.metadata.get("filename", media_doc.document_id)
+                    msg = f"Failed to write media file {filename}: {e}"
                     raise MediaPersistenceError(msg) from e
 
         if self.context.enable_enrichment:

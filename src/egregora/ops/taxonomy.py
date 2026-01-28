@@ -41,7 +41,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         return 0
 
     try:
-        from sklearn.cluster import KMeans
+        from sklearn.cluster import KMeans  # type: ignore[import-untyped]
     except ModuleNotFoundError as exc:
         logger.warning("scikit-learn not installed (optional dependency). Skipping taxonomy: %s", exc)
         return 0
@@ -84,7 +84,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     all_docs = list(output_sink.documents())
     doc_lookup = {d.document_id: d for d in all_docs}
 
-    raw_clusters = _group_clusters(k, labels, doc_ids)
+    raw_clusters: dict[int, list[str]] = _group_clusters(k, labels, doc_ids)
     clusters_input = _build_cluster_prompts(raw_clusters, doc_lookup)
 
     # 3. Batched Global Inference
@@ -103,7 +103,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
 
 
 def _group_clusters(k: int, labels: np.ndarray, doc_ids: list[str]) -> dict[int, list[str]]:
-    raw_clusters = {i: [] for i in range(k)}
+    raw_clusters: dict[int, list[str]] = {i: [] for i in range(k)}
     for idx, label in enumerate(labels):
         raw_clusters[label].append(doc_ids[idx])
     return raw_clusters
@@ -127,7 +127,7 @@ def _build_cluster_prompts(raw_clusters: dict[int, list[str]], doc_lookup: dict)
 
 def _create_batches(clusters_input: list[str]) -> list[list[str]]:
     batches = []
-    current_batch = []
+    current_batch: list[str] = []
     current_chars = 0
 
     for item in clusters_input:

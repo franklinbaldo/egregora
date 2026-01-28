@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
 from egregora.agents.exceptions import (
@@ -61,7 +61,9 @@ class BannerWorker(BaseWorker):
             task_id = result.task.task_id
 
             if result.success and result.document:
-                web_path = persist_banner_document(self.ctx.output_sink, result.document)
+                # Cast to PipelineContext to access output_sink which is not in WorkerContext protocol
+                ctx = cast("PipelineContext", self.ctx)
+                web_path = persist_banner_document(ctx.output_sink, result.document)
                 logger.info("Banner generated for %s -> %s", task_id, web_path)
                 self.task_store.mark_completed(task_id)
             else:
