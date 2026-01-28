@@ -1,6 +1,6 @@
 import sys
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -124,7 +124,7 @@ class TestSessionStaleness(unittest.TestCase):
     def test_is_session_stale_old_session(self) -> None:
         """Session older than threshold is stale."""
         # Create a timestamp 2 hours ago
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         session = {
             "name": "sessions/123",
             "state": "QUEUED",
@@ -135,7 +135,7 @@ class TestSessionStaleness(unittest.TestCase):
     def test_is_session_stale_recent_session(self) -> None:
         """Session newer than threshold is not stale."""
         # Create a timestamp 5 minutes ago
-        recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        recent_time = datetime.now(UTC) - timedelta(minutes=5)
         session = {
             "name": "sessions/123",
             "state": "QUEUED",
@@ -156,9 +156,7 @@ class TestGetActiveSession(unittest.TestCase):
         """IN_PROGRESS session is always returned."""
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {
-            "sessions": [
-                {"name": "sessions/123", "title": "🎭 curator egregora", "state": "IN_PROGRESS"}
-            ]
+            "sessions": [{"name": "sessions/123", "title": "🎭 curator egregora", "state": "IN_PROGRESS"}]
         }
         result = stateless.get_active_session(mock_client, "egregora")
         self.assertIsNotNone(result)
@@ -167,7 +165,7 @@ class TestGetActiveSession(unittest.TestCase):
     def test_skips_stale_queued_session(self) -> None:
         """Stale QUEUED session does not block new sessions."""
         mock_client = MagicMock()
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         mock_client.list_sessions.return_value = {
             "sessions": [
                 {
@@ -184,7 +182,7 @@ class TestGetActiveSession(unittest.TestCase):
     def test_returns_recent_queued_session(self) -> None:
         """Recent QUEUED session blocks new sessions."""
         mock_client = MagicMock()
-        recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        recent_time = datetime.now(UTC) - timedelta(minutes=5)
         mock_client.list_sessions.return_value = {
             "sessions": [
                 {
@@ -203,9 +201,7 @@ class TestGetActiveSession(unittest.TestCase):
         """Oracle sessions are not returned."""
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {
-            "sessions": [
-                {"name": "sessions/123", "title": "🔮 oracle egregora", "state": "IN_PROGRESS"}
-            ]
+            "sessions": [{"name": "sessions/123", "title": "🔮 oracle egregora", "state": "IN_PROGRESS"}]
         }
         result = stateless.get_active_session(mock_client, "egregora")
         self.assertIsNone(result)
@@ -214,9 +210,7 @@ class TestGetActiveSession(unittest.TestCase):
         """Sessions for other repos are not returned."""
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {
-            "sessions": [
-                {"name": "sessions/123", "title": "🎭 curator other-repo", "state": "IN_PROGRESS"}
-            ]
+            "sessions": [{"name": "sessions/123", "title": "🎭 curator other-repo", "state": "IN_PROGRESS"}]
         }
         result = stateless.get_active_session(mock_client, "egregora")
         self.assertIsNone(result)

@@ -40,7 +40,7 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +153,7 @@ def get_stuck_sessions(client: TeamClient, repo: str) -> list[StuckSession]:
 
     Returns:
         List of stuck sessions needing Oracle help.
+
     """
     try:
         sessions = client.list_sessions().get("sessions", [])
@@ -186,12 +187,14 @@ def get_stuck_sessions(client: TeamClient, repo: str) -> list[StuckSession]:
                     persona = p
                     break
 
-            stuck.append(StuckSession(
-                session_id=session_id,
-                title=title,
-                state=state,
-                persona=persona,
-            ))
+            stuck.append(
+                StuckSession(
+                    session_id=session_id,
+                    title=title,
+                    state=state,
+                    persona=persona,
+                )
+            )
 
     return stuck
 
@@ -205,6 +208,7 @@ def extract_question_from_session(client: TeamClient, session_id: str) -> str | 
 
     Returns:
         The question text, or None if not found.
+
     """
     try:
         activities = client.get_activities(session_id).get("activities", [])
@@ -263,6 +267,7 @@ def get_or_create_oracle_session(
 
     Returns:
         Oracle session ID, or None on failure.
+
     """
     repo = repo_info["repo"]
 
@@ -316,7 +321,7 @@ You have deep knowledge of the codebase and can provide guidance on:
 - Your answers will be forwarded to the stuck persona
 
 ## Repository
-- Owner: {repo_info['owner']}
+- Owner: {repo_info["owner"]}
 - Repo: {repo}
 """
 
@@ -356,6 +361,7 @@ def facilitate_stuck_session(
 
     Returns:
         True if facilitation was successful.
+
     """
     print(f"\n  Facilitating: {stuck.title}")
     print(f"    State: {stuck.state}")
@@ -385,10 +391,10 @@ def facilitate_stuck_session(
         return True
 
     # Step 2: Send question to Oracle
-    oracle_prompt = f"""# Question from {stuck.persona or 'a persona'}
+    oracle_prompt = f"""# Question from {stuck.persona or "a persona"}
 
 The following persona is stuck and needs your help:
-- **Persona**: {stuck.persona or 'unknown'}
+- **Persona**: {stuck.persona or "unknown"}
 - **Session**: {stuck.session_id}
 
 ## Their Question
@@ -408,7 +414,7 @@ Focus on practical guidance they can immediately apply.
 
     # Step 3: For now, send a generic unblocking message to the stuck session
     # (In a more sophisticated version, we'd wait for Oracle's response)
-    unblock_message = f"""# Support Response
+    unblock_message = """# Support Response
 
 Your question has been reviewed. Here's guidance to help you proceed:
 
@@ -450,6 +456,7 @@ def unblock_stuck_sessions(
 
     Returns:
         Number of sessions unblocked.
+
     """
     repo = repo_info["repo"]
 
@@ -472,9 +479,7 @@ def unblock_stuck_sessions(
 
     unblocked = 0
     for stuck in stuck_sessions:
-        if facilitate_stuck_session(
-            client, stuck, oracle_session_id or "", repo_info, dry_run
-        ):
+        if facilitate_stuck_session(client, stuck, oracle_session_id or "", repo_info, dry_run):
             unblocked += 1
 
     print(f"\n  Unblocked {unblocked}/{len(stuck_sessions)} session(s)")
@@ -518,6 +523,7 @@ def _is_session_stale(session: dict[str, Any]) -> bool:
 
     Returns:
         True if session is older than PENDING_STALENESS_THRESHOLD (1 hour).
+
     """
     create_time_str = session.get("createTime")
     if not create_time_str:
@@ -527,7 +533,7 @@ def _is_session_stale(session: dict[str, Any]) -> bool:
     try:
         # Parse RFC 3339 format: 2024-01-15T10:30:00.000Z
         create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         age_seconds = (now - create_time).total_seconds()
         return age_seconds > PENDING_STALENESS_THRESHOLD
     except (ValueError, TypeError):
@@ -640,11 +646,17 @@ def merge_completed_prs() -> int:
     try:
         result = subprocess.run(
             [
-                "gh", "pr", "list",
-                "--author", JULES_BOT_AUTHOR,
-                "--state", "open",
-                "--json", "number,isDraft,mergeable",
-                "--limit", "50",
+                "gh",
+                "pr",
+                "list",
+                "--author",
+                JULES_BOT_AUTHOR,
+                "--state",
+                "open",
+                "--json",
+                "number,isDraft,mergeable",
+                "--limit",
+                "50",
             ],
             capture_output=True,
             text=True,
@@ -837,6 +849,7 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
 
     Returns:
         SchedulerResult with operation status.
+
     """
     print("Jules Scheduler (Stateless + Oracle Facilitator)")
     print("=" * 50)
