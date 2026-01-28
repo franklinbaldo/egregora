@@ -82,6 +82,11 @@ ACTIVE_STATES = {STATE_IN_PROGRESS}
 # These can get stuck indefinitely if Jules has capacity issues
 PENDING_STATES = {STATE_QUEUED, STATE_PLANNING}
 
+# States that should be skipped - don't block new session creation
+# PAUSED: User manually paused the session, continue with next persona immediately
+# These sessions are not actively working and shouldn't prevent scheduling
+SKIPPED_STATES = {STATE_PAUSED}
+
 # Sessions in PENDING_STATES older than this are considered stale (in seconds)
 # 1 hour threshold - if a session has been QUEUED/PLANNING for over an hour,
 # it's likely stuck due to Jules capacity issues and should not block new sessions
@@ -540,6 +545,7 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
     - QUEUED/PLANNING: Only blocks if session is recent (< 1 hour old)
       Stale sessions in these states are ignored to prevent deadlock when
       Jules has capacity issues.
+    - PAUSED: Skipped - continue immediately to next persona
     - Oracle sessions are always skipped (they're support sessions).
 
     Args:
@@ -547,6 +553,7 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
 
     Returns:
         Active session dict, or None if no blocking session exists.
+
     """
     try:
         sessions = client.list_sessions().get("sessions", [])
@@ -559,12 +566,18 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
     for session in sessions:
         title = (session.get("title") or "").lower()
         state = (session.get("state") or "").upper()
+        session_id = session.get("name", "").split("/")[-1]
 
         if repo_lower not in title:
             continue
 
         # Skip Oracle sessions
         if ORACLE_TITLE_PREFIX.lower() in title:
+            continue
+
+        # Skip PAUSED sessions - continue immediately to next persona
+        if state in SKIPPED_STATES:
+            print(f"  Skipping {state} session: {session_id}")
             continue
 
         # IN_PROGRESS means actively working - always blocks

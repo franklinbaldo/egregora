@@ -5,7 +5,12 @@ from typing import Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from repo.core.exceptions import TeamClientError
 
@@ -14,6 +19,17 @@ DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 # Retry configuration
 MAX_RETRIES = 3
+
+# HTTP status codes that should trigger a retry (server errors)
+RETRYABLE_STATUS_CODES = {502, 503, 504}
+
+
+class RetryableHTTPError(Exception):
+    """Raised for HTTP errors that should be retried (5xx)."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        self.status_code = status_code
+        super().__init__(message)
 
 class JulesSession(BaseModel):
     """Jules Session Model."""
@@ -28,8 +44,13 @@ class JulesSession(BaseModel):
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError)),
-    reraise=True
+    retry=retry_if_exception_type((
+        httpx.ReadTimeout,
+        httpx.ConnectTimeout,
+        httpx.RemoteProtocolError,
+        RetryableHTTPError,
+    )),
+    reraise=True,
 )
 def _request_with_retry(
     method: str,
@@ -37,28 +58,52 @@ def _request_with_retry(
     headers: dict[str, str],
     json: dict[str, Any] | None = None,
 ) -> httpx.Response:
-    """Make an HTTP request with retry logic for transient failures."""
+    """Make an HTTP request with retry logic for transient failures.
+
+    Retries on:
+    - Connection timeouts
+    - Read timeouts
+    - Remote protocol errors
+    - Server errors (502, 503, 504)
+
+    """
     if method == "GET":
         response = httpx.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
     else:
         response = httpx.post(url, headers=headers, json=json, timeout=DEFAULT_TIMEOUT)
-    
-    # We might want to retry on 5xx errors too, but strictly following previous logic for now (timeouts)
-    # However, raise_for_status might raise HTTPStatusError which we might want to wrap.
+
+    # Check for retryable server errors (5xx)
+    if response.status_code in RETRYABLE_STATUS_CODES:
+        raise RetryableHTTPError(
+            response.status_code,
+            f"Server error {response.status_code}: {response.text[:200]}",
+        )
+
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        # Wrap HTTP errors in TeamClientError for clearer domains
-        raise TeamClientError(f"Jules API Error: {e.response.status_code} - {e.response.text}") from e
+        # Non-retryable HTTP errors (4xx, other 5xx)
+        msg = f"Jules API Error: {e.response.status_code} - {e.response.text}"
+        raise TeamClientError(msg) from e
     except httpx.RequestError as e:
-         # Wrap Request errors (that aren't retried or exhausted retries)
-        raise TeamClientError(f"Jules Connection Error: {e}") from e
+        # Request errors (that aren't retried or exhausted retries)
+        msg = f"Jules Connection Error: {e}"
+        raise TeamClientError(msg) from e
 
     return response
 
 
 class TeamClient:
-    """Client for Google Jules API."""
+    """Client for Google Jules API.
+
+    Note: Session state is read-only according to the Jules API specification.
+    State transitions happen automatically as Jules processes sessions:
+    - QUEUED -> PLANNING -> IN_PROGRESS -> COMPLETED
+    - Use send_message() to respond to AWAITING_USER_FEEDBACK sessions
+    - Use approve_plan() to respond to AWAITING_PLAN_APPROVAL sessions
+
+    Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions
+    """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         """Initialize the Jules client."""
@@ -122,23 +167,46 @@ class TeamClient:
         return response.json()
 
     def send_message(self, session_id: str, message: str) -> dict[str, Any]:
-        """Send a message to an active session."""
+        """Send a message to an active session.
+
+        Messages can be sent to sessions in various active states (not just
+        AWAITING_USER_FEEDBACK). This is useful for providing clarification,
+        additional context, or responding to agent questions.
+
+        Args:
+            session_id: The session ID or full resource name.
+            message: The message to send.
+
+        Returns:
+            Empty dict on success (API returns empty body).
+
+        """
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"prompt": message}
         response = _request_with_retry("POST", url, self._get_headers(), json=data)
-        return response.json()
+        # API returns empty body on success
+        return response.json() if response.text.strip() else {}
 
     def approve_plan(self, session_id: str) -> dict[str, Any]:
-        """Approve a plan for a session."""
+        """Approve a plan for a session in AWAITING_PLAN_APPROVAL state.
+
+        Args:
+            session_id: The session ID or full resource name.
+
+        Returns:
+            Empty dict on success (API returns empty body).
+
+        """
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = _request_with_retry("POST", url, self._get_headers())
-        return response.json()
+        # API returns empty body on success
+        return response.json() if response.text.strip() else {}
 
     def get_activities(self, session_id: str) -> dict[str, Any]:
         """Get activities for a session."""
@@ -149,15 +217,7 @@ class TeamClient:
         response = _request_with_retry("GET", url, self._get_headers())
         return response.json()
 
-    def update_session(self, session_id: str, state: str) -> dict[str, Any]:
-        """Update session state (e.g., to COMPLETED)."""
-        if session_id.startswith("sessions/"):
-            session_id = session_id.split("/")[-1]
-
-        url = f"{self.base_url}/sessions/{session_id}"
-        headers = self._get_headers()
-        params = {"updateMask": "state"}
-        data = {"state": state}
-        response = httpx.patch(url, headers=headers, json=data, params=params, timeout=60.0)
-        response.raise_for_status()
-        return response.json()
+    # Note: update_session() was removed because the Jules API specifies
+    # that session.state is "Output only" and cannot be modified by clients.
+    # State transitions happen automatically as Jules processes the session.
+    # To unblock a session, use send_message() or approve_plan() instead.
