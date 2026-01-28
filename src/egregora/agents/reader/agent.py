@@ -97,11 +97,11 @@ Evaluate both posts and determine which is better quality overall.
     from pydantic_ai.providers.google import GoogleProvider
 
     provider = GoogleProvider(api_key=get_google_api_key())
-    model = GoogleModel(
+    agent_model = GoogleModel(
         model_name.removeprefix("google-gla:"),
         provider=provider,
     )
-    agent = Agent(model=model, output_type=ComparisonResult, system_prompt=system_prompt)
+    agent = Agent(model=agent_model, output_type=ComparisonResult, system_prompt=system_prompt)
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 

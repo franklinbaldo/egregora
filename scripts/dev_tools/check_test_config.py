@@ -25,7 +25,7 @@ VIOLATIONS = [
         "Use test_model_settings fixture instead of ModelSettings()",
     ),
     (
-        r'Path(["\\]\.egregora/',
+        r'Path\(["\']\.egregora/',
         "Use tmp_path fixture instead of hardcoded .egregora/ paths",
     ),
 ]

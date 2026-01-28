@@ -167,6 +167,8 @@ def generate_banner(
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
                 return _generate_banner_image(client, input_data, image_model, generation_request)
+
+        return BannerOutput(error="Banner generation failed (unreachable)", error_code="GENERATION_FAILED")
     except google_exceptions.APIError as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
