@@ -58,7 +58,16 @@ def _request_with_retry(
 
 
 class TeamClient:
-    """Client for Google Jules API."""
+    """Client for Google Jules API.
+
+    Note: Session state is read-only according to the Jules API specification.
+    State transitions happen automatically as Jules processes sessions:
+    - QUEUED -> PLANNING -> IN_PROGRESS -> COMPLETED
+    - Use send_message() to respond to AWAITING_USER_FEEDBACK sessions
+    - Use approve_plan() to respond to AWAITING_PLAN_APPROVAL sessions
+
+    Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions
+    """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         """Initialize the Jules client."""
@@ -122,23 +131,46 @@ class TeamClient:
         return response.json()
 
     def send_message(self, session_id: str, message: str) -> dict[str, Any]:
-        """Send a message to an active session."""
+        """Send a message to an active session.
+
+        Messages can be sent to sessions in various active states (not just
+        AWAITING_USER_FEEDBACK). This is useful for providing clarification,
+        additional context, or responding to agent questions.
+
+        Args:
+            session_id: The session ID or full resource name.
+            message: The message to send.
+
+        Returns:
+            Empty dict on success (API returns empty body).
+
+        """
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"prompt": message}
         response = _request_with_retry("POST", url, self._get_headers(), json=data)
-        return response.json()
+        # API returns empty body on success
+        return response.json() if response.text.strip() else {}
 
     def approve_plan(self, session_id: str) -> dict[str, Any]:
-        """Approve a plan for a session."""
+        """Approve a plan for a session in AWAITING_PLAN_APPROVAL state.
+
+        Args:
+            session_id: The session ID or full resource name.
+
+        Returns:
+            Empty dict on success (API returns empty body).
+
+        """
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = _request_with_retry("POST", url, self._get_headers())
-        return response.json()
+        # API returns empty body on success
+        return response.json() if response.text.strip() else {}
 
     def get_activities(self, session_id: str) -> dict[str, Any]:
         """Get activities for a session."""
@@ -149,15 +181,7 @@ class TeamClient:
         response = _request_with_retry("GET", url, self._get_headers())
         return response.json()
 
-    def update_session(self, session_id: str, state: str) -> dict[str, Any]:
-        """Update session state (e.g., to COMPLETED)."""
-        if session_id.startswith("sessions/"):
-            session_id = session_id.split("/")[-1]
-
-        url = f"{self.base_url}/sessions/{session_id}"
-        headers = self._get_headers()
-        params = {"updateMask": "state"}
-        data = {"state": state}
-        response = httpx.patch(url, headers=headers, json=data, params=params, timeout=60.0)
-        response.raise_for_status()
-        return response.json()
+    # Note: update_session() was removed because the Jules API specifies
+    # that session.state is "Output only" and cannot be modified by clients.
+    # State transitions happen automatically as Jules processes the session.
+    # To unblock a session, use send_message() or approve_plan() instead.
