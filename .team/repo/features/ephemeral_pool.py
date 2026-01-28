@@ -13,6 +13,7 @@ from repo.core.client import TeamClient
 REVIEWER_TITLE_PREFIX = "🔍 [Ephemeral] PR Reviewer"
 RESEARCH_TITLE_PREFIX = "📚 [Ephemeral] Research"
 SUPPORT_TITLE_PREFIX = "💡 [Ephemeral] Support"
+PERSONA_TITLE_PREFIX = "[Ephemeral]"  # Generic prefix for persona sessions
 
 # States that indicate a session can be reused
 REUSABLE_STATES = {"IN_PROGRESS", "AWAITING_USER_FEEDBACK", "PAUSED"}
@@ -276,6 +277,116 @@ different question. Treat each as an independent support request.
             return session_id
         except Exception as e:
             print(f"  Failed to create support session: {e}")
+            return None
+
+    def get_or_create_persona_session(
+        self,
+        persona_id: str,
+        personas_dir: str | None = None,
+        base_context: dict[str, Any] | None = None,
+    ) -> str | None:
+        """Get or create an ephemeral session for any persona.
+
+        Uses the existing persona abstraction (Jinja templates) to load
+        the persona's prompt and create a reusable repoless session.
+
+        This allows ANY persona to run as an ephemeral session when it
+        doesn't need repository context (e.g., Maya for UX feedback,
+        Oracle for support, etc.).
+
+        Args:
+            persona_id: The persona ID (e.g., "maya", "oracle", "lore").
+            personas_dir: Path to .team/personas directory. If None, uses
+                default relative to this file.
+            base_context: Optional base template context for rendering.
+
+        Returns:
+            Session ID, or None on failure.
+
+        """
+        from pathlib import Path
+        from repo.scheduler.loader import PersonaLoader
+
+        # Check cache first
+        cache_key = f"persona_{persona_id}"
+        if cached := self._session_cache.get(cache_key):
+            try:
+                session = self.client.get_session(cached)
+                state = (session.get("state") or "").upper()
+                if state in REUSABLE_STATES:
+                    return cached
+            except Exception:
+                pass
+
+        # Build title prefix for this persona
+        title_prefix = f"{PERSONA_TITLE_PREFIX} {persona_id}"
+
+        # Try to find existing session for this persona
+        if session_id := self._find_reusable_session(title_prefix):
+            self._session_cache[cache_key] = session_id
+            return session_id
+
+        # Load persona configuration using the existing abstraction
+        if personas_dir is None:
+            # Default to .team/personas relative to repo root
+            personas_dir_path = Path(__file__).parent.parent.parent / "personas"
+        else:
+            personas_dir_path = Path(personas_dir)
+
+        if not personas_dir_path.exists():
+            print(f"  Personas directory not found: {personas_dir_path}")
+            return None
+
+        try:
+            loader = PersonaLoader(personas_dir_path, base_context or {})
+            prompt_file = personas_dir_path / persona_id / "prompt.md.j2"
+
+            if not prompt_file.exists():
+                # Try .md fallback
+                prompt_file = personas_dir_path / persona_id / "prompt.md"
+
+            if not prompt_file.exists():
+                print(f"  Persona prompt not found: {persona_id}")
+                return None
+
+            config = loader.load_persona(prompt_file)
+        except Exception as e:
+            print(f"  Failed to load persona {persona_id}: {e}")
+            return None
+
+        # Create ephemeral session with persona's prompt
+        print(f"  Creating ephemeral session for persona: {persona_id}...")
+
+        # Add ephemeral session context to the prompt
+        ephemeral_context = f"""
+---
+**Ephemeral Session Mode**
+
+This is a repoless ephemeral session. You have access to a cloud
+development environment but NO repository context. Your role is to:
+- Provide analysis, feedback, and recommendations
+- Generate structured output that can be processed by workflows
+- Be reused across multiple requests (each message is independent)
+
+You cannot create PRs or commit code in this mode.
+---
+
+"""
+        full_prompt = ephemeral_context + config.prompt_body
+
+        try:
+            title = f"{config.emoji} {PERSONA_TITLE_PREFIX} {persona_id}"
+            result = self.client.create_repoless_session(
+                prompt=full_prompt,
+                title=title,
+                require_plan_approval=False,
+            )
+            session_id = result.get("name", "").split("/")[-1]
+            print(f"  Created ephemeral {persona_id} session: {session_id}")
+            self._session_cache[cache_key] = session_id
+            return session_id
+        except Exception as e:
+            print(f"  Failed to create {persona_id} session: {e}")
             return None
 
     def get_pool_stats(self) -> dict[str, Any]:

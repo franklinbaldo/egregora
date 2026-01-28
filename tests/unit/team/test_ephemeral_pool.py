@@ -13,13 +13,19 @@ if str(TEAM_PATH) not in sys.path:
     sys.path.append(str(TEAM_PATH))
 
 from repo.features.ephemeral_pool import (  # noqa: E402
+    PERSONA_TITLE_PREFIX,
     REVIEWER_TITLE_PREFIX,
     REUSABLE_STATES,
     EphemeralSessionPool,
 )
+from repo.features.maya_analyst import (  # noqa: E402
+    AnalysisRequest,
+    PersonaAnalyst,
+    PersonaInsight,
+    parse_persona_insight,
+)
 from repo.features.pr_reviewer import (  # noqa: E402
     PRReviewer,
-    ReviewRecommendation,
     parse_review_response,
 )
 
@@ -341,3 +347,188 @@ class TestCreateRepolessSession:
 
         data = mock_request.call_args[1]["json"]
         assert data["automationMode"] == "MANUAL"
+
+
+class TestPersonaSessionPool:
+    """Tests for generic persona sessions in EphemeralSessionPool."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock TeamClient."""
+        client = MagicMock()
+        client.list_sessions.return_value = {"sessions": []}
+        client.get_session.return_value = {"state": "IN_PROGRESS"}
+        client.create_repoless_session.return_value = {"name": "sessions/persona-123"}
+        return client
+
+    @pytest.fixture
+    def pool(self, mock_client):
+        """Create an EphemeralSessionPool with mock client."""
+        return EphemeralSessionPool(mock_client)
+
+    def test_reuses_existing_persona_session(self, pool, mock_client):
+        """Reuses existing persona session in reusable state."""
+        mock_client.list_sessions.return_value = {
+            "sessions": [
+                {
+                    "name": "sessions/existing-maya",
+                    "title": f"💝 {PERSONA_TITLE_PREFIX} maya",
+                    "state": "IN_PROGRESS",
+                }
+            ]
+        }
+
+        session_id = pool.get_or_create_persona_session("maya")
+
+        assert session_id == "existing-maya"
+        mock_client.create_repoless_session.assert_not_called()
+
+
+class TestPersonaAnalyst:
+    """Tests for PersonaAnalyst."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock TeamClient."""
+        client = MagicMock()
+        client.list_sessions.return_value = {"sessions": []}
+        client.get_session.return_value = {"state": "IN_PROGRESS"}
+        client.create_repoless_session.return_value = {"name": "sessions/persona-456"}
+        client.send_message.return_value = {}
+        return client
+
+    @pytest.fixture
+    def mock_pool(self, mock_client):
+        """Create a mock EphemeralSessionPool."""
+        pool = MagicMock()
+        pool.get_or_create_persona_session.return_value = "persona-456"
+        return pool
+
+    @pytest.fixture
+    def analyst(self, mock_client, mock_pool):
+        """Create a PersonaAnalyst with mock client and pool."""
+        repo_info = {"owner": "test-owner", "repo": "test-repo"}
+        return PersonaAnalyst(mock_client, repo_info, persona_id="maya", pool=mock_pool)
+
+    def test_request_analysis_sends_message(self, analyst, mock_client, mock_pool):
+        """Request analysis sends message to persona session."""
+        request = AnalysisRequest(
+            content="Button is hard to find",
+            source="support ticket"
+        )
+
+        result = analyst.request_analysis(request)
+
+        assert result.request_sent is True
+        assert result.session_id == "persona-456"
+        assert result.persona_id == "maya"
+        mock_client.send_message.assert_called_once()
+        message = mock_client.send_message.call_args[0][1]
+        assert "Button is hard to find" in message
+        assert "support ticket" in message
+
+    def test_request_analysis_includes_context(self, analyst, mock_client, mock_pool):
+        """Request analysis includes context in message."""
+        request = AnalysisRequest(
+            content="Page loads slowly",
+            context="User on mobile network"
+        )
+
+        analyst.request_analysis(request)
+
+        message = mock_client.send_message.call_args[0][1]
+        assert "User on mobile network" in message
+
+
+class TestParsePersonaInsight:
+    """Tests for parse_persona_insight."""
+
+    def test_parses_complete_insight(self):
+        """Parses complete insight with all fields."""
+        response = """
+```markdown
+---
+type: insight
+title: Improve button visibility
+severity: high
+labels: [ux, usability]
+---
+
+## Description
+The submit button is hard to find on the checkout page.
+
+## User Impact
+Users abandon checkout because they can't find the button.
+
+## Recommendation
+Make the button larger and use a contrasting color.
+
+## Evidence
+5 support tickets this week about missing submit button.
+```
+"""
+        insight = parse_persona_insight(response)
+
+        assert insight is not None
+        assert insight.title == "Improve button visibility"
+        assert insight.severity == "high"
+        assert "ux" in insight.labels
+        assert "usability" in insight.labels
+        assert "hard to find" in insight.description
+        assert "abandon checkout" in insight.user_impact
+        assert "contrasting color" in insight.recommendation
+        assert "5 support tickets" in insight.evidence
+
+    def test_parses_insight_without_code_block(self):
+        """Parses insight without code block wrapper."""
+        response = """
+---
+type: insight
+title: Add loading indicator
+severity: medium
+labels: [ux, performance]
+---
+
+## Description
+No feedback when page is loading.
+
+## User Impact
+Users think the app is frozen.
+
+## Recommendation
+Add a spinner or progress bar.
+
+## Evidence
+User interviews mentioned confusion during waits.
+"""
+        insight = parse_persona_insight(response)
+
+        assert insight is not None
+        assert insight.title == "Add loading indicator"
+        assert insight.severity == "medium"
+
+    def test_returns_none_for_invalid_format(self):
+        """Returns None when format is invalid."""
+        response = "This is not a valid insight format."
+        insight = parse_persona_insight(response)
+        assert insight is None
+
+    def test_insight_to_issue_body(self):
+        """Tests PersonaInsight.to_issue_body() formatting."""
+        insight = PersonaInsight(
+            title="Test Issue",
+            severity="high",
+            labels=["ux"],
+            description="Test description",
+            user_impact="Users are affected",
+            recommendation="Fix it",
+            evidence="User reports",
+        )
+
+        body = insight.to_issue_body(persona_id="maya")
+
+        assert "🟠 Severity: HIGH" in body
+        assert "Test description" in body
+        assert "Users are affected" in body
+        assert "Fix it" in body
+        assert "maya" in body
