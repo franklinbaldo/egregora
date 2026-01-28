@@ -1,15 +1,14 @@
 # Pre-commit Configuration Analysis
 
-> Generated: 2026-01-27 | Comprehensive Quality Gates
+> Generated: 2026-01-27 | Updated after cleanup
 
 ## Executive Summary
 
-The repository has **1 config file** with **85 lines** orchestrating **14 hooks** across **3 sources**.
+The repository has **1 config file** with **58 lines** orchestrating **17 hooks** across **3 sources**.
 
 **Architecture:** Multi-layered Quality Gate System
 - External hooks for standard checks (ruff, pre-commit-hooks)
 - Local hooks for project-specific validation
-- Complexity tracking via xenon (separate from blocking)
 
 ---
 
@@ -19,8 +18,8 @@ The repository has **1 config file** with **85 lines** orchestrating **14 hooks*
 |--------|-------|---------|
 | `ruff-pre-commit` | 2 | Linting + formatting |
 | `pre-commit-hooks` | 11 | Standard file validations |
-| `local` | 7 | Project-specific rules |
-| **Total** | **20** | |
+| `local` | 4 | Project-specific rules |
+| **Total** | **17** | |
 
 ---
 
@@ -28,7 +27,7 @@ The repository has **1 config file** with **85 lines** orchestrating **14 hooks*
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     PRE-COMMIT PIPELINE (85 lines)                          │
+│                     PRE-COMMIT PIPELINE (58 lines)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -65,12 +64,9 @@ The repository has **1 config file** with **85 lines** orchestrating **14 hooks*
 │   │ STAGE 3: LOCAL HOOKS (Project-Specific)                             │   │
 │   │                                                                     │   │
 │   │  vulture ──────────► Dead code detection (min-confidence=80%)       │   │
-│   │  xenon ────────────► Complexity thresholds (E/C/B)                  │   │
 │   │  check-private-imports ──► No _private in __all__, cross-module     │   │
 │   │  check-test-config ──────► No direct EgregoraConfig() in tests      │   │
 │   │  check-lint-suppressions ► No noqa/type:ignore in src/              │   │
-│   │  prompt-change-validation ► Personas can only edit own prompts      │   │
-│   │  hire-vote-validation ───► New hires require top-choice vote        │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │   Exclusions: ^(\.team/|artifacts/)                                         │
@@ -100,7 +96,7 @@ Rules: ALL with strategic ignores
 **Key Ignored Rules:**
 - Formatter conflicts (`COM812`, `ISC001`, `Q*`, `W191`)
 - Interface args (`ARG001/002/005`)
-- Complexity metrics (`C901`, `PLR*`) - tracked by xenon instead
+- Complexity metrics (`C901`, `PLR*`) - can be re-enabled if needed
 - Type-checking imports (`TC*`) - Pydantic needs runtime access
 
 **Banned Imports:**
@@ -145,26 +141,7 @@ args: ["src", "tests", "tests/vulture_whitelist.py", "--min-confidence=80"]
 
 ---
 
-#### 2. **xenon** - Complexity Enforcement
-
-```yaml
-entry: uvx xenon
-args: ["src", "--max-absolute", "E", "--max-modules", "C", "--max-average", "B",
-       "--exclude", "*/database/*.py,*/orchestration/runner.py"]
-```
-
-**Thresholds:**
-| Metric | Level | Meaning |
-|--------|-------|---------|
-| Absolute | E | Block at very high complexity (31+) |
-| Module | C | Block at high average (11-20) |
-| Average | B | Block at medium average (6-10) |
-
-**Excluded Files:** Database queries and orchestration (complex by nature)
-
----
-
-#### 3. **check-private-imports** - Encapsulation Guard
+#### 2. **check-private-imports** - Encapsulation Guard
 
 ```
 Location: scripts/dev_tools/check_private_imports.py
@@ -179,7 +156,7 @@ Types: [python]
 
 ---
 
-#### 4. **check-test-config** - Test Isolation
+#### 3. **check-test-config** - Test Isolation
 
 ```
 Location: scripts/dev_tools/check_test_config.py
@@ -196,7 +173,7 @@ Files: tests/.*\.py$
 
 ---
 
-#### 5. **check-lint-suppressions** - No Inline Suppressions
+#### 4. **check-lint-suppressions** - No Inline Suppressions
 
 ```
 Location: scripts/dev_tools/check_lint_suppressions.py
@@ -213,33 +190,6 @@ Files: ^src/
 - `src/egregora/agents/writer.py` (external untyped imports)
 
 **Philosophy:** Use `pyproject.toml [tool.ruff.lint.per-file-ignores]` instead of inline suppressions
-
----
-
-#### 6. **prompt-change-validation** - Persona Ownership
-
-```
-Location: scripts/dev_tools/check_prompt_changes.py
-Files: \.team/personas/.*/.*\.j2$
-```
-
-**Rules:**
-1. Personas can create new persona files (hiring)
-2. Personas can modify their OWN prompt.md.j2
-3. Personas CANNOT modify other personas' prompts
-
----
-
-#### 7. **hire-vote-validation** - Democratic Hiring
-
-```
-Location: scripts/dev_tools/check_hire_vote.py
-Files: \.team/personas/.*/prompt\.md
-```
-
-**Rules:**
-1. New personas must be voted for
-2. New hire must be TOP choice in vote
 
 ---
 
@@ -314,9 +264,7 @@ Expected times (approximate):
 | `check_private_imports.py` | 87 | Encapsulation enforcement |
 | `check_lint_suppressions.py` | 105 | No inline noqa |
 | `check_test_config.py` | 89 | Test fixture usage |
-| `check_prompt_changes.py` | 118 | Persona ownership |
-| `check_hire_vote.py` | 145 | Democratic hiring |
-| **Total** | ~544 | |
+| **Total** | ~281 | |
 
 ---
 
@@ -331,7 +279,6 @@ Expected times (approximate):
 │   ├── ruff ──────────────► ruff (verify)                        │
 │   ├── ruff-format ───────► format check                         │
 │   ├── vulture ───────────► dead code check                      │
-│   ├── xenon ─────────────► complexity check                     │
 │   └── custom hooks ──────► (no CI equivalent)                   │
 │                                                                 │
 │   CI-only:                                                      │
