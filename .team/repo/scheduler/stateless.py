@@ -55,26 +55,37 @@ JULES_BRANCH = "jules"
 ORACLE_TITLE_PREFIX = "🔮 oracle"
 
 # Session states from Jules API
+# Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions#State
+# Valid states: STATE_UNSPECIFIED, QUEUED, PLANNING, AWAITING_PLAN_APPROVAL,
+#               AWAITING_USER_FEEDBACK, IN_PROGRESS, PAUSED, FAILED, COMPLETED
+STATE_QUEUED = "QUEUED"
+STATE_PLANNING = "PLANNING"
 STATE_AWAITING_USER_FEEDBACK = "AWAITING_USER_FEEDBACK"
 STATE_AWAITING_PLAN_APPROVAL = "AWAITING_PLAN_APPROVAL"
 STATE_IN_PROGRESS = "IN_PROGRESS"
+STATE_PAUSED = "PAUSED"
 STATE_COMPLETED = "COMPLETED"
 STATE_FAILED = "FAILED"
 
-# States that indicate a session needs help
+# States that indicate a session needs help (Oracle can unblock these)
+# These sessions are waiting for user input and can be auto-responded to
 STUCK_STATES = {STATE_AWAITING_USER_FEEDBACK, STATE_AWAITING_PLAN_APPROVAL}
 
-# States that indicate a session is actively running
-# Only IN_PROGRESS means actual work is happening
-# QUEUED/PLANNING can get stuck indefinitely and should not block new sessions
+# States that indicate a session is actively running and doing work
+# Only IN_PROGRESS means the agent is actually executing tasks
+# Reference: "The session is in progress" - agent is actively working
 ACTIVE_STATES = {STATE_IN_PROGRESS}
 
 # States that indicate a session is pending but not yet active
-# These are monitored for staleness
-PENDING_STATES = {"ACTIVE", "PLANNING", "QUEUED"}
+# QUEUED: "The session is queued" - waiting to start
+# PLANNING: "The agent is planning" - thinking about approach
+# These can get stuck indefinitely if Jules has capacity issues
+PENDING_STATES = {STATE_QUEUED, STATE_PLANNING}
 
 # Sessions in PENDING_STATES older than this are considered stale (in seconds)
-# 1 hour - if a session has been QUEUED/PLANNING for over an hour, it's likely stuck
+# 1 hour threshold - if a session has been QUEUED/PLANNING for over an hour,
+# it's likely stuck due to Jules capacity issues and should not block new sessions
+# Reference: createTime field is RFC 3339 formatted timestamp
 PENDING_STALENESS_THRESHOLD = 3600
 
 
@@ -493,11 +504,15 @@ def discover_personas() -> list[str]:
 def _is_session_stale(session: dict[str, Any]) -> bool:
     """Check if a session in PENDING_STATES is stale (too old).
 
+    Uses the session's createTime field to determine age.
+    Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions
+    createTime is formatted per RFC 3339 (e.g., "2024-01-15T10:30:00.000Z").
+
     Args:
-        session: Session dict from Jules API
+        session: Session dict from Jules API containing createTime field.
 
     Returns:
-        True if session is older than PENDING_STALENESS_THRESHOLD.
+        True if session is older than PENDING_STALENESS_THRESHOLD (1 hour).
     """
     create_time_str = session.get("createTime")
     if not create_time_str:
@@ -505,7 +520,7 @@ def _is_session_stale(session: dict[str, Any]) -> bool:
         return True
 
     try:
-        # Parse ISO format: 2024-01-15T10:30:00.000Z
+        # Parse RFC 3339 format: 2024-01-15T10:30:00.000Z
         create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
         age_seconds = (now - create_time).total_seconds()
@@ -518,8 +533,20 @@ def _is_session_stale(session: dict[str, Any]) -> bool:
 def get_active_session(client: TeamClient, repo: str) -> dict | None:
     """Check if there's an active/running Jules session for this repo.
 
-    Only returns sessions in IN_PROGRESS state (actively working).
-    Sessions in QUEUED/PLANNING are not considered blocking unless very recent.
+    Session state handling based on Jules API State enum:
+    Reference: https://developers.google.com/jules/api/reference/rest/v1alpha/sessions#State
+
+    - IN_PROGRESS: "The session is in progress" - always blocks new sessions
+    - QUEUED/PLANNING: Only blocks if session is recent (< 1 hour old)
+      Stale sessions in these states are ignored to prevent deadlock when
+      Jules has capacity issues.
+    - Oracle sessions are always skipped (they're support sessions).
+
+    Args:
+        repo: Repository name to filter sessions.
+
+    Returns:
+        Active session dict, or None if no blocking session exists.
     """
     try:
         sessions = client.list_sessions().get("sessions", [])
