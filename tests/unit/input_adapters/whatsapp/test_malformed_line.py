@@ -11,15 +11,14 @@ from egregora.input_adapters.whatsapp.parsing import (
 )
 
 
-@pytest.mark.skip(reason="Temporarily skipping due to persistent parsing issues")
 def test_parse_source_raises_malformed_line_error(tmp_path: Path):
     """Verify parse_source raises MalformedLineError for a malformed line in a valid chat."""
     zip_path = tmp_path / "whatsapp_malformed.zip"
     chat_file_name = "_chat.txt"
     chat_content = (
-        "1/1/22, 12:00 - User 1: Hello\\n"
-        "99/99/99, 12:01 - User 2: This date is malformed\\n"
-        "1/1/22, 12:02 - User 3: World\\n"
+        "1/1/22, 12:00 - User 1: Hello\n"
+        "99/99/99, 12:01 - User 2: This date is malformed\n"
+        "1/1/22, 12:02 - User 3: World\n"
     )
 
     with zipfile.ZipFile(zip_path, "w") as zf:
