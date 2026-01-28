@@ -9,7 +9,6 @@
 - [Directory Structure](#-directory-structure)
 - [Personas](#-personas)
 - [Scheduler Modes](#-scheduler-modes)
-- [Sprint System](#-sprint-system)
 - [Configuration](#-configuration)
 - [Usage Guide](#-usage-guide)
 - [Persona Development](#-persona-development)
@@ -27,7 +26,6 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 - **23 Specialized Personas** - Each with unique expertise (security, performance, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
-- **Sprint-Based Planning** - Personas plan ahead and provide feedback to each other
 - **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
 - **Mail System** - Async communication between personas for conflict resolution
 - **Journal System** - Each persona maintains work logs for continuity
@@ -117,8 +115,7 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   │   ├── feedback/          # Feedback loop system
 │   │   ├── mail/              # Mail backend (Maildir)
 │   │   ├── polling/           # Session polling
-│   │   ├── sessions/          # Session management
-│   │   └── sprints/           # Sprint planning
+│   │   └── sessions/          # Session management
 │   ├── scheduler/              # Scheduler engine
 │   │   ├── engine.py          # Main scheduler logic
 │   │   ├── loader.py          # Persona loading
@@ -169,12 +166,6 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── cycle_state.json       # Current cycle position
 │   └── reconciliation/        # PR reconciliation data
 │
-├── sprints/                    # Sprint planning
-│   ├── current.txt            # Current sprint number
-│   ├── sprint-1/              # Sprint 1 plans
-│   ├── sprint-2/              # Sprint 2 plans
-│   └── ...
-│
 ├── schedules.toml             # Scheduler configuration
 ├── README.md                  # This file
 ├── PARALLEL_PERSONAS_*.md     # Parallel execution docs
@@ -192,7 +183,6 @@ A **persona** is an autonomous AI agent with:
 - **Specialized expertise** (security, performance, UX, etc.)
 - **Clear responsibilities** defined in `prompt.md.j2`
 - **Work journal** documenting past actions
-- **Sprint planning** capability for coordination
 - **Mailbox** for async communication
 
 ### Persona Structure
@@ -285,14 +275,11 @@ Each persona can:
 1. **📖 Read Context**
    - Project documentation (`CLAUDE.md`, `README.md`)
    - Other personas' journals
-   - Sprint plans and feedback
    - Current codebase state
 
 2. **📝 Create Work**
    - Pull requests with atomic changes
    - Journal entries documenting decisions
-   - Sprint plans for future work
-   - Feedback on other personas' plans
 
 3. **💬 Communicate**
    - Send/receive mail messages
@@ -337,7 +324,6 @@ Track 2:  sentinel → builder → shepherd
 
 - ✅ No merge conflicts (sequential within track)
 - ✅ Each persona builds on previous work
-- ✅ Sprint-based organization
 - ✅ Predictable execution order
 
 **Configuration:**
@@ -401,106 +387,6 @@ curator = "0 0 * * *"          # Daily at midnight UTC
 - ✅ Run personas at optimal times
 - ✅ Independent operation
 - ✅ Predictable resource usage
-
----
-
-## 📅 Sprint System
-
-Sprints organize work into cycles, providing context and continuity across personas.
-
-### Sprint Structure
-
-```
-.team/sprints/
-├── current.txt              # Contains: "42"
-├── sprint-41/
-│   ├── curator-plan.md      # Curator's plan for sprint 41
-│   ├── refactor-plan.md     # Refactor's plan for sprint 41
-│   └── visionary-feedback.md # Visionary's feedback on others' plans
-├── sprint-42/               # Current sprint
-│   ├── curator-plan.md
-│   ├── refactor-plan.md
-│   ├── sentinel-plan.md
-│   └── ...
-└── sprint-43/               # Next sprint (planning ahead)
-    ├── curator-plan.md
-    └── ...
-```
-
-### Sprint Flow
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Sprint N-1 (Past)                                      │
-│  └─ Completed work, archived journals                  │
-└─────────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────────┐
-│  Sprint N (Current)                                     │
-│  ├─ Active work                                         │
-│  ├─ Personas execute their plans                       │
-│  └─ Create PRs and journal entries                     │
-└─────────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────────┐
-│  Sprint N+1 (Next)                                      │
-│  ├─ Personas write plans                               │
-│  ├─ Personas review others' plans                      │
-│  └─ Personas provide feedback                          │
-└─────────────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────────────┐
-│  Sprint N+2 (Future)                                    │
-│  └─ Early planning and coordination                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Sprint Context in Prompts
-
-Every persona receives:
-
-```jinja
-## 📅 Sprint Context
-
-**Current Sprint:** {{ current_sprint }}
-**Your Plan:** See sprints/sprint-{{ current_sprint }}/{{ id }}-plan.md
-**Others' Plans:** See sprints/sprint-{{ current_sprint }}/*-plan.md
-**Feedback:** See sprints/sprint-{{ current_sprint }}/*-feedback.md
-
-### Your Responsibilities
-
-1. **Execute** your plan for sprint {{ current_sprint }}
-2. **Plan** your work for sprint {{ current_sprint + 1 }}
-3. **Review** other personas' plans and provide feedback
-4. **Coordinate** with personas working on related areas
-```
-
-### Plan Template
-
-```markdown
-# Sprint {{ sprint_number }} Plan - {{ persona_name }}
-
-## Goals
-- [ ] Goal 1: Brief description
-- [ ] Goal 2: Brief description
-- [ ] Goal 3: Brief description
-
-## Context
-Why these goals matter...
-
-## Dependencies
-- Depends on Refactor completing X
-- Blocks Palette from starting Y
-
-## Success Criteria
-- Specific, measurable outcomes
-- Test coverage targets
-- Performance benchmarks
-
-## Risks
-- Potential blockers
-- Mitigation strategies
-```
 
 ---
 
@@ -933,7 +819,7 @@ smaller, testable units. Focus on src/egregora/agents/ first."
 {{ journal_entries }}
 
 **Avoid:**
-- Repeating work from previous sprints
+- Repeating work from previous sessions
 - Contradicting earlier decisions (document why if needed)
 {% endblock %}
 ```
@@ -961,12 +847,12 @@ smaller, testable units. Focus on src/egregora/agents/ first."
 ```markdown
 ## Success Criteria
 
-✅ **This sprint succeeds when:**
+✅ **This session succeeds when:**
 - [ ] Test coverage for agents/ reaches 80%
 - [ ] All security vulnerabilities (CVSS ≥7) are fixed
 - [ ] Performance regression tests added for slow queries
 
-🚫 **This sprint fails if:**
+🚫 **This session fails if:**
 - Breaking changes introduced
 - CI broken for >24 hours
 - Security issues ignored
@@ -975,11 +861,11 @@ smaller, testable units. Focus on src/egregora/agents/ first."
 #### 5. Celebrate "Nothing to Do"
 
 ```markdown
-If there's genuinely nothing to do this sprint, that's SUCCESS! Document:
+If there's genuinely nothing to do this session, that's SUCCESS! Document:
 
 1. What you checked
 2. Why there's no work
-3. What changed since last sprint
+3. What changed since last session
 4. When you'll check again
 
 Then create a PR updating your journal with this status.
@@ -1005,8 +891,6 @@ personas/curator/prompt.md.j2    # Extends base, includes blocks
 - `{{ description }}` - Persona description
 - `{{ journal_entries }}` - Aggregated journal content
 - `{{ password }}` - UUIDv5 derived from persona ID
-- `{{ sprint_context_text }}` - Current sprint context
-- `{{ current_sprint }}` - Current sprint number
 
 **Custom Blocks:**
 
@@ -1037,10 +921,10 @@ Content here...
 │  ┌─────────┐  ┌────────┐  ┌──────────┐                 │
 │  │Scheduler│  │  Mail  │  │ Sessions │                 │
 │  └────┬────┘  └────┬───┘  └────┬─────┘                 │
-│  ┌─────────┐  ┌────────┐  ┌──────────┐                 │
-│  │ Autofix │  │Feedback│  │ Sprints  │                 │
-│  └────┬────┘  └────┬───┘  └────┬─────┘                 │
-└───────┼────────────┼────────────┼───────────────────────┘
+│  ┌─────────┐  ┌────────┐                               │
+│  │ Autofix │  │Feedback│                               │
+│  └────┬────┘  └────┬───┘                               │
+└───────┼────────────┼───────────────────────────────────┘
         │            │            │
 ┌───────┼────────────┼────────────┼───────────────────────┐
 │       ↓            ↓            ↓           Core Layer  │
@@ -1259,47 +1143,6 @@ class S3MailBackend(MailBackend):
     endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
 ```
 
-### Sprint System Architecture
-
-```python
-# ===== Sprint Manager (.team/repo/features/sprints/manager.py) =====
-class SprintManager:
-    """Sprint planning and coordination"""
-
-    def get_current_sprint(self) -> int:
-        """Read current sprint number"""
-        return int(Path(".team/sprints/current.txt").read_text())
-
-    def increment_sprint(self) -> int:
-        """Increment sprint and create directory"""
-        current = self.get_current_sprint()
-        next_sprint = current + 1
-        Path(f".team/sprints/sprint-{next_sprint}").mkdir(exist_ok=True)
-        Path(".team/sprints/current.txt").write_text(str(next_sprint))
-        return next_sprint
-
-    def get_sprint_context(self, persona_id: str) -> dict:
-        """Load sprint plans and feedback for persona"""
-        current = self.get_current_sprint()
-
-        return {
-            "current_sprint": current,
-            "my_plan": self._load_plan(persona_id, current),
-            "others_plans": self._load_all_plans(current),
-            "feedback": self._load_feedback(persona_id, current),
-        }
-
-    def save_plan(self, persona_id: str, sprint: int, content: str) -> None:
-        """Save persona's plan for sprint"""
-        plan_file = Path(f".team/sprints/sprint-{sprint}/{persona_id}-plan.md")
-        plan_file.write_text(content)
-
-    def save_feedback(self, persona_id: str, sprint: int, content: str) -> None:
-        """Save persona's feedback on others' plans"""
-        feedback_file = Path(f".team/sprints/sprint-{sprint}/{persona_id}-feedback.md")
-        feedback_file.write_text(content)
-```
-
 ### Design Principles
 
 1. **Separation of Concerns**
@@ -1447,7 +1290,7 @@ gh pr checks <pr-number>
 uv run jules autofix analyze <pr-number>
 
 # Option 2: Manual fix
-git checkout jules-sched-<sprint>-<persona>
+git checkout jules-sched-<persona>
 # Fix issues
 git commit -am "fix: address CI failures"
 git push
@@ -1528,8 +1371,6 @@ rendered = template.render(
     description='Test',
     journal_entries='',
     password='test-uuid',
-    sprint_context_text='Sprint 1',
-    current_sprint=1,
 )
 print(rendered[:200])
 PYTHON_EOF
