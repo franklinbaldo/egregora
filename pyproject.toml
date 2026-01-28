@@ -32,6 +32,7 @@ dependencies = [
     "numpy",
     "google-genai",
     "google-api-core",
+    "grpcio-status",  # Required for helpful gRPC error messages
 ]
 
 [project.scripts]
