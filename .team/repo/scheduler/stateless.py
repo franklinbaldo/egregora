@@ -39,7 +39,8 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +65,17 @@ STATE_FAILED = "FAILED"
 STUCK_STATES = {STATE_AWAITING_USER_FEEDBACK, STATE_AWAITING_PLAN_APPROVAL}
 
 # States that indicate a session is actively running
-ACTIVE_STATES = {STATE_IN_PROGRESS, "ACTIVE", "PLANNING", "QUEUED"}
+# Only IN_PROGRESS means actual work is happening
+# QUEUED/PLANNING can get stuck indefinitely and should not block new sessions
+ACTIVE_STATES = {STATE_IN_PROGRESS}
+
+# States that indicate a session is pending but not yet active
+# These are monitored for staleness
+PENDING_STATES = {"ACTIVE", "PLANNING", "QUEUED"}
+
+# Sessions in PENDING_STATES older than this are considered stale (in seconds)
+# 1 hour - if a session has been QUEUED/PLANNING for over an hour, it's likely stuck
+PENDING_STALENESS_THRESHOLD = 3600
 
 
 def _get_repo_root() -> Path:
@@ -479,14 +490,44 @@ def discover_personas() -> list[str]:
     return sorted(personas)
 
 
+def _is_session_stale(session: dict[str, Any]) -> bool:
+    """Check if a session in PENDING_STATES is stale (too old).
+
+    Args:
+        session: Session dict from Jules API
+
+    Returns:
+        True if session is older than PENDING_STALENESS_THRESHOLD.
+    """
+    create_time_str = session.get("createTime")
+    if not create_time_str:
+        # No create time - consider it stale to be safe
+        return True
+
+    try:
+        # Parse ISO format: 2024-01-15T10:30:00.000Z
+        create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        age_seconds = (now - create_time).total_seconds()
+        return age_seconds > PENDING_STALENESS_THRESHOLD
+    except (ValueError, TypeError):
+        # Can't parse time - consider it stale
+        return True
+
+
 def get_active_session(client: TeamClient, repo: str) -> dict | None:
-    """Check if there's an active/running Jules session for this repo."""
+    """Check if there's an active/running Jules session for this repo.
+
+    Only returns sessions in IN_PROGRESS state (actively working).
+    Sessions in QUEUED/PLANNING are not considered blocking unless very recent.
+    """
     try:
         sessions = client.list_sessions().get("sessions", [])
     except Exception:
         return None
 
     repo_lower = repo.lower()
+    pending_session = None
 
     for session in sessions:
         title = (session.get("title") or "").lower()
@@ -499,10 +540,18 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
         if ORACLE_TITLE_PREFIX.lower() in title:
             continue
 
+        # IN_PROGRESS means actively working - always blocks
         if state in ACTIVE_STATES:
             return session
 
-    return None
+        # Track pending sessions (QUEUED/PLANNING) for staleness check
+        if state in PENDING_STATES:
+            if not _is_session_stale(session):
+                # Recent pending session - might still start
+                pending_session = session
+
+    # Return pending session only if it's recent enough to possibly start
+    return pending_session
 
 
 def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
