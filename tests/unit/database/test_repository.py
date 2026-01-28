@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from ibis.common.exceptions import IbisError
 
-from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.exceptions import (
     DatabaseOperationError,
     DocumentNotFoundError,
@@ -76,3 +76,24 @@ def test_list_raises_database_operation_error_for_invalid_type(content_repositor
 
 # Removed: test_list_handles_ibis_error_and_falls_back
 # The fallback logic was for the 'documents_view' which is gone.
+
+
+def test_save_calls_replace_rows(content_repository, mock_db_manager):
+    """Verify save() calls replace_rows with correct arguments."""
+    doc = Document(
+        content="Test Content",
+        type=DocumentType.POST,
+        metadata={"title": "Test Title", "slug": "test-slug", "status": "draft"},
+    )
+
+    content_repository.save(doc)
+
+    # Check that replace_rows was called
+    mock_db_manager.replace_rows.assert_called_once()
+    args, kwargs = mock_db_manager.replace_rows.call_args
+
+    assert args[0] == "documents"
+    row = args[1][0]
+    assert row["doc_type"] == "post"
+    assert row["title"] == "Test Title"
+    assert kwargs.get("by_keys") == {"id": row["id"]}
