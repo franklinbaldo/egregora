@@ -33,6 +33,8 @@ dependencies = [
     "google-genai",
     "google-api-core",
     "grpcio-status",  # Required for helpful gRPC error messages
+    "python-dotenv",
+    "pydantic-core",
 ]
 
 [project.scripts]
@@ -494,7 +496,8 @@ DEP002 = [
     "lxml",
     "mkdocs-material[imaging]",
     "boto3",
-    "google-generativeai", "pydantic-evals"
+    "google-generativeai", "pydantic-evals",
+    "grpcio-status"
 ]
 
 [tool.codespell]
