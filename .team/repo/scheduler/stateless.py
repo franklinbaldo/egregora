@@ -54,7 +54,7 @@ JULES_BRANCH = "jules"
 ORACLE_TITLE_PREFIX = "🔮 oracle"
 
 # Jules bot login patterns for PR detection (fallback when URL detection not available)
-# Primary detection is via jules.google.com URLs in PR body
+# Primary detection is via jules.google.com/sessions/ URLs in PR body
 JULES_BOT_LOGINS = {"google-labs-jules[bot]", "google-labs-jules", "app/google-labs-jules"}
 
 # Session states from Jules API
@@ -648,8 +648,9 @@ def merge_completed_prs() -> int:
     """Merge Jules draft PRs regardless of CI status.
 
     Jules PRs are identified by:
-    1. PR body containing jules.google.com URL (primary)
-    2. OR author is the Jules bot (fallback)
+    1. PR body containing jules.google.com/sessions/ URL (primary)
+    2. PR body containing jules.google.com/task/ URL (fallback)
+    3. OR author is the Jules bot (fallback)
     """
     try:
         # Get all open PRs (not filtered by author since Jules now creates PRs as repo owner)
@@ -684,8 +685,8 @@ def merge_completed_prs() -> int:
 
         # Check if it's a Jules PR (URL in body OR bot author)
         is_jules_pr = (
-            "jules.google.com/task" in body
-            or "jules.google.com/session" in body
+            "jules.google.com/sessions/" in body
+            or "jules.google.com/task/" in body
             or author_login in JULES_BOT_LOGINS
         )
 
@@ -773,9 +774,10 @@ def get_existing_ci_fixer_prs() -> list[dict[str, Any]]:
     """Find existing ci-fixer PRs that are open.
 
     Jules PRs are identified by:
-    1. PR body containing jules.google.com URL (primary)
-    2. OR author is the Jules bot (fallback)
-    3. AND title contains ci-fixer/fix(ci) keywords
+    1. PR body containing jules.google.com/sessions/ URL (primary)
+    2. PR body containing jules.google.com/task/ URL (fallback)
+    3. OR author is the Jules bot (fallback)
+    4. AND title contains ci-fixer/fix(ci) keywords
 
     Returns:
         List of open ci-fixer PRs with their details.
@@ -817,8 +819,8 @@ def get_existing_ci_fixer_prs() -> list[dict[str, Any]]:
 
         # Check if it's a Jules PR (URL in body OR bot author)
         is_jules_pr = (
-            "jules.google.com/task" in body
-            or "jules.google.com/session" in body
+            "jules.google.com/sessions/" in body
+            or "jules.google.com/task/" in body
             or author_login in JULES_BOT_LOGINS
         )
 
