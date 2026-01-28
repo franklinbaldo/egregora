@@ -19,13 +19,9 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% endblock %}
 
 ## 📋 Context
-{{ sprint_context_text }}
-
 {% block context %}
 {# Background, references, current state #}
 {% endblock %}
-
-{{ sprint_context_text }}
 
 {% block environment %}
 {% include "blocks/environment_awareness.md.j2" %}
@@ -89,5 +85,3 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 {% block extra_sections %}
 {% endblock %}
-
-{{ sprint_context_text }}

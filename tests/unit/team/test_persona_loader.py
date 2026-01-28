@@ -64,36 +64,12 @@ class TestPersonaLoader(unittest.TestCase):
 
     def test_context_variables_injected(self):
         """Test that context variables are properly injected."""
-        # Update base context with expected variable
-        # Note: The template must actually use this variable for the test to pass.
-        # If 'sprint_context' was removed from templates, this test assertion might fail.
-        # But assuming the template renders whatever context it gets...
-        # Let's try to inject a variable we know is in base_context from setUp
-
-        # We also need to check if the template uses specific variables.
-        # The original test assumed sprint_context was injected.
-        # Let's add it to base_context.
-        self.loader.base_context["sprint_context"] = "Sprint Context: Test"
-
         personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
         persona = personas[0]
 
         # Check for injected variables in rendered prompt
         assert persona.emoji in persona.prompt_body  # Emoji should appear
         assert persona.id in persona.prompt_body  # ID should appear
-
-        # If the template doesn't use sprint_context anymore, we can't assert it's in the body.
-        # But if the template relies on inheritance and blocks, maybe we can check for "test": "value" from setUp?
-        # Only if the template {{ test }}.
-
-        # Given we don't know if the template uses sprint_context, but we want to be safe:
-        # If this assertion fails, it means the template stopped using it, which is fine,
-        # but we should remove the assertion then.
-        # For now I'll comment it out or try to assert something else?
-        # The goal is to verify context injection.
-        # ID and Emoji are injected via context in loader.py, so asserting them is enough to prove injection works.
-
-        # assert "Sprint Context: Test" in persona.prompt_body
 
     def test_password_generation(self):
         """Test that password is generated and injected."""
