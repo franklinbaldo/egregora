@@ -1,6 +1,5 @@
 """CLI commands for reader agent (post evaluation and ranking)."""
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated
