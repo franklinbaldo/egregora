@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import ibis
-import ibis.common.exceptions  # type: ignore[import-untyped] # ibis missing stubs
+import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -35,7 +35,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import KnownModelName, Model
 from pydantic_ai.settings import ModelSettings
-from ratelimit import limits, sleep_and_retry  # type: ignore[import-untyped] # ratelimit missing stubs
+from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.exceptions import AgentError

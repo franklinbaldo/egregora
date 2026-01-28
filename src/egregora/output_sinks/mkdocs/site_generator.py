@@ -145,7 +145,7 @@ class SiteGenerator:
 
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index."""
-        profiles = []
+        profiles: list[dict[str, Any]] = []
         if not self.profiles_dir.exists():
             return profiles
 
@@ -208,7 +208,7 @@ class SiteGenerator:
 
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index."""
-        media_items = []
+        media_items: list[dict[str, Any]] = []
         if not self.urls_dir.exists():
             return media_items
 
@@ -241,7 +241,7 @@ class SiteGenerator:
 
         Only returns posts with banner images. Posts without banners are filtered out.
         """
-        posts = []
+        posts: list[dict[str, Any]] = []
         if not self.posts_dir.exists():
             return posts
 
@@ -344,7 +344,7 @@ class SiteGenerator:
             List of post dictionaries with metadata, sorted by ELO rating (highest first)
 
         """
-        posts = []
+        posts: list[dict[str, Any]] = []
 
         # Check if database exists
         if not self.db_path or not self.db_path.exists():

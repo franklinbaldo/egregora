@@ -16,7 +16,7 @@ import logging
 import shutil
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List
 
 import frontmatter
 import yaml
@@ -444,7 +444,7 @@ class MkDocsAdapter(BaseOutputSink):
             raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
-    def get_markdown_extensions(self) -> list[str]:
+    def get_markdown_extensions(self) -> List[str]:
         """Get list of supported markdown extensions for MkDocs Material theme.
 
         Reads from configuration if available, otherwise returns standard defaults.
@@ -716,11 +716,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         *,
         recursive: bool = False,
         exclude_names: set[str] | None = None,
-    ) -> list[Document]:
+    ) -> List[Document]:
         if not directory or not directory.exists():
             return []
 
-        documents: list[Document] = []
+        documents: List[Document] = []
         glob_func = directory.rglob if recursive else directory.glob
         for path in glob_func("*.md"):
             if not path.is_file():
@@ -764,8 +764,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: list[str],
-        profiles_updated: list[str],
+        _posts_created: List[str],
+        profiles_updated: List[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
