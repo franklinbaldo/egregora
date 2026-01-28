@@ -18,6 +18,7 @@ Deep dive into the JULES engine, scheduler, and feature modules.
 
 **Epochs:**
 - 🏛️ [The Batch Era](Architecture-Batch-Era.md) (Sprint 1-2)
+- 🧬 [The Symbiote Era](Architecture-Symbiote-Era.md) (Sprint 3+)
 
 ### 🚦 [Protocols & Workflows](Protocols.md)
 
