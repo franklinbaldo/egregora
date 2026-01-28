@@ -5,7 +5,12 @@ from typing import Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from repo.core.exceptions import TeamClientError
 
@@ -14,6 +19,17 @@ DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 # Retry configuration
 MAX_RETRIES = 3
+
+# HTTP status codes that should trigger a retry (server errors)
+RETRYABLE_STATUS_CODES = {502, 503, 504}
+
+
+class RetryableHTTPError(Exception):
+    """Raised for HTTP errors that should be retried (5xx)."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        self.status_code = status_code
+        super().__init__(message)
 
 class JulesSession(BaseModel):
     """Jules Session Model."""
@@ -28,8 +44,13 @@ class JulesSession(BaseModel):
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError)),
-    reraise=True
+    retry=retry_if_exception_type((
+        httpx.ReadTimeout,
+        httpx.ConnectTimeout,
+        httpx.RemoteProtocolError,
+        RetryableHTTPError,
+    )),
+    reraise=True,
 )
 def _request_with_retry(
     method: str,
@@ -37,22 +58,37 @@ def _request_with_retry(
     headers: dict[str, str],
     json: dict[str, Any] | None = None,
 ) -> httpx.Response:
-    """Make an HTTP request with retry logic for transient failures."""
+    """Make an HTTP request with retry logic for transient failures.
+
+    Retries on:
+    - Connection timeouts
+    - Read timeouts
+    - Remote protocol errors
+    - Server errors (502, 503, 504)
+
+    """
     if method == "GET":
         response = httpx.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
     else:
         response = httpx.post(url, headers=headers, json=json, timeout=DEFAULT_TIMEOUT)
-    
-    # We might want to retry on 5xx errors too, but strictly following previous logic for now (timeouts)
-    # However, raise_for_status might raise HTTPStatusError which we might want to wrap.
+
+    # Check for retryable server errors (5xx)
+    if response.status_code in RETRYABLE_STATUS_CODES:
+        raise RetryableHTTPError(
+            response.status_code,
+            f"Server error {response.status_code}: {response.text[:200]}",
+        )
+
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        # Wrap HTTP errors in TeamClientError for clearer domains
-        raise TeamClientError(f"Jules API Error: {e.response.status_code} - {e.response.text}") from e
+        # Non-retryable HTTP errors (4xx, other 5xx)
+        msg = f"Jules API Error: {e.response.status_code} - {e.response.text}"
+        raise TeamClientError(msg) from e
     except httpx.RequestError as e:
-         # Wrap Request errors (that aren't retried or exhausted retries)
-        raise TeamClientError(f"Jules Connection Error: {e}") from e
+        # Request errors (that aren't retried or exhausted retries)
+        msg = f"Jules Connection Error: {e}"
+        raise TeamClientError(msg) from e
 
     return response
 
