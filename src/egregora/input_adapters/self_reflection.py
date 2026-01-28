@@ -31,7 +31,7 @@ EVENT_NAMESPACE = UUID("3d99325f-85e5-4c4b-9a85-4e80bc9a6d33")
 
 def _scan_and_parse_documents(output_adapter: OutputSink, doc_type: DocumentType) -> list[Document]:
     """Scan filesystem for documents and parse them."""
-    documents = []
+    documents: list[Document] = []
     posts_dir = getattr(output_adapter, "posts_dir", None)
     if not posts_dir or not posts_dir.exists():
         return documents
