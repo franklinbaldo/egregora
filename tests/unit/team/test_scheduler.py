@@ -19,13 +19,23 @@ class TestStatelessScheduler(unittest.TestCase):
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_exists_and_updates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch updates existing branch to match main."""
-        mock_run.return_value.returncode = 0
+        # Default mock behavior is success (returncode=0)
+        # For ls-remote, we need it to return non-empty stdout to indicate branch exists
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "git" and cmd[1] == "ls-remote":
+                mock_res = MagicMock(returncode=0)
+                mock_res.stdout = "hash refs/heads/jules\n"
+                return mock_res
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
         # Verify essential calls are made, ignoring others
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
@@ -38,8 +48,11 @@ class TestStatelessScheduler(unittest.TestCase):
         """Test ensure_jules_branch when branch missing."""
 
         def side_effect(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1] == "rev-parse" and "--verify" in cmd:
-                return MagicMock(returncode=1)
+            if cmd[0] == "git" and cmd[1] == "ls-remote":
+                # Simulate empty stdout (missing branch)
+                mock_res = MagicMock(returncode=0)
+                mock_res.stdout = ""
+                return mock_res
             return MagicMock(returncode=0)
 
         mock_run.side_effect = side_effect
@@ -48,8 +61,9 @@ class TestStatelessScheduler(unittest.TestCase):
         # Verify essential calls are made, ignoring others
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True

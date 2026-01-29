@@ -23,9 +23,9 @@ dependencies = [
     "diskcache",
     "ibis-framework[duckdb]",
     "python-dateutil",
-    "pydantic-ai>=1.48.0",
+    "pydantic-ai>=1.49.0",
     "scikit-learn",
-    "lancedb==0.27.0",
+    "lancedb==0.27.1",
     "pillow",
     "ratelimit",
     # Site generation dependencies (for demo command)
@@ -58,7 +58,7 @@ jules = [
 egregora = [
     "duckdb",
     # AI/ML
-    "pydantic-evals>=1.48.0",
+    "pydantic-evals>=1.49.0",
     "google-api-core",
     "google-genai",
     # Content generation
@@ -469,6 +469,26 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 "pydantic-settings" = "pydantic_settings"
 "pymdown-extensions" = "pymdownx"
 "google-api-python-client" = "googleapiclient"
+"mkdocs-material" = "mkdocs_material"
+"mkdocs-glightbox" = "mkdocs_glightbox"
+"mkdocs-git-revision-date-localized-plugin" = "mkdocs_git_revision_date_localized_plugin"
+"mkdocs-minify-plugin" = "mkdocs_minify_plugin"
+"mkdocs-macros-plugin" = "mkdocs_macros_plugin"
+"mkdocs-rss-plugin" = "mkdocs_rss_plugin"
+"mkdocs-blogging-plugin" = "mkdocs_blogging_plugin"
+"mkdocs-static-i18n" = "mkdocs_static_i18n"
+"mkdocstrings" = "mkdocstrings"
+"mkdocstrings-python" = "mkdocstrings_python"
+"mkdocs-autorefs" = "mkdocs_autorefs"
+"pytest-asyncio" = "pytest_asyncio"
+"pytest-mock" = "pytest_mock"
+"pytest-xdist" = "pytest_xdist"
+"pytest-cov" = "pytest_cov"
+"pytest-socket" = "pytest_socket"
+"pytest-benchmark" = "pytest_benchmark"
+"pytest-bdd" = "pytest_bdd"
+"pip-audit" = "pip_audit"
+"pre-commit" = "pre_commit"
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["google", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
