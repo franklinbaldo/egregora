@@ -482,9 +482,7 @@ def _window_by_bytes(
             # OPTIMIZATION: Use time-based filtering when timestamps are unique.
             # This avoids O(N log N) sorting per window which limit/offset requires.
             # Instead, it uses O(N) scan or O(log N) index seek.
-            window_table = table.filter(
-                (table.ts >= start_time) & (table.ts <= end_time)
-            ).order_by("ts")
+            window_table = table.filter((table.ts >= start_time) & (table.ts <= end_time)).order_by("ts")
         else:
             # FALLBACK: Use limit/offset for efficient slicing (avoids re-computing row_number)
             # Note: We re-apply order_by("ts") to match the metadata fetch order.
