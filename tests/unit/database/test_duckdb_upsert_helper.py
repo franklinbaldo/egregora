@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloRating, EloStore
+from egregora.database.init import initialize_database
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,6 +19,7 @@ def test_replace_rows_prevents_duplicate_ratings(tmp_path: Path) -> None:
     db_path = tmp_path / "elo.duckdb"
 
     with DuckDBStorageManager(db_path=db_path) as storage:
+        initialize_database(storage.ibis_conn)
         store = EloStore(storage)
 
         created_at = datetime.now(UTC)

@@ -16,8 +16,7 @@ from egregora.data_primitives.document import DocumentType
 from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
-    from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.document import Document
+    from egregora.agents.shared.annotations import Annotation, AnnotationStore
     from egregora.output_sinks.base import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,10 @@ def load_journal_memory(output_sink: OutputSink) -> str:
 
     try:
         doc = output_sink.get(DocumentType.JOURNAL, latest.identifier)
-        return doc.content
+        content = doc.content
+        if isinstance(content, bytes):
+            return content.decode("utf-8")
+        return content
     except DocumentNotFoundError:
         return ""
 
@@ -52,9 +54,9 @@ def _stringify_value(value: object) -> str:
         except (TypeError, AttributeError):
             return ""
     try:
-        if math.isnan(value):
+        if isinstance(value, float | int) and math.isnan(float(value)):
             return ""
-    except TypeError:
+    except (TypeError, ValueError):
         pass
     return str(value)
 
@@ -121,7 +123,7 @@ def build_conversation_xml(
     # Ensure msg_id exists (reuses existing logic)
     _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
 
-    annotations_map: dict[str, list[Document]] = {}
+    annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")

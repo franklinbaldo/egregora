@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def _get_existing_columns(conn: duckdb.DuckDBPyConnection, table_name: str) -> set[str]:
     """Get the existing columns from a table."""
-    result = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    result = conn.execute(f"PRAGMA table_info({quote_identifier(table_name)})").fetchall()
     return {row[1] for row in result}
 
 
@@ -22,7 +22,8 @@ def _verify_all_constraints_present(conn: duckdb.DuckDBPyConnection, table_name:
     try:
         # Get existing constraints
         result = conn.execute(
-            f"SELECT constraint_name FROM duckdb_constraints() WHERE table_name='{table_name}' AND constraint_type='CHECK'"  # nosec B608
+            "SELECT constraint_name FROM duckdb_constraints() WHERE table_name=? AND constraint_type='CHECK'",
+            [table_name],
         ).fetchall()
         existing_constraints = {row[0] for row in result}
 
@@ -74,47 +75,6 @@ def _build_documents_insert_select_sql(temp_table: str, existing_columns: set[st
     return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"  # nosec B608
 
 
-def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """Migrate legacy media table to documents table."""
-    # Check if media table exists
-    tables = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
-    if "media" not in tables:
-        return
-
-    logger.info("Migrating legacy media table to documents...")
-
-    # Check if documents table exists (it should, but just in case)
-    if "documents" not in tables:
-        logger.warning("Documents table missing, skipping media migration.")
-        return
-
-    columns_to_copy = [
-        "id",
-        "content",
-        "created_at",
-        "source_checksum",
-        "filename",
-        "mime_type",
-        "media_type",
-        "phash",
-    ]
-
-    target_columns = [*columns_to_copy, "doc_type", "status"]
-    select_columns = [*columns_to_copy, "'media'", "'published'"]
-
-    target_cols_str = ", ".join(quote_identifier(c) for c in target_columns)
-    select_cols_str = ", ".join(c if c.startswith("'") else quote_identifier(c) for c in select_columns)
-
-    insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"
-
-    logger.info(f"Copying media rows: {insert_sql}")
-    conn.execute(insert_sql)
-
-    # Drop legacy table
-    logger.info("Dropping legacy media table.")
-    conn.execute("DROP TABLE media")
-
-
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Applies the Pure UNIFIED_SCHEMA to an existing 'documents' table.
 
@@ -148,6 +108,3 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute(f"ALTER TABLE {temp_table_name} RENAME TO documents;")
     else:
         logger.info("Schema is already up to date. No migration needed.")
-
-    # Consolidate Media (Safe to run now as Schema is guaranteed V3)
-    # Media consolidation logic (migrate_media_table) was removed in V3 Pure.

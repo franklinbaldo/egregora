@@ -413,19 +413,17 @@ def _window_by_bytes(
 
     """
     # 1. Fetch metadata (Fetch phase)
-    # Add row_number to allow precise, efficient slicing without limit/offset scaling issues.
-    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
-
+    # We fetch timestamps and lengths to calculate window boundaries in Python.
+    # Note: row_number() window function is avoided as it is O(N log N) and slow on some backends.
+    # We rely on timestamp ordering matching the subsequent slice queries.
     metadata = (
-        table_with_rn.select(
-            rn=table_with_rn.row_number,
-            ts=table_with_rn.ts,
-            msg_bytes=table_with_rn.text.length().cast("int64"),
+        table.select(
+            ts=table.ts,
+            msg_bytes=table.text.length().cast("int64"),
         )
-        .order_by("rn")
+        .order_by("ts")
         .execute()
     )
-
     total_count = len(metadata)
     if total_count == 0:
         return
@@ -433,6 +431,9 @@ def _window_by_bytes(
     # Extract columns
     timestamps = metadata["ts"].tolist()
     msg_bytes_list = metadata["msg_bytes"].tolist()
+
+    # Check for uniqueness to enable optimization
+    timestamps_are_unique = len(set(timestamps)) == len(timestamps)
 
     # 2. Compute window boundaries (Compute phase)
     # Prefix sum for O(1) range sum queries: accum_bytes[i] = sum(bytes[0]...bytes[i-1])
@@ -475,12 +476,23 @@ def _window_by_bytes(
         end_time = timestamps[end_idx - 1]
 
         # Construct window table
-        # Use limit/offset for efficient slicing (avoids re-computing row_number)
-        # Note: We re-apply order_by("ts") to match the metadata fetch order.
-        # If timestamps are not unique, the sort order may be unstable across queries
-        # depending on the backend, but this matches the stability of the previous
-        # implementation and the parallel _window_by_count implementation.
-        window_table = table.order_by("ts").limit(chunk_size, offset=current_start_idx)
+        if timestamps_are_unique:
+            # OPTIMIZATION: Use time-based filtering when timestamps are unique.
+            # This avoids O(N log N) sorting per window which limit/offset requires.
+            # Instead, it uses O(N) scan or O(log N) index seek.
+            # We enforce limit(chunk_size) to guard against race conditions (phantom duplicates).
+            window_table = (
+                table.filter((table.ts >= start_time) & (table.ts <= end_time))
+                .order_by("ts")
+                .limit(chunk_size)
+            )
+        else:
+            # FALLBACK: Use limit/offset for efficient slicing (avoids re-computing row_number)
+            # Note: We re-apply order_by("ts") to match the metadata fetch order.
+            # If timestamps are not unique, the sort order may be unstable across queries
+            # depending on the backend, but this matches the stability of the previous
+            # implementation and the parallel _window_by_count implementation.
+            window_table = table.order_by("ts").limit(chunk_size, offset=current_start_idx)
 
         yield Window(
             window_index=window_index,

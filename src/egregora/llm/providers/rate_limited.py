@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
@@ -13,7 +13,9 @@ from egregora.llm.rate_limit import get_rate_limiter
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from pydantic_ai import RunContext
     from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai.models import StreamedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +48,22 @@ class RateLimitedModel(Model):
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
-    ) -> AsyncIterator[ModelResponse]:
+        run_context: RunContext[Any] | None = None,
+    ) -> AsyncIterator[StreamedResponse]:
         """Make a rate-limited stream request."""
         limiter = get_rate_limiter()
 
         # Use async acquire directly, no thread needed
         await limiter.acquire()
         try:
+            # Note: passing run_context might fail if wrapped_model doesn't support it in older versions
+            # but we are fixing type signature to match base class.
+            kwargs = {}
+            if run_context is not None:
+                kwargs["run_context"] = run_context
+
             async with self.wrapped_model.request_stream(
-                messages, model_settings, model_request_parameters
+                messages, model_settings, model_request_parameters, **kwargs
             ) as stream:
                 yield stream
         finally:

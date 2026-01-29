@@ -21,6 +21,7 @@ from egregora.config.settings import ReaderSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.database.init import initialize_database
 
 # Load all scenarios from the reader.feature file
 scenarios("../features/reader.feature")
@@ -127,6 +128,7 @@ def elo_store(isolated_fs, reader_config):
     db_path = isolated_fs / reader_config.database_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
     storage = DuckDBStorageManager(db_path=db_path)
+    initialize_database(storage.ibis_conn)
     return EloStore(storage=storage)
 
 

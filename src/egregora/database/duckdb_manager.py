@@ -61,7 +61,7 @@ from egregora.database.exceptions import (
 from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
     from ibis.expr.types import Table
 
@@ -214,8 +214,10 @@ class DuckDBStorageManager:
         logger.debug("DuckDBStorageManager created from existing Ibis backend (db_path=%s)", instance.db_path)
         return instance
 
-    def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
+    def _is_invalidated_error(self, exc: Exception) -> bool:
         """Check if DuckDB raised a fatal invalidation error."""
+        if not isinstance(exc, duckdb.Error):
+            return False
         message = str(exc).lower()
         return "database has been invalidated" in message or "read-only but has made changes" in message
 
@@ -263,7 +265,7 @@ class DuckDBStorageManager:
         self._table_info_cache.clear()
 
     @contextlib.contextmanager
-    def connection(self) -> duckdb.DuckDBPyConnection:
+    def connection(self) -> Iterator[duckdb.DuckDBPyConnection]:
         """Yield the managed DuckDB connection.
 
         This is the supported escape hatch for code that still needs direct
@@ -795,7 +797,7 @@ def temp_storage() -> DuckDBStorageManager:
 
 
 @contextlib.contextmanager
-def duckdb_backend() -> ibis.BaseBackend:
+def duckdb_backend() -> Iterator[ibis.BaseBackend]:
     """Context manager for temporary DuckDB backend.
 
     MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.

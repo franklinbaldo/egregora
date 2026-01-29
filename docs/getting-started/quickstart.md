@@ -24,9 +24,9 @@ egregora init my-blog
 cd my-blog
 ```
 
-Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
+Running `egregora init` creates the necessary folders and configuration files for your site. If you ever need to reset these files, you can use the bootstrap script included in the repository.
 
-This creates a minimal MkDocs site structure:
+This creates a minimal site structure:
 
 ```
 my-blog/
@@ -37,7 +37,7 @@ my-blog/
     └── posts/          # Generated blog posts go here
 ```
 
-## Step 2: Export Your WhatsApp Chat
+## Step 3: Export Your WhatsApp Chat
 
 From your WhatsApp:
 
@@ -49,13 +49,13 @@ From your WhatsApp:
 !!! tip
     For privacy, we recommend exporting **without media**. Egregora can enrich URLs and media references using LLMs instead.
 
-## Step 3: Set Your API Key
+## Step 4: Set Your API Key
 
 ```bash
 export GOOGLE_API_KEY="your-api-key-here"
 ```
 
-## Step 4: Process the Export
+## Step 5: Process the Export
 
 ```bash
 egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
@@ -82,7 +82,7 @@ This single command automatically creates the magic:
 
     All three magical features (Contextual Memory, Content Discovery, Author Profiles) work automatically with **zero configuration**.
 
-## Step 5: Preview Your Blog
+## Step 6: Preview Your Blog
 
 Launch a local preview server:
 

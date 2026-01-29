@@ -35,17 +35,21 @@ The AI creates beautiful profiles of each person in your chats, capturing their 
 
 Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
-### ⚠️ Important Upgrade Note (Mailbox)
+<details>
+<summary>⚠️ Legacy Upgrade Notes (Mailbox)</summary>
 
 The mailbox storage backend has been updated from **Maildir** to **MH**.
 **Before running the new version:**
 1. Delete any existing mailbox directories (e.g., `.team/personas/*/mail` or `.team/mail`).
 2. The new system will create a shared mailbox at `.team/mail` using the MH format.
 3. Old messages are **not** migrated automatically.
+</details>
 
 ### 1. Installation
 
 Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
+
+> **Tip:** Don't worry if this command looks complicated! Just copy and paste it into your terminal.
 
 ```bash
 uv tool install git+https://github.com/franklinbaldo/egregora
