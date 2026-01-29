@@ -6,7 +6,7 @@ import base64
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from google import genai
@@ -108,7 +108,7 @@ class GoogleBatchModel(Model):
         text = self._extract_text(first.response)
         usage = RequestUsage()
         return ModelResponse(
-            parts=[TextPart(text=text)], usage=usage, model_name=self.model_name, provider_name="google"
+            parts=[TextPart(content=text)], usage=usage, model_name=self.model_name, provider_name="google"
         )
 
     # ------------------------------------------------------------------ #
@@ -148,7 +148,7 @@ class GoogleBatchModel(Model):
             # Create batch job with inline requests (no file upload)
             batch_job = client.batches.create(
                 model=self.model_name,
-                src=inline_requests,
+                src=cast(Any, inline_requests),
                 config=types.CreateBatchJobConfig(display_name="egregora-batch"),
             )
 
@@ -269,7 +269,7 @@ class GoogleBatchModel(Model):
             raise BatchJobFailedError(
                 msg,
                 job_name=job_name,
-                error_payload=job.error,
+                error_payload=cast(dict[str, Any] | None, job.error),
             )
 
         return job
@@ -330,8 +330,11 @@ class GoogleBatchModel(Model):
         cfg: dict[str, Any] = {}
         if model_request_parameters and hasattr(model_request_parameters, "max_output_tokens"):
             cfg["max_output_tokens"] = model_request_parameters.max_output_tokens
-        if model_settings and hasattr(model_settings, "response_modalities"):
-            cfg["response_modalities"] = model_settings.response_modalities
+        if model_settings:
+            # ModelSettings is often a TypedDict, so we use .get()
+            response_modalities = model_settings.get("response_modalities")
+            if response_modalities:
+                 cfg["response_modalities"] = response_modalities
         return cfg
 
     def _extract_text(self, response: dict[str, Any]) -> str:
