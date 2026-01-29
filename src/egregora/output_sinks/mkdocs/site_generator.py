@@ -9,6 +9,7 @@ site statistics, and generating author profiles.
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -17,6 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
+try:
+    from yaml import CSafeLoader as Loader
+except ImportError:
+    from yaml import SafeLoader as Loader
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -29,6 +34,8 @@ if TYPE_CHECKING:
     from egregora.output_sinks.conventions import UrlConvention
 
 logger = logging.getLogger(__name__)
+
+FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 
 
 class SiteGenerator:
@@ -143,6 +150,36 @@ class SiteGenerator:
             "journal_count": journal_count,
         }
 
+    def _scan_posts_for_stats(self) -> Iterator[tuple[dict[str, Any], int]]:
+        """Scans posts directory yielding metadata and word count.
+
+        Optimized to avoid full Document object creation and frontmatter overhead.
+        """
+        if not self.posts_dir.exists():
+            return
+
+        for path in self.posts_dir.rglob("*.md"):
+            if path.is_file() and "index" not in path.name:
+                try:
+                    text = path.read_text(encoding="utf-8")
+
+                    word_count = 0
+                    metadata = {}
+
+                    match = FRONTMATTER_PATTERN.match(text)
+                    if match:
+                        yaml_text = match.group(1)
+                        content = match.group(2)
+                        metadata = yaml.load(yaml_text, Loader=Loader) or {}
+                        word_count = len(content.split())
+                    else:
+                        word_count = len(text.split())
+
+                    yield metadata, word_count
+                except Exception as e:
+                    logger.warning("Failed to process post for profiles: %s", e)
+                    continue
+
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index."""
         profiles: list[dict[str, Any]] = []
@@ -154,18 +191,14 @@ class SiteGenerator:
         author_posts_map = defaultdict(list)
 
         if self.posts_dir.exists():
-            # Use _scan_directory generator to process posts one by one
-            # Avoiding loading all content into a list
-            for doc in self._scan_directory(self.posts_dir, DocumentType.POST):
+            # Use optimized scanner to process posts one by one
+            for metadata, word_count in self._scan_posts_for_stats():
                 try:
-                    # Calculate word count
-                    word_count = len(doc.content.split())
-
                     # Store lightweight stats
-                    post_stats = {"metadata": doc.metadata, "word_count": word_count}
+                    post_stats = {"metadata": metadata, "word_count": word_count}
 
                     # Index by author (deduplicate to avoid double counting)
-                    for author_uuid in set(doc.metadata.get("authors", [])):
+                    for author_uuid in set(metadata.get("authors") or []):
                         author_posts_map[author_uuid].append(post_stats)
 
                 except Exception as e:
