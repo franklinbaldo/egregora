@@ -33,8 +33,8 @@ The report MUST be saved as a **tailed file** with a unique name per session:
 | Source | Location | What It Tells You |
 |:---|:---|:---|
 | **Git log** | `git log --oneline` | Commits per persona (emoji prefix identifies author) |
-| **Merged PRs** | `gh pr list --state merged` | Completed work with titles, dates, authors |
-| **Closed PRs** | `gh pr list --state closed` | Failed or abandoned work |
+| **Merged PRs** | `git log --merges` | Completed work with titles, dates, authors |
+| **Closed PRs** | GitHub API (`/repos/{owner}/{repo}/pulls?state=closed`) | Failed or abandoned work |
 | **Journals** | `.team/personas/*/journals/` | Per-session work logs (goals, observations, reflections) |
 | **Tool-usage logs** | `.team/logs/tools_use/` | Per-session CSVs: `{persona}_{seq}_{timestamp}.csv` |
 | **Mail log** | `.team/mail/events.jsonl` | Inter-persona communication (collaboration signals) |
@@ -43,7 +43,7 @@ The report MUST be saved as a **tailed file** with a unique name per session:
 | **Previous evals** | `.team/personas/evaluator/evaluations/` | Your past reports (for trend tracking) |
 
 **Understanding a Robin Round:**
-A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`: oracle, bdd_specialist, franklin, _archived). Use `git log` commit timestamps and PR merge dates to reconstruct the last complete cycle. Each persona's commits carry their emoji prefix, and PR titles follow `{emoji} {persona_id} {repo}`. If the boundary is unclear, evaluate the last N sessions where N equals the number of active personas.
+A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`: oracle, bdd_specialist, franklin, _archived). Use `git log` commit timestamps and merge commits to reconstruct the last complete cycle. Each persona's commits carry their emoji prefix, and merge commit messages reference the PR title following `{emoji} {persona_id} {repo}`. If the boundary is unclear, evaluate the last N sessions where N equals the number of active personas.
 {% endblock %}
 
 {% block workflow %}
@@ -57,11 +57,12 @@ A robin round is one full rotation through all scheduled personas (those not in 
 # Recent commits per persona (emoji prefix = persona identity)
 git log --oneline --since="7 days ago" | head -60
 
-# Merged PRs (completed work)
-gh pr list --state merged --limit 30 --json number,title,mergedAt,author
+# Merged PRs (merge commits reference the PR title)
+git log --merges --oneline --since="7 days ago"
 
-# Failed/closed PRs (abandoned or rejected work)
-gh pr list --state closed --limit 20 --json number,title,closedAt,author
+# Closed/failed PRs via GitHub API (no gh CLI available)
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/{owner}/{repo}/pulls?state=closed&per_page=30&sort=updated&direction=desc"
 
 # List all persona directories to know the full roster
 ls .team/personas/
