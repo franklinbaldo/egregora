@@ -148,7 +148,7 @@ class GoogleBatchModel(Model):
             # Create batch job with inline requests (no file upload)
             batch_job = client.batches.create(
                 model=self.model_name,
-                src=cast(Any, inline_requests),
+                src=cast("Any", inline_requests),
                 config=types.CreateBatchJobConfig(display_name="egregora-batch"),
             )
 
@@ -269,7 +269,7 @@ class GoogleBatchModel(Model):
             raise BatchJobFailedError(
                 msg,
                 job_name=job_name,
-                error_payload=cast(dict[str, Any] | None, job.error),
+                error_payload=cast("dict[str, Any] | None", job.error),
             )
 
         return job
@@ -334,7 +334,7 @@ class GoogleBatchModel(Model):
             # ModelSettings is often a TypedDict, so we use .get()
             response_modalities = model_settings.get("response_modalities")
             if response_modalities:
-                 cfg["response_modalities"] = response_modalities
+                cfg["response_modalities"] = response_modalities
         return cfg
 
     def _extract_text(self, response: dict[str, Any]) -> str:
