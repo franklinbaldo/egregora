@@ -721,11 +721,13 @@ def merge_completed_prs() -> int:
 
 
 def ensure_jules_branch() -> None:
-    """Ensure the jules branch exists and is up to date with main.
+    """Ensure the jules branch exists on the remote and is up to date with main.
 
-    If the branch does not exist locally, create it from origin/main.
-    If it already exists, reset it to origin/main so the next Jules
-    session always starts from the latest code.
+    The Jules API requires the branch to exist on the remote (GitHub) before
+    a session can be created against it. This function:
+    1. Checks the remote for the branch (not just locally)
+    2. Creates and pushes it from main if missing on the remote
+    3. Updates it to match main if it already exists
     """
     # Fetch latest main so we have the most recent ref
     subprocess.run(
@@ -733,23 +735,48 @@ def ensure_jules_branch() -> None:
         capture_output=True,
     )
 
-    result = subprocess.run(
-        ["git", "rev-parse", "--verify", f"refs/heads/{JULES_BRANCH}"],
+    # Check if the branch exists on the REMOTE — this is what the Jules API needs
+    remote_check = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", JULES_BRANCH],
         capture_output=True,
+        text=True,
     )
 
-    if result.returncode != 0:
+    branch_exists_on_remote = (
+        remote_check.returncode == 0 and bool(remote_check.stdout.strip())
+    )
+
+    if not branch_exists_on_remote:
+        # Branch missing on remote — create locally and push
+        # Delete stale local branch if it exists
+        subprocess.run(
+            ["git", "branch", "-D", JULES_BRANCH],
+            capture_output=True,
+        )
         subprocess.run(
             ["git", "branch", JULES_BRANCH, "origin/main"],
             check=True,
             capture_output=True,
         )
-        print(f"  Created {JULES_BRANCH} branch from main")
+        subprocess.run(
+            ["git", "push", "-u", "origin", JULES_BRANCH],
+            check=True,
+            capture_output=True,
+        )
+        print(f"  Created {JULES_BRANCH} branch from main and pushed to remote")
     else:
-        # Branch exists — update it to match origin/main
+        # Branch exists on remote — update local to match origin/main
+        subprocess.run(
+            ["git", "fetch", "origin", JULES_BRANCH],
+            capture_output=True,
+        )
         subprocess.run(
             ["git", "branch", "-f", JULES_BRANCH, "origin/main"],
             check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "--force-with-lease", "origin", JULES_BRANCH],
             capture_output=True,
         )
         print(f"  Updated {JULES_BRANCH} branch to match main")
