@@ -80,19 +80,26 @@ class TestStatelessScheduler(unittest.TestCase):
 
         d2 = MagicMock()
         d2.is_dir.return_value = True
-        d2.name = ".hidden"
+        d2.name = ".hidden"  # Skipped: starts with "."
 
         d3 = MagicMock()
         d3.is_dir.return_value = True
-        d3.name = "oracle"  # Excluded
+        d3.name = "oracle"
+        (d3 / "prompt.md.j2").exists.return_value = True  # Has prompt, discovered
 
         d4 = MagicMock()
-        d4.is_dir.return_value = False  # Not dir
+        d4.is_dir.return_value = False  # Skipped: not a dir
 
-        mock_path.iterdir.return_value = [d1, d2, d3, d4]
+        d5 = MagicMock()
+        d5.is_dir.return_value = True
+        d5.name = "franklin"  # No prompt file, skipped
+        (d5 / "prompt.md.j2").exists.return_value = False
+        (d5 / "prompt.md").exists.return_value = False
+
+        mock_path.iterdir.return_value = [d1, d2, d3, d4, d5]
 
         personas = stateless.discover_personas()
-        self.assertEqual(personas, ["persona1"])
+        self.assertEqual(personas, ["oracle", "persona1"])
 
     def test_get_next_persona(self) -> None:
         personas = ["a", "b", "c"]
