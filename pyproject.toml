@@ -23,7 +23,7 @@ dependencies = [
     "diskcache",
     "ibis-framework[duckdb]",
     "python-dateutil",
-    "pydantic-ai",
+    "pydantic-ai>=1.48.0",
     "scikit-learn",
     "lancedb==0.27.0",
     "pillow",
@@ -58,15 +58,13 @@ jules = [
 egregora = [
     "duckdb",
     # AI/ML
-    "pydantic-evals",
+    "pydantic-evals>=1.48.0",
     "google-api-core",
     "google-genai",
-
     # Content generation
     "aiohttp",
     "urllib3",
     "lxml",
-
     # Site generation
     "mkdocs",
     "mkdocs-macros-plugin",
