@@ -99,10 +99,6 @@ class BaseOutputSink(OutputSink, ABC):
 
             yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
-        """Backward-compatible alias for :meth:`get`."""
-        return self.get(doc_type, identifier)
-
     @abstractmethod
     def initialize(self, site_root: Path, **kwargs: Any) -> None:
         """Initialize internal state for a specific site."""
