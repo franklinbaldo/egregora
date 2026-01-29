@@ -368,32 +368,32 @@ Utilities:
 
 The repository uses autonomous AI agents (Jules personas) for maintenance. See [.team/README.md](.team/README.md) for full documentation.
 
-### 23 Specialized Personas
+### 21 Personas (20 AI + 1 Human)
+
+Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Verify) defined in `.team/repo/templates/base/persona.md.j2`. Each persona extends this base template via Jinja2 inheritance.
 
 | Emoji | Name | Role |
 |:---:|:---|:---|
-| 🎯 | Absolutist | Strict rule enforcement |
+| 💯 | Absolutist | Legacy code removal |
 | 🔨 | Artisan | Code craftsmanship |
-| 🧪 | BDD Specialist | Behavior-driven testing |
+| 🥒 | BDD Specialist | Behavior-driven testing |
 | ⚡ | Bolt | Performance optimization |
 | 🏗️ | Builder | Data architecture |
 | 🎭 | Curator | UX/UI evaluation |
-| 💎 | Essentialist | Strategic cuts |
+| 📦 | Deps | Dependency management |
+| 💎 | Essentialist | Radical simplicity |
 | ⚒️ | Forge | Feature implementation |
+| 🧔 | Franklin | Human project lead |
 | 🧹 | Janitor | Code cleanup |
 | 📚 | Lore | System historian |
 | 💝 | Maya | User advocate |
-| 🔮 | Oracle | Support agent |
-| 🗂️ | Organizer | Project structure |
-| 🔧 | Refactor | Code quality |
+| 🔍 | Meta | System introspection |
+| 🔮 | Oracle | Technical support |
 | 💣 | Sapper | Exception patterns |
 | ✍️ | Scribe | Documentation |
 | 🛡️ | Sentinel | Security audits |
 | 🧑‍🌾 | Shepherd | Test coverage |
-| 🤠 | Sheriff | Test stability |
-| 📉 | Simplifier | Complexity reduction |
 | 🌊 | Streamliner | Data optimization |
-| 🔍 | Typeguard | Type safety |
 | 🔭 | Visionary | Strategic RFCs |
 
 ### Running Personas
@@ -541,4 +541,4 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 ---
 
-*Maintained by the Weaver persona and human contributors. Last updated: 2026-01-28*
+*Maintained by the Weaver persona and human contributors. Last updated: 2026-01-29*

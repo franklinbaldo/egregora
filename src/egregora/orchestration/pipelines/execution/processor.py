@@ -12,11 +12,10 @@ from typing import Any, cast
 from egregora.agents.commands import command_to_announcement, filter_commands
 from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.profile.generator import generate_profile_posts
-from egregora.agents.types import Message
+from egregora.agents.types import Message, WriterResources
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import Document
 from egregora.orchestration.context import PipelineContext
-from egregora.agents.types import WriterResources
 from egregora.orchestration.pipelines.coordination.background_tasks import process_background_tasks
 from egregora.orchestration.pipelines.etl.preparation import Conversation
 
