@@ -52,8 +52,9 @@ def test_full_pipeline_with_openrouter() -> bool | None:
     # Try to import the pipeline (this will test if dependencies work)
     try:
         # Test basic imports first
-        from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
         from egregora.output_adapters.mkdocs import MkDocsAdapter
+
+        from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
         # Test datetime utilities we merged
 

@@ -64,8 +64,8 @@ def main() -> int:
     """Runs the pre-commit hook to check all test files for violations."""
     # Force UTF-8 for stdout/stderr to avoid UnicodeEncodeError on Windows
     if sys.platform == "win32":
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
 
     test_files = Path("tests").rglob("test_*.py")
     all_errors = []

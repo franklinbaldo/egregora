@@ -23,11 +23,11 @@ from typing import Any
 
 import frontmatter
 import yaml
+from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 from pydantic_ai.models.test import TestModel
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
-from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 
 
 class WriterDemoModel(TestModel):
@@ -60,7 +60,7 @@ class WriterDemoModel(TestModel):
                         "## Why 'Egregora'?\n\n"
                         "An **egregore** is a distinct psychic entity that arises from a collective group of people. "
                         "It is the sum of their thoughts, emotions, and interactions."
-                    )
+                    ),
                 },
                 {
                     "title": "System Architecture",
@@ -75,9 +75,9 @@ class WriterDemoModel(TestModel):
                         "- **Windowing**: Grouping messages by semantic or time boundaries.\n"
                         "- **Synthesis**: Using LLMs (stubbed here) to extract insights.\n"
                         "- **Publishing**: Generating this static MkDocs site.\n\n"
-                        "!!! info \"Privacy First\"\n"
+                        '!!! info "Privacy First"\n'
                         "    All processing happens locally. No data leaves your machine unless you explicitly configure an API."
-                    )
+                    ),
                 },
                 {
                     "title": "A Moment of Clarity",
@@ -89,10 +89,10 @@ class WriterDemoModel(TestModel):
                         "# The Digital Ephemeral\n\n"
                         "We generate gigabytes of text every year, most of it lost to the infinite scroll. "
                         "What if we could capture the *signal* in the noise?\n\n"
-                        "> \"The details are lost, but the feeling remains.\"\n\n"
+                        '> "The details are lost, but the feeling remains."\n\n'
                         "Egregora aims to crystallize these fleeting interactions into something permanent and beautiful."
-                    )
-                }
+                    ),
+                },
             ]
 
             # Cycle through posts if called more than defined
@@ -196,12 +196,9 @@ def _patch_pipeline_for_offline_demo() -> None:
             optional=True,
         ),
         # Profile Generator
-        PatchSpec(
-            "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
-        ),
+        PatchSpec("egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts),
         # Avatar processing
         PatchSpec("egregora.agents.avatar.process_avatar_commands", _stub_process_avatar_commands),
-
         PatchSpec(
             "egregora.orchestration.pipelines.write._process_background_tasks",
             _skip_background_tasks,
@@ -230,12 +227,8 @@ def _patch_pipeline_for_offline_demo() -> None:
         PatchSpec("egregora.agents.writer.index_documents", _mock_index_documents, optional=True),
         PatchSpec("egregora.agents.writer.reset_backend", lambda **_kwargs: None, optional=True),
         # Enrichment: avoid network and multimodal calls.
-        PatchSpec(
-            "egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True
-        ),
-        PatchSpec(
-            "egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True
-        ),
+        PatchSpec("egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True),
+        PatchSpec("egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True),
         PatchSpec(
             "egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True
         ),
@@ -448,7 +441,6 @@ def main() -> int:
         # Force refresh to ensure clean run
         "--force",
     ]
-
 
     # Run in-process
     result = runner.invoke(app, cli_args, catch_exceptions=False)

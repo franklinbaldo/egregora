@@ -10,27 +10,29 @@ Rules:
 The active persona is determined by checking the current session.
 """
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add .team to path for imports
 sys.path.insert(0, ".team")
 
+
 def get_active_persona() -> str | None:
     """Get the currently active persona from session."""
     try:
         from repo.features.session import SessionManager
+
         sm = SessionManager()
         return sm.get_active_persona()
     except Exception:
         return None
 
+
 def get_staged_prompt_files() -> list[Path]:
     """Get list of staged .j2 prompt files in personas directory."""
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACDMR"],
-        capture_output=True, text=True
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACDMR"], capture_output=True, text=True
     )
     if result.returncode != 0:
         return []
@@ -45,6 +47,7 @@ def get_staged_prompt_files() -> list[Path]:
             files.append(path)
     return files
 
+
 def get_persona_from_path(path: Path) -> str | None:
     """Extract persona ID from a path like .team/personas/<id>/prompt.md.j2"""
     parts = path.parts
@@ -56,13 +59,14 @@ def get_persona_from_path(path: Path) -> str | None:
         pass
     return None
 
+
 def is_new_file(path: Path) -> bool:
     """Check if file is newly added (not modified)."""
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
-        capture_output=True, text=True
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"], capture_output=True, text=True
     )
     return str(path) in result.stdout
+
 
 def main():
     staged_prompts = get_staged_prompt_files()
@@ -90,11 +94,13 @@ def main():
             continue
 
         # Modifying another persona's prompt is NOT allowed
-        violations.append({
-            "path": path,
-            "target_persona": target_persona,
-            "active_persona": active_persona or "(no session)"
-        })
+        violations.append(
+            {
+                "path": path,
+                "target_persona": target_persona,
+                "active_persona": active_persona or "(no session)",
+            }
+        )
 
     if violations:
         print("\n❌ PROMPT MODIFICATION VIOLATION")
@@ -112,6 +118,7 @@ def main():
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

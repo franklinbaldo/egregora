@@ -30,7 +30,7 @@ def check_all_for_private_names(file_path: Path) -> list[str]:
     except SyntaxError:
         pass  # Skip files with syntax errors (will be caught by other tools)
     except Exception:
-        pass # Skip files that can't be read or parsed
+        pass  # Skip files that can't be read or parsed
     return errors
 
 

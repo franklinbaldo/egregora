@@ -6,15 +6,13 @@ reverted to earlier states (potential regressions).
 
 Reduces false positives by filtering out formatting-only commits.
 """
+
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 
-def get_file_hash(commit: str, file: str) -> Optional[str]:
+def get_file_hash(commit: str, file: str) -> str | None:
     """Get git hash of file content at specific commit."""
     try:
         # Get file content in binary mode
@@ -31,12 +29,12 @@ def get_file_hash(commit: str, file: str) -> Optional[str]:
             check=True,
         )
         # Decode only the hash output
-        return hash_result.stdout.decode('utf-8').strip()
+        return hash_result.stdout.decode("utf-8").strip()
     except (subprocess.CalledProcessError, UnicodeDecodeError):
         return None
 
 
-def get_commit_info(commit: str) -> Tuple[str, str, str, str]:
+def get_commit_info(commit: str) -> tuple[str, str, str, str]:
     """Get commit metadata."""
     result = subprocess.run(
         ["git", "log", "-1", "--pretty=format:%ci|%an|%s", commit],
@@ -48,7 +46,7 @@ def get_commit_info(commit: str) -> Tuple[str, str, str, str]:
     return (commit[:7], date, author, message)
 
 
-def get_changed_files(commit: str) -> List[str]:
+def get_changed_files(commit: str) -> list[str]:
     """Get files changed in a commit."""
     result = subprocess.run(
         ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit],
@@ -59,7 +57,7 @@ def get_changed_files(commit: str) -> List[str]:
     return [f for f in result.stdout.strip().split("\n") if f]
 
 
-def get_recent_commits(limit: int = 1000) -> List[str]:
+def get_recent_commits(limit: int = 1000) -> list[str]:
     """Get list of recent commit hashes."""
     result = subprocess.run(
         ["git", "log", f"-{limit}", "--pretty=format:%H"],
@@ -108,10 +106,10 @@ def is_formatting_commit(message: str) -> bool:
 def analyze_commit_for_regressions(
     commit: str,
     commit_index: int,
-    all_commits: List[str],
-    file_history: Dict[str, List[Tuple[int, str, str]]],
+    all_commits: list[str],
+    file_history: dict[str, list[tuple[int, str, str]]],
     filter_formatting: bool = True,
-) -> List[Dict]:
+) -> list[dict]:
     """Analyze a single commit for regressions.
 
     Args:
@@ -123,6 +121,7 @@ def analyze_commit_for_regressions(
 
     Returns:
         List of regression dicts
+
     """
     regressions = []
 
@@ -165,18 +164,20 @@ def analyze_commit_for_regressions(
                     # Real regression! Current commit reverts to earlier state
                     curr_short, curr_date, curr_author, curr_msg = get_commit_info(commit)
 
-                    regressions.append({
-                        "file": file,
-                        "current_commit": curr_short,
-                        "current_date": curr_date,
-                        "current_author": curr_author,
-                        "current_message": curr_msg,
-                        "original_commit": early_short,
-                        "original_date": early_date,
-                        "original_author": early_author,
-                        "original_message": early_msg,
-                        "commits_between": commit_index - earlier_index,
-                    })
+                    regressions.append(
+                        {
+                            "file": file,
+                            "current_commit": curr_short,
+                            "current_date": curr_date,
+                            "current_author": curr_author,
+                            "current_message": curr_msg,
+                            "original_commit": early_short,
+                            "original_date": early_date,
+                            "original_author": early_author,
+                            "original_message": early_msg,
+                            "commits_between": commit_index - earlier_index,
+                        }
+                    )
                     break  # Only report first match
 
         # Add this commit's hash to file history
@@ -187,7 +188,7 @@ def analyze_commit_for_regressions(
     return regressions
 
 
-def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = True):
+def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = True) -> int:
     """Analyze recent commits for regressions."""
     mode = "with formatting filter" if filter_formatting else "without formatting filter"
     print(f"🔍 Analyzing last {limit} commits for regressions ({mode})...\n")
@@ -200,7 +201,7 @@ def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = Tru
     print("This may take a few minutes...\n")
 
     # Track file hashes across commits
-    file_history: Dict[str, List[Tuple[int, str, str]]] = defaultdict(list)
+    file_history: dict[str, list[tuple[int, str, str]]] = defaultdict(list)
     all_regressions = []
 
     # Process commits (oldest to newest for proper history tracking)
@@ -215,7 +216,7 @@ def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = Tru
 
     # Report findings
     print("\n" + "=" * 80)
-    print(f"📊 REGRESSION ANALYSIS COMPLETE")
+    print("📊 REGRESSION ANALYSIS COMPLETE")
     print("=" * 80)
     print(f"Commits analyzed: {total}")
     print(f"Regressions found: {len(all_regressions)}\n")
@@ -243,7 +244,7 @@ def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = Tru
             print(f"     Author: {reg['current_author']}")
             print(f"     Message: {reg['current_message']}")
             print(f"     ⚠️  Reverted to: {reg['original_commit']} ({reg['commits_between']} commits earlier)")
-            print(f"     Original: \"{reg['original_message']}\" by {reg['original_author']}")
+            print(f'     Original: "{reg["original_message"]}" by {reg["original_author"]}')
             print()
 
     # Summary statistics

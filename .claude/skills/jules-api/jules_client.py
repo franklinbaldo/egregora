@@ -57,7 +57,7 @@ class JulesClient:
             headers["Authorization"] = f"Bearer {self.access_token}"
         return headers
 
-    def create_session(  # noqa: PLR0913
+    def create_session(
         self,
         prompt: str,
         owner: str,
@@ -203,20 +203,19 @@ class JulesClient:
 
         """
         session = self.get_session(session_id)
-        state = session.get('state', 'UNKNOWN')
+        state = session.get("state", "UNKNOWN")
 
-        if state == 'AWAITING_USER_FEEDBACK':
+        if state == "AWAITING_USER_FEEDBACK":
             return True, "Session is waiting for user feedback"
-        elif state == 'AWAITING_PLAN_APPROVAL':
+        if state == "AWAITING_PLAN_APPROVAL":
             return True, "Session plan needs approval"
-        elif state == 'FAILED':
+        if state == "FAILED":
             return True, "Session failed"
-        elif state == 'COMPLETED':
+        if state == "COMPLETED":
             return False, "Session completed successfully"
-        elif state in ['IN_PROGRESS', 'PLANNING', 'QUEUED']:
+        if state in ["IN_PROGRESS", "PLANNING", "QUEUED"]:
             return False, f"Session is active ({state})"
-        else:
-            return False, f"Session state: {state}"
+        return False, f"Session state: {state}"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -281,7 +280,7 @@ def main(argv: list[str] | None = None) -> None:
                 require_plan_approval=args.require_plan_approval,
                 automation_mode=args.automation_mode,
             )
-            session_id = result['name'].split('/')[-1]
+            session_id = result["name"].split("/")[-1]
             print(f"✅ Session created: {session_id}")
             print(f"URL: https://jules.google.com/sessions/{session_id}")
 
@@ -291,22 +290,22 @@ def main(argv: list[str] | None = None) -> None:
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
-                session_id = result['name'].split('/')[-1]
+                session_id = result["name"].split("/")[-1]
                 print(f"Session: {session_id}")
                 print(f"State: {result.get('state', 'UNKNOWN')}")
                 print(f"Created: {result.get('createTime', 'N/A')}")
-                if result.get('title'):
+                if result.get("title"):
                     print(f"Title: {result['title']}")
                 print(f"\nURL: https://jules.google.com/sessions/{session_id}")
 
         elif args.command == "list":
             result = client.list_sessions()
-            sessions = result.get('sessions', [])
+            sessions = result.get("sessions", [])
             print(f"Found {len(sessions)} sessions:\n")
             for session in sessions[:10]:  # Show first 10
-                session_id = session['name'].split('/')[-1]
-                state = session.get('state', 'UNKNOWN')
-                title = session.get('title', 'No title')[:50]
+                session_id = session["name"].split("/")[-1]
+                state = session.get("state", "UNKNOWN")
+                title = session.get("title", "No title")[:50]
                 print(f"  {session_id} | {state:20} | {title}")
 
         elif args.command == "message":
@@ -320,7 +319,7 @@ def main(argv: list[str] | None = None) -> None:
 
         elif args.command == "activities":
             result = client.get_activities(args.session_id)
-            activities = result.get('activities', [])
+            activities = result.get("activities", [])
 
             if args.json:
                 print(json.dumps(result, indent=2))
@@ -329,35 +328,35 @@ def main(argv: list[str] | None = None) -> None:
 
                 # Show last 10 activities
                 for activity in activities[-10:]:
-                    originator = activity.get('originator', 'unknown')
-                    create_time = activity.get('createTime', 'N/A')
+                    originator = activity.get("originator", "unknown")
+                    create_time = activity.get("createTime", "N/A")
 
-                    if originator == 'agent':
-                        msg = activity.get('agentMessaged', {}).get('agentMessage', '')
+                    if originator == "agent":
+                        msg = activity.get("agentMessaged", {}).get("agentMessage", "")
                         print(f"[JULES at {create_time}]")
-                        print(msg[:200] + ('...' if len(msg) > 200 else ''))
+                        print(msg[:200] + ("..." if len(msg) > 200 else ""))
                         print()
-                    elif originator == 'user':
-                        msg = activity.get('userMessaged', {}).get('userMessage', '')
+                    elif originator == "user":
+                        msg = activity.get("userMessaged", {}).get("userMessage", "")
                         print(f"[USER at {create_time}]")
-                        print(msg[:200] + ('...' if len(msg) > 200 else ''))
+                        print(msg[:200] + ("..." if len(msg) > 200 else ""))
                         print()
 
         elif args.command == "check":
             needs_attention, reason = client.check_session_needs_attention(args.session_id)
 
             if args.json:
-                print(json.dumps({
-                    "needs_attention": needs_attention,
-                    "reason": reason,
-                    "session_id": args.session_id
-                }))
+                print(
+                    json.dumps(
+                        {"needs_attention": needs_attention, "reason": reason, "session_id": args.session_id}
+                    )
+                )
             else:
                 icon = "⚠️" if needs_attention else "✅"
                 print(f"{icon} {reason}")
 
                 if needs_attention:
-                    print(f"\nTo investigate, run:")
+                    print("\nTo investigate, run:")
                     print(f"  {sys.argv[0]} activities {args.session_id}")
 
         else:
