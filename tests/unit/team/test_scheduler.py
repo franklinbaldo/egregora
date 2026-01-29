@@ -17,34 +17,44 @@ from repo.scheduler.models import PersonaConfig  # noqa: E402
 
 class TestStatelessScheduler(unittest.TestCase):
     @patch("repo.scheduler.stateless.subprocess.run")
-    def test_ensure_jules_branch_exists(self, mock_run: MagicMock) -> None:
-        """Test ensure_jules_branch when branch exists."""
+    def test_ensure_jules_branch_exists_and_updates(self, mock_run: MagicMock) -> None:
+        """Test ensure_jules_branch updates existing branch to match main."""
         mock_run.return_value.returncode = 0
         stateless.ensure_jules_branch()
-        # Verify it checks existence
-        mock_run.assert_called_with(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
-            capture_output=True,
+        # fetch + rev-parse check + force-update branch
+        self.assertEqual(mock_run.call_count, 3)
+        mock_run.assert_has_calls(
+            [
+                call(["git", "fetch", "origin", "main"], capture_output=True),
+                call(
+                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+                    capture_output=True,
+                ),
+                call(
+                    ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
+                    check=True,
+                    capture_output=True,
+                ),
+            ]
         )
-        # Verify it doesn't create
-        self.assertEqual(mock_run.call_count, 1)
 
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch when branch missing."""
 
-        # First call fails (check), second succeeds (create)
         def side_effect(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1] == "rev-parse":
+            if cmd[0] == "git" and cmd[1] == "rev-parse" and "--verify" in cmd:
                 return MagicMock(returncode=1)
             return MagicMock(returncode=0)
 
         mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
 
-        self.assertEqual(mock_run.call_count, 2)
+        # fetch + rev-parse check + create branch
+        self.assertEqual(mock_run.call_count, 3)
         mock_run.assert_has_calls(
             [
+                call(["git", "fetch", "origin", "main"], capture_output=True),
                 call(
                     ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
                     capture_output=True,

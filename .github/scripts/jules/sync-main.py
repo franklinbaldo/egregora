@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Sync jules branch into main if clean (no conflicts)."""
+"""Bidirectional sync between jules and main branches.
+
+Forward sync:  jules → main  (merge Jules work into main)
+Reverse sync:  main → jules  (keep jules up to date with main)
+"""
 
 import subprocess
 import sys
 
 
-def merge_jules_into_main() -> None:
-    """Merge jules branch into main if there are no conflicts.
-
-    This performs a fast-forward merge if possible, otherwise a regular merge.
-    """
-    # Configure git user identity for commits (required in GitHub Actions)
+def _configure_git_identity() -> None:
+    """Configure git user identity for commits (required in GitHub Actions)."""
     subprocess.run(
         ["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"],
         check=True,
@@ -19,6 +19,14 @@ def merge_jules_into_main() -> None:
         ["git", "config", "user.name", "github-actions[bot]"],
         check=True,
     )
+
+
+def merge_jules_into_main() -> None:
+    """Merge jules branch into main if there are no conflicts.
+
+    This performs a fast-forward merge if possible, otherwise a regular merge.
+    """
+    _configure_git_identity()
 
     # Get current branch to restore later
     result = subprocess.run(
@@ -69,6 +77,51 @@ def merge_jules_into_main() -> None:
             subprocess.run(["git", "checkout", original_branch], capture_output=True)
 
 
+def sync_jules_to_main() -> None:
+    """Update jules branch to match main (reverse sync).
+
+    After merging jules → main, the jules branch may be behind main
+    (e.g. if non-Jules PRs were merged directly to main). This updates
+    jules to point to the same commit as main so the next Jules session
+    starts from the latest code.
+    """
+    print("\nSyncing jules branch to match main...")
+
+    # Check if jules is already up to date with main
+    result = subprocess.run(
+        ["git", "rev-parse", "origin/main"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    main_sha = result.stdout.strip()
+
+    result = subprocess.run(
+        ["git", "rev-parse", "origin/jules"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    jules_sha = result.stdout.strip()
+
+    if main_sha == jules_sha:
+        print("Jules branch is already up to date with main.")
+        return
+
+    print(f"  main  @ {main_sha[:10]}")
+    print(f"  jules @ {jules_sha[:10]}")
+
+    # Update jules to point to same commit as main
+    try:
+        subprocess.run(["git", "checkout", "jules"], check=True)
+        subprocess.run(["git", "reset", "--hard", "origin/main"], check=True)
+        subprocess.run(["git", "push", "--force-with-lease", "origin", "jules"], check=True)
+        print("Jules branch updated to match main!")
+    except subprocess.CalledProcessError as e:
+        print(f"Error syncing jules to main: {e}", file=sys.stderr)
+        raise
+
+
 def create_jules_from_main() -> None:
     """Create jules branch from main if it doesn't exist on remote."""
     print("Creating jules branch from main...")
@@ -115,8 +168,14 @@ def main() -> None:
     # Ensure we have latest refs
     subprocess.run(["git", "fetch", "origin", "main", "jules"], check=True)
 
-    # Perform the merge
+    # Forward sync: jules → main
     merge_jules_into_main()
+
+    # Re-fetch after push so origin/main is up to date locally
+    subprocess.run(["git", "fetch", "origin", "main", "jules"], check=True)
+
+    # Reverse sync: main → jules (keep jules current for next session)
+    sync_jules_to_main()
 
 
 if __name__ == "__main__":

@@ -721,7 +721,18 @@ def merge_completed_prs() -> int:
 
 
 def ensure_jules_branch() -> None:
-    """Ensure the jules branch exists and is up to date with main."""
+    """Ensure the jules branch exists and is up to date with main.
+
+    If the branch does not exist locally, create it from origin/main.
+    If it already exists, reset it to origin/main so the next Jules
+    session always starts from the latest code.
+    """
+    # Fetch latest main so we have the most recent ref
+    subprocess.run(
+        ["git", "fetch", "origin", "main"],
+        capture_output=True,
+    )
+
     result = subprocess.run(
         ["git", "rev-parse", "--verify", f"refs/heads/{JULES_BRANCH}"],
         capture_output=True,
@@ -734,6 +745,14 @@ def ensure_jules_branch() -> None:
             capture_output=True,
         )
         print(f"  Created {JULES_BRANCH} branch from main")
+    else:
+        # Branch exists — update it to match origin/main
+        subprocess.run(
+            ["git", "branch", "-f", JULES_BRANCH, "origin/main"],
+            check=True,
+            capture_output=True,
+        )
+        print(f"  Updated {JULES_BRANCH} branch to match main")
 
 
 def check_ci_status_on_main() -> tuple[bool, str | None]:
