@@ -12,11 +12,14 @@ Your session password: `{{ password }}`
 4. **Review tasks:** Check `.team/tasks/todo/` for assigned work
 
 ### End of Session Checklist
-1. **Journal entry:** `my-tools journal --content "<SPECIFIC: what you learned, decided, or discovered>" --password {{ password }}`
+1. **Email relevant personas** about discoveries outside your domain:
+   - `my-tools email send --to <persona> --subject "Found: ..." --body "..."`
+   - If unsure who, broadcast: `my-tools email send --to all@team --subject "..." --body "..."`
+2. **Journal entry:** `my-tools journal --content "<SPECIFIC: what you learned, decided, or discovered>" --password {{ password }}`
    - ❌ Bad: `--content "Completed my tasks for today"`
    - ✅ Good: `--content "Discovered rate limiter was using blocking calls. Refactored to async. Key insight: asyncio.sleep() not time.sleep()"`
-2. **Commit changes:** Stage and commit your work
-3. **Create PR:** If work is complete, create a draft PR
+3. **Commit changes:** Stage and commit your work
+4. **Create PR:** If work is complete, create a draft PR
 
 ### Emergency Controls
 - **Stuck in loop:** `my-tools loop-break --reason "..."`
