@@ -107,6 +107,18 @@ def login(
         sequence = session_manager.get_active_sequence()
         sitrep = pulse_manager.get_sitrep(user, sequence)
         rprint("\n" + pulse_manager.format_sitrep(sitrep) + "\n")
+
+        # Prominent unread email notification
+        unread = sitrep.get("unread_mail_count", 0)
+        if unread > 0:
+            rprint(Panel(
+                f"[bold yellow]📬 You have {unread} unread email{'s' if unread != 1 else ''}![/bold yellow]\n\n"
+                f"[cyan]my-tools email inbox --unread[/cyan]  →  list unread messages\n"
+                f"[cyan]my-tools email read <key>[/cyan]      →  read a specific message\n\n"
+                "[dim]Collaboration depends on reading and responding to your mail.[/dim]",
+                title="[bold white on yellow] INBOX NOTIFICATION [/bold white on yellow]",
+                border_style="yellow"
+            ))
     except ValueError as e:
         print(f"❌ Login failed: {e}")
         raise typer.Exit(code=1)
