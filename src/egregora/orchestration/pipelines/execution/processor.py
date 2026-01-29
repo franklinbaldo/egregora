@@ -16,7 +16,7 @@ from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import Document
 from egregora.orchestration.context import PipelineContext
-from egregora.orchestration.factory import PipelineFactory
+from egregora.agents.types import WriterResources
 from egregora.orchestration.pipelines.coordination.background_tasks import process_background_tasks
 from egregora.orchestration.pipelines.etl.preparation import Conversation
 
@@ -174,7 +174,7 @@ def _execute_writer(
     clean_messages_list: list[dict[str, Any]],
 ) -> tuple[list[Any], list[Any]]:
     """Execute the writer agent for the window."""
-    resources = PipelineFactory.create_writer_resources(ctx)
+    resources = WriterResources.from_pipeline_context(ctx)
     params = WindowProcessingParams(
         table=conversation.messages_table,
         messages=messages_objects,
