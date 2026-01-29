@@ -22,7 +22,10 @@ Key locations:
 -   `src/egregora/output_sinks/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
 -   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: REMOVED (Fixed shadowing issue).
+-   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: **ORPHANED**. This file still exists in the source but is not copied to the generated site, effectively resolving the shadowing issue but leaving technical debt.
+
+**Code Hygiene:**
+-   Artifacts found in `overrides/stylesheets`: `test.txt` and an unused `favicon.png`. These should be removed.
 
 ### Developer Experience
 -   **Status:** Improving.
@@ -34,9 +37,9 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Fixed.
--   **Resolution:** The fragmented CSS has been consolidated. `src/egregora/rendering/templates/site/docs/stylesheets/extra.css` was removed, and its styles merged into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`. This resolved the shadowing issue, restoring the correct styling for the homepage navigation and blog cards.
--   **Next Action:** None.
+-   **Status:** Functional (Cleanup Pending).
+-   **Resolution:** The CSS shadowing issue is functionally resolved because `docs/stylesheets/extra.css` is not being copied to the build. However, the source file still exists and needs to be deleted to prevent confusion.
+-   **Next Action:** Delete `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`.
 
 ### Color Palette
 -   **Status:** Verified.
@@ -60,9 +63,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Next Action:** None.
 
 ### Feeds Page
--   **Status:** Verified.
--   **Resolution:** A dedicated `docs/feeds/index.md` page exists, providing a clean UI for subscribing to RSS and JSON feeds.
--   **Next Action:** None.
+-   **Status:** Pending Implementation.
+-   **Issue:** The template `docs/feeds/index.md.jinja` exists, but it is not registered in `scaffolding.py`, so the page is never generated. The homepage link currently 404s.
+-   **Next Action:** Update `scaffolding.py` to include the Feeds template.
 
 ### Analytics
 -   **Status:** Verified (Removed).

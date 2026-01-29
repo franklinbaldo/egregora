@@ -2,19 +2,30 @@
 
 from __future__ import annotations
 
+import logging
 import mimetypes
 import uuid
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
+import ibis
+from ibis import udf
+
 from egregora.data_primitives.datetime_utils import ensure_datetime
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.ops.media import extract_urls, find_all_media_references
+from egregora.ops.media import find_all_media_references
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
     from ibis.expr.types import Table
+
+
+@udf.scalar.builtin
+def regexp_extract_all(text: str, pattern: str) -> list[str]:
+    """Extract all matches of pattern from text."""
 
 
 class MessageRepository:
@@ -36,75 +47,75 @@ class MessageRepository:
         if max_enrichments <= 0:
             return []
 
-        url_metadata: dict[str, dict[str, Any]] = {}
-        discovered_count = 0
+        # Regex to match URLs (equivalent to egregora.ops.media.URL_PATTERN)
+        url_regex = r'https?://[^\s<>"{}|\\^`\[\]]+'
 
-        for batch in self._iter_table_batches(
-            messages_table.select(
-                "ts",
-                "text",
-                "event_id",
-                "tenant_id",
-                "source",
-                "thread_id",
-                "author_uuid",
-                "created_at",
-                "created_by_run",
-            )
-        ):
-            for row in batch:
-                if discovered_count >= max_enrichments:
-                    break
-                discovered_count = self._process_url_row(row, url_metadata, discovered_count, max_enrichments)
+        # 1. Filter rows with text and extract URLs
+        candidates = messages_table.filter(messages_table.text.notnull())
+        candidates = candidates.mutate(urls=regexp_extract_all(candidates.text, url_regex))
 
-            if discovered_count >= max_enrichments:
-                break
-
-        sorted_items = sorted(
-            url_metadata.items(),
-            key=lambda item: (item[1]["ts"] is None, item[1]["ts"]),
+        # 2. Unnest URLs to have one row per URL found
+        candidates = candidates.select(
+            url=candidates.urls.unnest(),
+            ts=candidates.ts,
+            event_id=candidates.event_id,
+            tenant_id=candidates.tenant_id,
+            source=candidates.source,
+            thread_id=candidates.thread_id,
+            author_uuid=candidates.author_uuid,
+            created_at=candidates.created_at,
+            created_by_run=candidates.created_by_run,
         )
-        return sorted_items[:max_enrichments]
 
-    def _process_url_row(
-        self,
-        row: dict[str, Any],
-        url_metadata: dict[str, dict[str, Any]],
-        discovered_count: int,
-        max_enrichments: int,
-    ) -> int:
-        """Process a single row for URL extraction."""
-        message = row.get("text")
-        if not message:
-            return discovered_count
-        urls = extract_urls(message)
-        if not urls:
-            return discovered_count
+        # 3. Filter existing enrichments (Anti Join)
+        # We assume existing enrichments are in the same messages table with media_type='URL'
+        # Note: This checks strictly against the DB. If there are pending enrichments not in DB,
+        # they might be re-scheduled, but Enqueue logic also checks cache.
+        try:
+            existing_enrichments = messages_table.filter(messages_table.media_type == "URL").select(
+                "media_url"
+            )
+            candidates = candidates.anti_join(
+                existing_enrichments, candidates.url == existing_enrichments.media_url
+            )
+        except Exception:
+            # Fallback if self-join fails or table structure is unexpected
+            logger.exception("Failed to filter existing URL enrichments")
 
-        timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-        row_metadata = {
-            "ts": timestamp,
-            "event_id": self._uuid_to_str(row.get("event_id")),
-            "tenant_id": row.get("tenant_id"),
-            "source": row.get("source"),
-            "thread_id": self._uuid_to_str(row.get("thread_id")),
-            "author_uuid": self._uuid_to_str(row.get("author_uuid")),
-            "created_at": row.get("created_at"),
-            "created_by_run": self._uuid_to_str(row.get("created_by_run")),
-        }
+        # 4. Deduplicate: Keep the earliest occurrence of each URL
+        # We group by URL and use a window function to rank occurrences by timestamp
+        w = ibis.window(group_by="url", order_by="ts")
+        candidates = candidates.mutate(rank=ibis.row_number().over(w))
+        candidates = candidates.filter(candidates.rank == 0)
 
-        for url in urls[:3]:
-            existing = url_metadata.get(url)
-            if existing is None:
-                url_metadata[url] = row_metadata.copy()
-                discovered_count += 1
-                if discovered_count >= max_enrichments:
-                    return discovered_count
-            else:
-                existing_ts = existing.get("ts")
-                if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                    existing.update(row_metadata)
-        return discovered_count
+        # 5. Limit and sort
+        # We order by URL as secondary key to ensure deterministic order for messages with same timestamp
+        candidates = candidates.order_by(["ts", "url"]).limit(max_enrichments)
+
+        # 6. Execute
+        try:
+            results = candidates.execute()
+        except Exception:
+            # Fallback to empty if query fails
+            return []
+
+        # 7. Format output
+        output_items = []
+        for row in results.to_dict("records"):
+            url = row["url"]
+            metadata = {
+                "ts": ensure_datetime(row["ts"]) if row["ts"] else None,
+                "event_id": self._uuid_to_str(row["event_id"]),
+                "tenant_id": row["tenant_id"],
+                "source": row["source"],
+                "thread_id": self._uuid_to_str(row["thread_id"]),
+                "author_uuid": self._uuid_to_str(row["author_uuid"]),
+                "created_at": row["created_at"],
+                "created_by_run": self._uuid_to_str(row["created_by_run"]),
+            }
+            output_items.append((url, metadata))
+
+        return output_items
 
     def _iter_table_batches(self, table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
         """Stream table rows as batches of dictionaries without loading entire table into memory."""

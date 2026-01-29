@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.database.elo_record import ComparisonRecord
-from egregora.database.exceptions import TableCreationError
+from egregora.database.schemas import ELO_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -27,36 +27,6 @@ logger = logging.getLogger(__name__)
 
 # Default rating assigned to posts without prior comparisons
 DEFAULT_ELO = 1500.0
-
-# Schema for ELO ratings table
-ELO_RATINGS_SCHEMA = ibis.schema(
-    {
-        "post_slug": "string",
-        "rating": "float64",
-        "comparisons": "int64",
-        "wins": "int64",
-        "losses": "int64",
-        "ties": "int64",
-        "last_updated": "timestamp",
-        "created_at": "timestamp",
-    }
-)
-
-# Schema for comparison history
-COMPARISON_HISTORY_SCHEMA = ibis.schema(
-    {
-        "comparison_id": "string",
-        "post_a_slug": "string",
-        "post_b_slug": "string",
-        "winner": "string",  # "a", "b", or "tie"
-        "rating_a_before": "float64",
-        "rating_b_before": "float64",
-        "rating_a_after": "float64",
-        "rating_b_after": "float64",
-        "timestamp": "timestamp",
-        "reader_feedback": "string",  # JSON string with comments/ratings
-    }
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,43 +54,6 @@ class EloStore:
 
         """
         self.storage = storage
-        self._ensure_tables()
-
-    def _ensure_tables(self) -> None:
-        """Create ratings and history tables if they don't exist."""
-        # Create ratings table with race condition handling
-        try:
-            if "elo_ratings" not in self.storage.list_tables():
-                self.storage.ibis_conn.create_table(
-                    "elo_ratings",
-                    schema=ELO_RATINGS_SCHEMA,
-                )
-                logger.info("Created elo_ratings table")
-        except Exception as e:
-            # Verify table exists (might have been created by another worker during race)
-            if "elo_ratings" in self.storage.list_tables():
-                logger.debug("elo_ratings table already exists (race condition): %s", e)
-            else:
-                # Table doesn't exist and creation failed - this is a real error
-                msg = "elo_ratings"
-                raise TableCreationError(msg) from e
-
-        # Create comparison history table with race condition handling
-        try:
-            if "comparison_history" not in self.storage.list_tables():
-                self.storage.ibis_conn.create_table(
-                    "comparison_history",
-                    schema=COMPARISON_HISTORY_SCHEMA,
-                )
-                logger.info("Created comparison_history table")
-        except Exception as e:
-            # Verify table exists (might have been created by another worker during race)
-            if "comparison_history" in self.storage.list_tables():
-                logger.debug("comparison_history table already exists (race condition): %s", e)
-            else:
-                # Table doesn't exist and creation failed - this is a real error
-                msg = "comparison_history"
-                raise TableCreationError(msg) from e
 
     def get_rating(self, post_slug: str) -> EloRating:
         """Get current ELO rating for a post.
@@ -278,7 +211,7 @@ class EloStore:
                     "reader_feedback": record.reader_feedback or "",
                 }
             ],
-            schema=COMPARISON_HISTORY_SCHEMA,
+            schema=ELO_HISTORY_SCHEMA,
         )
 
         self.storage.ibis_conn.insert("comparison_history", new_comparison)

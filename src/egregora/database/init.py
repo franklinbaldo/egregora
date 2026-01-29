@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
+    ELO_HISTORY_SCHEMA,
+    ELO_RATINGS_SCHEMA,
     GIT_COMMITS_SCHEMA,
     GIT_REFS_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
@@ -109,6 +111,27 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "git_refs", GIT_REFS_SCHEMA)
     create_index(conn, "git_refs", "idx_git_refs_name", "ref_name", index_type="Standard")
     create_index(conn, "git_refs", "idx_git_refs_sha", "commit_sha", index_type="Standard")
+
+    # 7. Elo Ratings & History
+    create_table_if_not_exists(conn, "elo_ratings", ELO_RATINGS_SCHEMA)
+    create_index(conn, "elo_ratings", "idx_elo_ratings_slug", "post_slug", index_type="Standard")
+
+    create_table_if_not_exists(conn, "comparison_history", ELO_HISTORY_SCHEMA)
+    create_index(conn, "comparison_history", "idx_comparison_history_ts", "timestamp", index_type="Standard")
+    create_index(
+        conn,
+        "comparison_history",
+        "idx_comparison_history_post_a",
+        "post_a_slug",
+        index_type="Standard",
+    )
+    create_index(
+        conn,
+        "comparison_history",
+        "idx_comparison_history_post_b",
+        "post_b_slug",
+        index_type="Standard",
+    )
 
     logger.info("✓ Database tables initialized successfully")
 

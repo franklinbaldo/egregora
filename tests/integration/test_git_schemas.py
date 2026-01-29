@@ -1,8 +1,9 @@
 """Integration test for Git Context schemas (commits and refs)."""
 
+from datetime import UTC, datetime
+
 import duckdb
 import pytest
-from datetime import datetime, timezone
 
 from egregora.database.init import initialize_database
 
@@ -49,7 +50,7 @@ def test_git_commits_insertion(duckdb_conn):
     initialize_database(duckdb_conn)
 
     # Insert a dummy record
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     sql = """
     INSERT INTO git_commits (repo_path, commit_sha, commit_timestamp, author, message)
     VALUES ('src/main.py', 'abc1234', ?, 'Visionary', 'Initial commit')
@@ -59,8 +60,8 @@ def test_git_commits_insertion(duckdb_conn):
     # Verify insertion
     result = duckdb_conn.execute("SELECT * FROM git_commits").fetchall()
     assert len(result) == 1
-    assert result[0][0] == 'src/main.py'
-    assert result[0][1] == 'abc1234'
+    assert result[0][0] == "src/main.py"
+    assert result[0][1] == "abc1234"
 
 
 def test_git_refs_insertion(duckdb_conn):
@@ -77,5 +78,5 @@ def test_git_refs_insertion(duckdb_conn):
     # Verify insertion
     result = duckdb_conn.execute("SELECT * FROM git_refs").fetchall()
     assert len(result) == 1
-    assert result[0][0] == 'refs/heads/main'
+    assert result[0][0] == "refs/heads/main"
     assert result[0][2] is False

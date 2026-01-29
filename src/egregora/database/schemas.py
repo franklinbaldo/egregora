@@ -461,21 +461,29 @@ ANNOTATIONS_SCHEMA = ibis.schema(
 
 ELO_RATINGS_SCHEMA = ibis.schema(
     {
-        "post_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
-        "elo_global": dt.float64,  # DEFAULT 1500
-        "num_comparisons": dt.int64,  # DEFAULT 0
-        "last_updated": dt.timestamp,
+        "post_slug": dt.string,
+        "rating": dt.float64,
+        "comparisons": dt.int64,
+        "wins": dt.int64,
+        "losses": dt.int64,
+        "ties": dt.int64,
+        "last_updated": dt.Timestamp(timezone="UTC"),
+        "created_at": dt.Timestamp(timezone="UTC"),
     }
 )
 
 ELO_HISTORY_SCHEMA = ibis.schema(
     {
-        "comparison_id": dt.string,  # PRIMARY KEY (VARCHAR in DuckDB)
-        "timestamp": dt.timestamp,  # NOT NULL
-        "winner_id": dt.string,  # NOT NULL
-        "loser_id": dt.string,  # NOT NULL
-        "elo_change": dt.float64,  # NOT NULL
-        "tie": dt.boolean,  # DEFAULT FALSE
+        "comparison_id": dt.string,
+        "post_a_slug": dt.string,
+        "post_b_slug": dt.string,
+        "winner": dt.string,  # "a", "b", or "tie"
+        "rating_a_before": dt.float64,
+        "rating_b_before": dt.float64,
+        "rating_a_after": dt.float64,
+        "rating_b_after": dt.float64,
+        "timestamp": dt.Timestamp(timezone="UTC"),
+        "reader_feedback": dt.string,  # JSON string with comments/ratings
     }
 )
 

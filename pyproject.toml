@@ -35,8 +35,6 @@ dependencies = [
     "google-genai",
     "google-api-core",
     "grpcio-status",  # Required for helpful gRPC error messages
-    "python-dotenv",
-    "pydantic-core",
 ]
 
 [project.scripts]
@@ -375,6 +373,12 @@ module = [
     "ibis.backends.duckdb",
     "ratelimit",
     "sklearn",
+    "sklearn.cluster",
+    "pymdownx.slugs",
+    "ibis.backends.base",
+    "ibis.common",
+    "lancedb",
+    "lancedb.pydantic",
 ]
 ignore_missing_imports = true
 
@@ -456,6 +460,7 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 
 [tool.deptry.package_module_name_map]
 "pyyaml" = "yaml"
+"python-dotenv" = "dotenv"
 "ibis-framework" = "ibis"
 "python-frontmatter" = "frontmatter"
 "python-dateutil" = "dateutil"
@@ -468,7 +473,7 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 "google-api-python-client" = "googleapiclient"
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["dotenv", "google", "pydantic_core", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
+DEP001 = ["google", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
 DEP002 = [
     "protobuf",
     "egregora",

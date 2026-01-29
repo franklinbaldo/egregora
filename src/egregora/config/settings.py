@@ -832,7 +832,7 @@ class EgregoraConfig(BaseSettings):
             enrichment_overrides["enabled"] = cli_args["enable_enrichment"]
 
         # Apply rag settings overrides
-        rag_overrides = {}
+        rag_overrides: dict[str, Any] = {}
 
         # Apply model overrides
         model_overrides = {}

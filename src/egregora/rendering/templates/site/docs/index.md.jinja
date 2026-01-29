@@ -136,8 +136,8 @@ hide:
 {% if top_posts %}
 <div class="homepage-section">
   <div class="section-header">
-    <h2>🏆 Top Rated Posts</h2>
-    <p class="section-subtitle">Reader favorites based on quality comparisons</p>
+    <h2>🏆 Most Memorable Stories</h2>
+    <p class="section-subtitle">Highlights from our conversations</p>
   </div>
   <div class="top-posts-grid">
     {% for post in top_posts %}
@@ -147,10 +147,6 @@ hide:
         <a href="{{ post.url }}">
           <img src="{{ post.banner }}" alt="{{ post.title }}" loading="lazy">
         </a>
-        <div class="elo-badge">
-          <span class="elo-value">{{ post.elo_rating | round(0) | int }}</span>
-          <span class="elo-label">ELO</span>
-        </div>
       </div>
       {% endif %}
       <div class="top-post-content">
@@ -162,12 +158,6 @@ hide:
             {% endfor %}
           </div>
           {% endif %}
-          <div class="top-post-stats">
-            <span class="stat-badge" title="Number of comparisons">⚖️ {{ post.comparisons }}</span>
-            {% if post.win_rate %}
-            <span class="stat-badge" title="Win rate">📊 {{ (post.win_rate * 100) | round(1) }}%</span>
-            {% endif %}
-          </div>
         </div>
         <h3 class="top-post-title">
           <a href="{{ post.url }}">{{ post.title }}</a>

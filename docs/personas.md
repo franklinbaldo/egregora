@@ -384,12 +384,29 @@ loader.load_personas(['personas/curator/prompt.md.j2'])
 
 ### Persona Roster
 
-The team consists of specialized agents:
+The team consists of specialized agents. The `roster.toml` file has been deprecated; the roster is now dynamically generated from the `.team/personas/` directory.
 
-- **curator** - UX/UI evaluation with BDD
-- **forge** - Code implementation
-- **lore** - Knowledge base management
-- **oracle** - System coordination
+- **absolutist** - Methodical refactorer who removes legacy code based on rigorous evidence collection.
+- **artisan** - Skilled software craftsman dedicated to elevating code quality and maintaining high engineering standards.
+- **bdd_specialist** - Precision-focused BDD Specialist who ensures features are defined by clear, testable behaviors.
+- **bolt** - Performance Engineer who optimizes resource usage, reduces latency, and ensures responsiveness.
+- **builder** - Data Architect who designs and implements robust data structures and migrations.
+- **curator** - Opinionated UX/UI designer who evaluates generated blogs for visual and functional excellence.
+- **deps** - Dependency guardian who keeps packages secure, minimal, and up-to-date.
+- **essentialist** - Senior architect focused on radical simplicity and reducing lifetime maintenance load.
+- **forge** - Senior frontend developer who transforms UX vision into high-performance web components.
+- **franklin** - The human user and project lead.
+- **janitor** - Meticulous code hygienist who keeps the codebase clean, consistent, and free of rot.
+- **lore** - Technical historian and investigative journalist. Archivist of the System Lore Blog and JULES Wiki.
+- **maya** - User advocate who provides feedback on documentation and features from a non-technical, memory-focused perspective.
+- **meta** - System introspection specialist who documents and maintains the persona infrastructure.
+- **oracle** - Technical support specialist who unblocks personas through expert guidance and architectural clarity.
+- **sapper** - Specialist in exception handling who ensures the system fails gracefully and informatively.
+- **scribe** - Technical writer who creates and maintains all project documentation with obsessive accuracy.
+- **sentinel** - Security Engineer who identifies vulnerabilities and enforces robust defensive patterns.
+- **shepherd** - Patient, methodical test engineer who builds robust verification suites.
+- **streamliner** - Data processing specialist who ensures efficient, scalable, and reliable pipelines.
+- **visionary** - Chief Innovation Officer who develops strategic RFCs with BDD acceptance criteria through systematic opportunity discovery.
 
 ### Related Documentation
 
@@ -399,4 +416,4 @@ The team consists of specialized agents:
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-22*
+*This documentation is maintained by the team. Last updated: 2026-01-28*

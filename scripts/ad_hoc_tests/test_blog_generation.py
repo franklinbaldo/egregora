@@ -79,7 +79,7 @@ def test_exception_classes() -> None:
 
 def test_mkdocs_adapter_imports() -> None:
     """Test that MkDocs adapter has all required exception imports."""
-    adapter_path = "src/egregora/output_adapters/mkdocs/adapter.py"
+    adapter_path = "src/egregora/output_sinks/mkdocs/adapter.py"
 
     # Check the file compiles
     try:

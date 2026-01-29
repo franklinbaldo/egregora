@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def _get_existing_columns(conn: duckdb.DuckDBPyConnection, table_name: str) -> set[str]:
     """Get the existing columns from a table."""
-    result = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    result = conn.execute(f"PRAGMA table_info({quote_identifier(table_name)})").fetchall()
     return {row[1] for row in result}
 
 
@@ -22,7 +22,8 @@ def _verify_all_constraints_present(conn: duckdb.DuckDBPyConnection, table_name:
     try:
         # Get existing constraints
         result = conn.execute(
-            f"SELECT constraint_name FROM duckdb_constraints() WHERE table_name='{table_name}' AND constraint_type='CHECK'"  # nosec B608
+            "SELECT constraint_name FROM duckdb_constraints() WHERE table_name=? AND constraint_type='CHECK'",
+            [table_name],
         ).fetchall()
         existing_constraints = {row[0] for row in result}
 

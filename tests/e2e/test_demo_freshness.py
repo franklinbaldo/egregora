@@ -21,7 +21,14 @@ def are_dirs_equal(dir1: Path, dir2: Path) -> tuple[bool, str]:
     Compare two directories recursively. Returns (are_equal, report_string).
     Ignores the .gitkeep file which is not part of the generated output.
     """
-    ignore_list = [".gitkeep", ".DS_Store", "__pycache__"]
+    ignore_list = [
+        ".gitkeep",
+        ".DS_Store",
+        "__pycache__",
+        ".cache",
+        "pipeline.duckdb",
+        "pipeline.duckdb.wal",
+    ]
     comparison = filecmp.dircmp(dir1, dir2, ignore=ignore_list)
 
     if comparison.left_only or comparison.right_only or comparison.diff_files or comparison.funny_files:
@@ -65,7 +72,7 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
     if not SAMPLE_INPUT_FILE.exists():
         pytest.skip(f"Sample input file not found at {SAMPLE_INPUT_FILE}")
 
-    temp_demo_path = tmp_path / "fresh_demo"
+    temp_demo_path = tmp_path / "demo"
     temp_demo_path.mkdir()
 
     # Initialize a new mkdocs project in the temporary directory
