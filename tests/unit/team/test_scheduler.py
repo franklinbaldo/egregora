@@ -21,6 +21,7 @@ class TestStatelessScheduler(unittest.TestCase):
         """Test ensure_jules_branch updates existing branch to match main."""
         mock_run.return_value.returncode = 0
         stateless.ensure_jules_branch()
+<<<<<<< HEAD
         # Verify essential calls are made, ignoring others
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
@@ -31,6 +32,22 @@ class TestStatelessScheduler(unittest.TestCase):
             ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
             check=True,
             capture_output=True,
+=======
+        # fetch + rev-parse check + force-update branch
+        mock_run.assert_has_calls(
+            [
+                call(["git", "fetch", "origin", "main"], capture_output=True),
+                call(
+                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+                    capture_output=True,
+                ),
+                call(
+                    ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
+                    check=True,
+                    capture_output=True,
+                ),
+            ]
+>>>>>>> 46f284e (fix: resolve CI failures in stateless scheduler PR)
         )
 
     @patch("repo.scheduler.stateless.subprocess.run")
