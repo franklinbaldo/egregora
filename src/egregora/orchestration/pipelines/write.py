@@ -41,7 +41,7 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.orchestration.factory import PipelineFactory
+from egregora.agents.types import WriterResources
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -462,7 +462,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             continue
 
     # Prepare Resources
-    resources = PipelineFactory.create_writer_resources(ctx)
+    resources = WriterResources.from_pipeline_context(ctx)
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
