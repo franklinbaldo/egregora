@@ -354,10 +354,6 @@ def _extract_from_message(
         for part in message.parts:
             if isinstance(part, ToolReturnPart):
                 _process_single_tool_result(part.content, part.tool_name, saved_posts, saved_profiles)
-    # Fallback for potentially older message structures or other types if Union expands
-    elif hasattr(message, "kind") and message.kind == "tool-return":
-        tool_name = getattr(message, "tool_name", None)
-        _process_single_tool_result(getattr(message, "content", None), tool_name, saved_posts, saved_profiles)
 
 
 def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:

@@ -604,7 +604,9 @@ class EnrichmentWorker(BaseWorker):
         return self._persist_url_results(results)
 
     # TODO: [Taskmaster] Simplify complex async-in-sync wrapper
-    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
+    def _enrich_single_url(
+        self, task_data: dict[str, Any]
+    ) -> tuple[dict[str, Any], EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
         from pydantic_ai.models.google import GoogleModel
         from pydantic_ai.providers.google import GoogleProvider
@@ -750,7 +752,7 @@ class EnrichmentWorker(BaseWorker):
 
     def _execute_url_enrichments(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments based on configured strategy."""
         strategy = getattr(self.enrichment_config, "strategy", "individual")
         total = len(tasks_data)
@@ -771,9 +773,9 @@ class EnrichmentWorker(BaseWorker):
 
     def _execute_url_individual(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments individually with model rotation."""
-        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
         last_log_time = time.time()
 
@@ -807,7 +809,7 @@ class EnrichmentWorker(BaseWorker):
     # TODO: [Taskmaster] Decompose complex batch execution method
     def _execute_url_single_call(
         self, tasks_data: list[dict[str, Any]]
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute all URL enrichments in a single API call.
 
         Sends all URLs together with a combined prompt asking for JSON dict result.
@@ -886,7 +888,7 @@ class EnrichmentWorker(BaseWorker):
             raise EnrichmentParsingError(msg) from e
 
         # Convert to result tuples
-        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]] = []
         for td in tasks_data:
             task = td["task"]
             payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
@@ -923,7 +925,9 @@ class EnrichmentWorker(BaseWorker):
         logger.info("[URLEnricher] Single-call batch complete: %d/%d", len(results), len(tasks_data))
         return results
 
-    def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
+    def _persist_url_results(
+        self, results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]
+    ) -> int:
         new_rows = []
         for task, output, error in results:
             if error:
