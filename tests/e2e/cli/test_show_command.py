@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from egregora.cli.main import app
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.database.init import initialize_database
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -53,8 +54,8 @@ def mock_site_root_with_db(tmp_path: Path, config_factory) -> Path:
     # Initialize the database and tables
     db_path = site_root / config.reader.database_path
     storage = DuckDBStorageManager(db_path)
-    elo_store = EloStore(storage)
-    elo_store._ensure_tables()
+    initialize_database(storage.ibis_conn)
+    EloStore(storage)
 
     return site_root
 
@@ -92,9 +93,7 @@ def test_top_command(mock_site_root_with_db: Path):
         ("post-a", 1500.0, 5, 2, 2, 1, now, now),
         ("post-c", 1700.0, 15, 12, 2, 1, now, now),
     ]
-    storage.execute_query(
-        "CREATE TABLE IF NOT EXISTS elo_ratings (post_slug VARCHAR, rating DOUBLE, comparisons INTEGER, wins INTEGER, losses INTEGER, draws INTEGER, last_compared TIMESTAMP, created_at TIMESTAMP)"
-    )
+    # Table created by initialize_database in fixture
     storage.execute_query(
         "INSERT INTO elo_ratings VALUES (?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)",
         [item for sublist in mock_data for item in sublist],
@@ -122,9 +121,7 @@ def test_show_reader_history_command(mock_site_root_with_db: Path):
         (str(uuid.uuid4()), "post-a", "post-b", "a", 1500.0, 1600.0, 1510.0, 1590.0, now, "{}"),
         (str(uuid.uuid4()), "post-c", "post-a", "b", 1700.0, 1510.0, 1690.0, 1520.0, now, "{}"),
     ]
-    storage.execute_query(
-        "CREATE TABLE IF NOT EXISTS comparison_history (id VARCHAR, post_a_slug VARCHAR, post_b_slug VARCHAR, winner VARCHAR, rating_a_before DOUBLE, rating_b_before DOUBLE, rating_a_after DOUBLE, rating_b_after DOUBLE, timestamp TIMESTAMP, metadata VARCHAR)"
-    )
+    # Table created by initialize_database in fixture
     storage.execute_query(
         "INSERT INTO comparison_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [item for sublist in mock_data for item in sublist],

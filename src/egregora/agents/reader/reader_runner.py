@@ -15,6 +15,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.text import slugify
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.database.init import initialize_database
 
 if TYPE_CHECKING:
     from egregora.config.settings import ReaderSettings
@@ -97,6 +98,7 @@ def run_reader_evaluation(
         return []
 
     with DuckDBStorageManager(db_path=db_path) as storage:
+        initialize_database(storage.ibis_conn)
         elo_store = EloStore(storage)
 
         pairs = select_post_pairs(post_slugs, config.comparisons_per_post, elo_store)
