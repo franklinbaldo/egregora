@@ -8,7 +8,7 @@
 - [Quick Start](#-quick-start)
 - [Directory Structure](#-directory-structure)
 - [Personas](#-personas)
-- [Scheduler Modes](#-scheduler-modes)
+- [Scheduler](#-scheduler)
 - [Configuration](#-configuration)
 - [Usage Guide](#-usage-guide)
 - [Persona Development](#-persona-development)
@@ -26,7 +26,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 - **21 Personas (20 AI + 1 Human)** - Each with unique expertise (security, performance, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
-- **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
+- **Round-Robin Scheduling** - Stateless scheduler rotates through all personas automatically
 - **Mail System** - Async communication between personas for conflict resolution
 - **Journal System** - Each persona maintains work logs for continuity
 
@@ -75,14 +75,14 @@ uv run jules schedule tick --prompt-id curator
 uv run jules schedule tick --prompt-id curator --dry-run
 ```
 
-### Run the Parallel Cycle
+### Run the Scheduler
 
 ```bash
-# Execute one tick of the parallel cycle
+# Execute one tick (round-robin, next persona)
 uv run jules schedule tick
 
-# Run all personas (ignore schedules)
-uv run jules schedule tick --all
+# Dry run (see what would happen)
+uv run jules schedule tick --dry-run
 ```
 
 ### Check Persona Mailbox
@@ -117,11 +117,9 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   │   ├── polling/           # Session polling
 │   │   └── sessions/          # Session management
 │   ├── scheduler/              # Scheduler engine
-│   │   ├── engine.py          # Main scheduler logic
+│   │   ├── stateless.py       # Main scheduler (round-robin + Oracle)
 │   │   ├── loader.py          # Persona loading
-│   │   ├── managers.py        # Branch, PR, State managers
-│   │   ├── models.py          # Data models
-│   │   └── state.py           # Persistent state
+│   │   └── models.py          # Data models
 │   └── templates/              # Jinja2 templates
 │       ├── base/              # Base templates
 │       ├── blocks/            # Reusable blocks
@@ -148,8 +146,7 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── sentinel/              # 🛡️ Security audits
 │   ├── shepherd/              # 🧑‍🌾 Test coverage
 │   ├── streamliner/           # 🌊 Data optimization
-│   ├── visionary/             # 🔭 Strategic RFCs
-│   └── _archived/             # Eliminated personas
+│   └── visionary/             # 🔭 Strategic RFCs
 │
 ├── logs/                       # Per-session logs (gitignored)
 │   ├── tools_use/             # Tool usage logs per session
@@ -164,7 +161,6 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── cycle_state.json       # Current cycle position
 │   └── reconciliation/        # PR reconciliation data
 │
-├── schedules.toml             # Scheduler configuration
 ├── README.md                  # This file
 ├── PARALLEL_PERSONAS_*.md     # Parallel execution docs
 └── SESSION_ID_PATTERNS.md     # Session ID extraction logic
@@ -253,7 +249,7 @@ Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Ve
 | 📦 | **Deps** | Guardian | Dependency management, security |
 | 💎 | **Essentialist** | Pragmatist | Radical simplicity |
 | ⚒️ | **Forge** | Builder | Feature implementation |
-| 🧔 | **Franklin** | Human Lead | Project lead (human, no AI prompt) |
+| 🧔 | **Franklin** | Human Lead | Project lead (human, not scheduled) |
 | 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
 | 📚 | **Lore** | Historian | System history, ADRs, git forensics |
 | 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
@@ -291,100 +287,38 @@ Each persona can:
 
 ---
 
-## ⚙️ Scheduler Modes
+## ⚙️ Scheduler
 
-The scheduler supports two execution modes: **Parallel Cycle** and **Scheduled**.
+The scheduler uses **stateless round-robin** mode (implemented in `stateless.py`).
 
-### 1. Parallel Cycle Mode
-
-**Sequential execution within tracks, parallel across tracks**
-
-```
-Track 1:  curator → sentinel → visionary → bolt
-            ↓         ↓          ↓         ↓
-          PR #1     PR #2      PR #3     PR #4
-
-Track 2:  janitor → builder → shepherd
-            ↓          ↓         ↓
-          PR #5      PR #6     PR #7
-```
+### Round-Robin Mode
 
 **How it works:**
 
-1. Scheduler loads tracks from `schedules.toml`
-2. Each track runs personas sequentially
-3. A persona waits for the previous session to finish
+1. Each tick, the scheduler queries the Jules API for the last persona that ran
+2. Picks the next persona alphabetically (wrapping around)
+3. Only one session runs at a time — if an active session exists, the tick is skipped
 4. PRs target the `jules` branch
-5. State persists in `.team/state/cycle_state.json`
-6. Auto-merge happens when CI passes
-
-**Benefits:**
-
-- ✅ No merge conflicts (sequential within track)
-- ✅ Each persona builds on previous work
-- ✅ Predictable execution order
-
-**Configuration:**
-
-```toml
-# schedules.toml
-[tracks]
-default = [
-    "personas/curator/prompt.md.j2",
-    "personas/sentinel/prompt.md.j2",
-    "personas/visionary/prompt.md.j2",
-]
-
-ops = [
-    "personas/janitor/prompt.md.j2",
-    "personas/shepherd/prompt.md.j2",
-]
-```
-
-### 2. Scheduled Mode
-
-**Independent cron-based execution**
-
-```toml
-# schedules.toml
-[schedules]
-janitor = "0 */2 * * *"       # Every 2 hours
-sentinel = "0 * * * *"        # Hourly
-curator = "0 0 * * *"         # Daily at midnight UTC
-```
-
-**How it works:**
-
-1. Scheduler checks current time every tick
-2. Runs any persona matching its cron schedule
-3. Creates PRs targeting `main` directly
-4. Personas run independently (no coordination)
-
-**Cron Format:**
+5. Completed PRs are auto-merged before creating new sessions
 
 ```
-┌───────────── minute (0 - 59)
-│ ┌───────────── hour (0 - 23)
-│ │ ┌───────────── day of month (1 - 31)
-│ │ │ ┌───────────── month (1 - 12)
-│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
-│ │ │ │ │
-* * * * *
+absolutist → artisan → bdd_specialist → bolt → builder → curator →
+deps → essentialist → forge → janitor → lore → maya → meta →
+oracle → sapper → scribe → sentinel → shepherd → streamliner →
+visionary → (wrap around)
 ```
 
-**Common Examples:**
+### Oracle Facilitator
 
-- `0 * * * *` - Every hour
-- `*/15 * * * *` - Every 15 minutes
-- `0 0 * * *` - Daily at midnight
-- `0 0 * * 1` - Every Monday at midnight
-- `0 9-17 * * 1-5` - Weekdays 9 AM - 5 PM
+Before scheduling a new persona, the scheduler runs a priority workflow:
 
-**Benefits:**
+1. **Unblock stuck sessions** — finds sessions in `AWAITING_USER_FEEDBACK` or `AWAITING_PLAN_APPROVAL` and sends guidance via a dedicated Oracle session
+2. **Merge completed PRs** — auto-merges Jules draft PRs
+3. **Create new session** — round-robin to the next persona
 
-- ✅ Run personas at optimal times
-- ✅ Independent operation
-- ✅ Predictable resource usage
+### Decommissioning a Persona
+
+To remove a persona from the rotation, move its folder out of `.team/personas/` (e.g. to a backup location). The scheduler discovers personas by scanning for directories containing `prompt.md.j2` or `prompt.md`. No configuration file is needed.
 
 ---
 
@@ -413,55 +347,11 @@ export JULES_PERSONA="weaver@team"
 export PYTHONPATH=".team"
 ```
 
-### schedules.toml
+### Scheduler Configuration
 
-Complete configuration example:
+The scheduler is **zero-config**. It discovers personas automatically from the `.team/personas/` directory. No `schedules.toml` or configuration file is needed.
 
-```toml
-# ===== Parallel Cycle Mode =====
-[tracks]
-
-# Main development track
-default = [
-    "personas/curator/prompt.md.j2",
-    "personas/artisan/prompt.md.j2",
-    "personas/visionary/prompt.md.j2",
-    "personas/bolt/prompt.md.j2",
-    "personas/sentinel/prompt.md.j2",
-    "personas/builder/prompt.md.j2",
-    "personas/shepherd/prompt.md.j2",
-]
-
-# Operations track (runs in parallel with default)
-ops = [
-    "personas/janitor/prompt.md.j2",
-    "personas/deps/prompt.md.j2",
-]
-
-# Documentation track
-docs = [
-    "personas/scribe/prompt.md.j2",
-    "personas/lore/prompt.md.j2",
-]
-
-# ===== Scheduled Mode =====
-[schedules]
-
-# Hourly maintenance
-janitor = "0 * * * *"
-sentinel = "30 * * * *"
-
-# Every 2 hours
-streamliner = "0 */2 * * *"
-deps = "15 */2 * * *"
-
-# Daily at midnight UTC
-essentialist = "0 0 * * *"
-meta = "0 1 * * *"
-
-# Weekdays only
-curator = "0 9 * * 1-5"  # 9 AM Mon-Fri
-```
+To control which personas run, simply add or remove persona directories.
 
 ---
 
@@ -472,7 +362,7 @@ curator = "0 9 * * 1-5"  # 9 AM Mon-Fri
 #### Scheduler Commands
 
 ```bash
-# ===== Parallel Cycle =====
+# ===== Round-Robin Scheduler =====
 
 # Execute one tick (recommended for CI)
 uv run jules schedule tick
@@ -480,15 +370,8 @@ uv run jules schedule tick
 # Run specific persona only
 uv run jules schedule tick --prompt-id curator
 
-# Run all personas (ignore schedules)
-uv run jules schedule tick --all
-
 # Dry run (show what would execute)
 uv run jules schedule tick --dry-run
-
-# Force specific mode
-uv run jules schedule tick --mode cycle    # Parallel cycle
-uv run jules schedule tick --mode scheduled  # Cron-based
 
 # ===== Auto-Fix =====
 
@@ -769,24 +652,11 @@ What this persona aims to achieve.
 {% endblock %}
 ```
 
-**Step 3: Add to Schedule**
+**Step 3: Test Locally**
 
-```toml
-# schedules.toml
+The scheduler automatically discovers any persona directory with a `prompt.md.j2` file. No configuration file changes are needed.
 
-# Option A: Add to cycle track
-[tracks]
-default = [
-    # ... existing personas
-    "personas/my_persona/prompt.md.j2",
-]
-
-# Option B: Add cron schedule
-[schedules]
-my_persona = "0 6 * * *"  # Daily at 6 AM
-```
-
-**Step 4: Test Locally**
+**Step 4: Verify**
 
 ```bash
 # Dry run
@@ -937,166 +807,47 @@ Content here...
 
 ### Scheduler Architecture
 
+The scheduler is implemented in `.team/repo/scheduler/stateless.py` as a single `run_scheduler()` function:
+
 ```python
-# ===== Domain Models (.team/repo/scheduler/models.py) =====
-@dataclass
-class PersonaConfig:
-    """Immutable persona configuration"""
-    id: str
-    emoji: str
-    description: str
-    prompt_content: str
-    prompt_path: Path
+# ===== Entry Point (.team/repo/scheduler/stateless.py) =====
+def run_scheduler(dry_run: bool = False) -> SchedulerResult:
+    """Main scheduler — stateless round-robin with Oracle facilitator.
 
-@dataclass
-class CycleState:
-    """Current position in cycle"""
-    track_name: str
-    current_index: int
-    session_id: str | None
-    last_pr_number: int | None
+    Priority order:
+    1. Unblock stuck sessions (AWAITING_USER_FEEDBACK) via Oracle
+    2. Merge completed Jules PRs
+    3. Skip if active session exists
+    4. Check CI status (informational)
+    5. Create new session (round-robin)
+    """
+    ...
 
-@dataclass
-class SessionRequest:
-    """Session creation parameters"""
-    persona_config: PersonaConfig
-    branch: str
-    title: str
-    automation_mode: str
+def discover_personas() -> list[str]:
+    """Scan .team/personas/ for dirs with prompt.md.j2 or prompt.md."""
+    ...
 
-@dataclass
-class PRStatus:
-    """PR status with CI checks"""
-    number: int
-    state: str
-    mergeable: bool
-    ci_passing: bool
-    checks: list[dict]
+def get_next_persona(last: str | None, personas: list[str]) -> str | None:
+    """Get next persona in alphabetical round-robin order."""
+    ...
 
 # ===== Loading (.team/repo/scheduler/loader.py) =====
 class PersonaLoader:
-    """Load and parse persona definitions"""
+    """Load and render persona Jinja2 templates."""
 
     def load_personas(self, paths: list[str]) -> list[PersonaConfig]:
-        """Load personas from prompt files"""
+        """Load personas from prompt files."""
         ...
 
-    def _render_template(self, path: Path) -> str:
-        """Render Jinja2 template with context"""
-        ...
-
-# ===== State (.team/repo/scheduler/state.py) =====
-class PersistentCycleState:
-    """JSON-backed persistent state"""
-
-    def get_state(self, track: str) -> CycleState | None:
-        """Get current state for track"""
-        ...
-
-    def update_state(self, track: str, state: CycleState) -> None:
-        """Update state for track"""
-        ...
-
-    def save(self) -> None:
-        """Persist to disk"""
-        ...
-
-# ===== Managers (.team/repo/scheduler/managers.py) =====
-class BranchManager:
-    """Git branch operations"""
-
-    def ensure_branch_exists(self, branch: str, base: str = "main") -> None:
-        """Create branch if needed"""
-        ...
-
-    def sync_branch(self, branch: str, base: str = "main") -> None:
-        """Sync branch with base"""
-        ...
-
-class PRManager:
-    """GitHub PR operations"""
-
-    def get_pr_status(self, number: int) -> PRStatus:
-        """Get PR status and CI checks"""
-        ...
-
-    def merge_if_ready(self, number: int) -> bool:
-        """Merge PR if CI passes"""
-        ...
-
-    def list_open_prs(self, head: str) -> list[dict]:
-        """List open PRs for branch"""
-        ...
-
-class CycleStateManager:
-    """Cycle progression logic"""
-
-    def should_advance(self, state: CycleState, pr_status: PRStatus) -> bool:
-        """Check if cycle should advance"""
-        ...
-
-    def advance(self, track: str, personas: list[PersonaConfig]) -> CycleState:
-        """Move to next persona in track"""
-        ...
-
-class SessionOrchestrator:
-    """Jules session creation"""
-
-    def create_session(self, request: SessionRequest) -> str:
-        """Create new Jules session"""
-        ...
-
-    def poll_session(self, session_id: str) -> dict:
-        """Check session status"""
-        ...
-
-# ===== Engine (.team/repo/scheduler/engine.py) =====
-def execute_parallel_cycle_tick(
-    tracks: dict[str, list[str]],
-    dry_run: bool = False
-) -> None:
-    """Execute one tick of parallel cycle mode"""
-    loader = PersonaLoader(...)
-    state_manager = PersistentCycleState(...)
-    pr_manager = PRManager(...)
-    orchestrator = SessionOrchestrator(...)
-
-    for track_name, persona_paths in tracks.items():
-        # Load track state
-        state = state_manager.get_state(track_name)
-
-        # Load personas
-        personas = loader.load_personas(persona_paths)
-
-        # Check if should advance
-        if state and state.last_pr_number:
-            pr_status = pr_manager.get_pr_status(state.last_pr_number)
-            if pr_manager.merge_if_ready(state.last_pr_number):
-                state = cycle_manager.advance(track_name, personas)
-
-        # Create session for current persona
-        current_persona = personas[state.current_index]
-        session_id = orchestrator.create_session(...)
-
-        # Update state
-        state.session_id = session_id
-        state_manager.update_state(track_name, state)
-        state_manager.save()
-
-def execute_scheduled_tick(
-    schedules: dict[str, str],
-    dry_run: bool = False
-) -> None:
-    """Execute scheduled persona runs"""
-    loader = PersonaLoader(...)
-    orchestrator = SessionOrchestrator(...)
-
-    current_time = datetime.now(UTC)
-
-    for persona_id, cron_expr in schedules.items():
-        if should_run(cron_expr, current_time):
-            persona = loader.load_personas([f"personas/{persona_id}/prompt.md.j2"])[0]
-            orchestrator.create_session(...)
+# ===== Models (.team/repo/scheduler/models.py) =====
+@dataclass
+class PersonaConfig:
+    """Immutable persona configuration."""
+    id: str
+    emoji: str
+    description: str
+    prompt_body: str
+    prompt_path: Path
 ```
 
 ### Mail System Architecture
@@ -1176,13 +927,13 @@ class S3MailBackend(MailBackend):
 
 #### 1. Scheduler Not Advancing
 
-**Symptom:** Curator persona runs repeatedly, never advances to next persona
+**Symptom:** Same persona runs repeatedly, never advances to next persona
 
 **Causes:**
 
 - PRs not merging (CI failures)
-- PRs targeting wrong base branch
-- State file corruption
+- Active session still running (scheduler waits)
+- Jules API not returning session history
 
 **Solutions:**
 
@@ -1193,13 +944,7 @@ gh pr list --head jules
 # Check CI status
 gh pr checks <pr-number>
 
-# Check state file
-cat .team/state/cycle_state.json
-
-# Reset state (DANGER: loses cycle position)
-rm .team/state/cycle_state.json
-
-# Force advance to next persona
+# Force a specific persona
 uv run jules schedule tick --prompt-id artisan
 ```
 
@@ -1451,7 +1196,7 @@ uv run mail inbox --persona system@team
 - **Rewrote Oracle**: Now a support agent who unblocks personas with technical guidance
 - **Rewrote Visionary**: Added mandatory 5-step inspiration process + BDD acceptance criteria in RFCs
 - **Improved Scribe**: Absorbed docs_curator, now handles both creation and maintenance
-- **Archived eliminated personas** to `.team/personas/_archived/`
+- **Removed eliminated personas** from `.team/personas/`
 
 ### 2026-01-17
 
