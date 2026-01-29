@@ -413,19 +413,17 @@ def _window_by_bytes(
 
     """
     # 1. Fetch metadata (Fetch phase)
-    # Add row_number to allow precise, efficient slicing without limit/offset scaling issues.
-    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
-
+    # We fetch timestamps and lengths to calculate window boundaries in Python.
+    # Note: row_number() window function is avoided as it is O(N log N) and slow on some backends.
+    # We rely on timestamp ordering matching the subsequent slice queries.
     metadata = (
-        table_with_rn.select(
-            rn=table_with_rn.row_number,
-            ts=table_with_rn.ts,
-            msg_bytes=table_with_rn.text.length().cast("int64"),
+        table.select(
+            ts=table.ts,
+            msg_bytes=table.text.length().cast("int64"),
         )
-        .order_by("rn")
+        .order_by("ts")
         .execute()
     )
-
     total_count = len(metadata)
     if total_count == 0:
         return
