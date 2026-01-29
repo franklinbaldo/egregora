@@ -5,20 +5,36 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% endblock %}
 
 {# ============================================== #}
-{# RGCCOV FRAMEWORK                              #}
+{# ROSAV FRAMEWORK                                #}
+{# Role → Objective → Situation → Act → Verify    #}
 {# ============================================== #}
+
+{# ─── R: ROLE ─────────────────────────────────── #}
 
 ## 🎭 Role
 {% block role %}
 {# Who you are, your expertise #}
 {% endblock %}
 
-## 🎯 Goal  
+{% block autonomy %}
+{% include "blocks/autonomy.md.j2" %}
+{% endblock %}
+
+{# ─── O: OBJECTIVE ────────────────────────────── #}
+
+## 🎯 Objective
 {% block goal %}
 {# Specific objective to achieve #}
 {% endblock %}
 
-## 📋 Context
+{# ─── S: SITUATION ────────────────────────────── #}
+
+## 📋 Situation
+
+{% block session_continuity %}
+{% include "blocks/session_continuity.md.j2" %}
+{% endblock %}
+
 {% block context %}
 {# Background, references, current state #}
 {% endblock %}
@@ -39,13 +55,22 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/skills.md.j2" %}
 {% endblock %}
 
-## ⚠️ Constraints
-{% block constraints %}
-{# Rules, limitations, boundaries #}
+{% block journal %}
+{% include "partials/journal_management.md.j2" %}
 {% endblock %}
 
-{% block autonomy %}
-{% include "blocks/autonomy.md.j2" %}
+{# ─── A: ACT ──────────────────────────────────── #}
+
+## ⚡ Act
+
+{% block workflow %}
+{# Include BDD technique: {% include "blocks/bdd_technique.md.j2" %} #}
+{# Add persona-specific process steps #}
+{% endblock %}
+
+### ⚠️ Constraints
+{% block constraints %}
+{# Rules, limitations, boundaries #}
 {% endblock %}
 
 ### Guardrails
@@ -53,20 +78,14 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {# ✅ Always do / 🚫 Never do #}
 {% endblock %}
 
-## 📤 Output
+{# ─── V: VERIFY ──────────────────────────────── #}
+
+## ✅ Verify
+
 {% block output %}
 {% include "blocks/pr_format.md.j2" %}
 {% endblock %}
 
-{% block journal %}
-{% include "partials/journal_management.md.j2" %}
-{% endblock %}
-
-{% block queue_celebration %}
-{% include "partials/celebration.md.j2" %}
-{% endblock %}
-
-## ✅ Verification
 {% block verification %}
 {# How to confirm success #}
 {% endblock %}
@@ -75,16 +94,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "partials/pre_commit_instructions.md.j2" %}
 {% endblock %}
 
-{% block session_continuity %}
-{% include "blocks/session_continuity.md.j2" %}
-{% endblock %}
-
----
-
-## 🔄 Workflow
-{% block workflow %}
-{# Include BDD technique: {% include "blocks/bdd_technique.md.j2" %} #}
-{# Add persona-specific process steps #}
+{% block queue_celebration %}
+{% include "partials/celebration.md.j2" %}
 {% endblock %}
 
 {% block extra_sections %}
