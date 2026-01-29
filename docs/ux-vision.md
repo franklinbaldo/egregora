@@ -25,15 +25,17 @@ Key locations:
 
 ### Developer Experience
 -   **Status:** Stable.
--   **Observation:** The `egregora demo` command generates a valid scaffold even when API keys are missing, fulfilling the "Graceful Degradation" principle. The previous event loop error appears to be resolved or non-blocking.
+-   **Observation:** The `egregora demo` command generates a valid scaffold even when API keys are missing, fulfilling the "Graceful Degradation" principle.
+-   **Stale Artifacts:** The `docs/demo` directory in the repo is currently stale (containing legacy `custom.css` and outdated config). A task (`20260130-ux-regenerate-demo`) has been created to fix this.
 
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Verified.
--   **Details:** The CSS has been successfully consolidated into `overrides/stylesheets/extra.css`. The shadowing issue caused by the orphan `docs/` file has been resolved. The site now correctly renders both the immersive Portal theme (Hero, Glassmorphism) and the structural layout improvements (Related Posts, Media Grid).
+-   **Status:** Verified (Fresh Build).
+-   **Details:** The CSS has been successfully consolidated into `overrides/stylesheets/extra.css`. Fresh builds correctly use this file and do not include the legacy `custom.css`.
+-   **Action:** Ensure `docs/demo` is regenerated to match this state.
 
 ### Color Palette
 -   **Status:** Verified.
@@ -56,8 +58,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Details:** The navigation hierarchy is correct. Homepage cards link correctly to `/posts/profiles/`, `/posts/media/`, and `/feeds/`.
 
 ### Feeds Page
--   **Status:** Verified.
--   **Details:** The template `docs/feeds/index.md.jinja` is correctly registered and generates the `/feeds/` page, providing RSS and JSON feed options.
+-   **Status:** Verified (Broken Links).
+-   **Details:** The template `docs/feeds/index.md.jinja` generates the `/feeds/` page. However, it uses absolute links (e.g., `/feed.xml`) which break on subpath deployments.
+-   **Action:** Task `20260130-ux-fix-feeds-links` created to fix this.
 
 ### Analytics
 -   **Status:** Verified (Removed).
@@ -67,8 +70,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 **Current Violation:** The site makes default external requests to third-party CDNs, which leaks user IP addresses.
 
-1.  **Google Fonts:** `extra.css` contains `@import url('https://fonts.googleapis.com/css2?...')`.
-2.  **MathJax:** `mkdocs.yml` loads `https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js`.
+1.  **Google Fonts (Import):** `extra.css` contains `@import url('https://fonts.googleapis.com/css2?...')`.
+2.  **Google Fonts (Config):** `mkdocs.yml` requests `font: Roboto`, which triggers MkDocs Material to download/bundle Google Fonts (or request them if not bundled).
+3.  **MathJax:** `mkdocs.yml` loads `https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js`.
 
 **Action Plan:**
 -   **Task:** `20260130-ux-localize-assets` (Assigned to Forge).
