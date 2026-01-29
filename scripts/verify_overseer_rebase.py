@@ -1,12 +1,12 @@
-import sys
 import os
-from pathlib import Path
+import sys
 
 # Add .team to path
 sys.path.append(os.path.abspath(".team"))
 
-from repo.scheduler.managers import PRManager
 from repo.core.github import get_repo_info
+from repo.scheduler.managers import PRManager
+
 
 def verify_rebase():
     print("🚀 Starting Overseer Rebase Verification...")
@@ -34,6 +34,7 @@ def verify_rebase():
     print(f"🏁 Finished. Conflicts found: {len(conflict_prs)}")
     if conflict_prs:
         print("Conflicts:", conflict_prs)
+
 
 if __name__ == "__main__":
     verify_rebase()

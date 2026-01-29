@@ -1,7 +1,5 @@
-
-import os
-from pathlib import Path
 import re
+from pathlib import Path
 
 PERSONAS = {
     "curator": {"name": "Curator", "emoji": "🎭"},
@@ -24,6 +22,7 @@ PERSONAS = {
     "essentialist": {"name": "Essentialist", "emoji": "🎒"},
     "organizer": {"name": "Organizer", "emoji": "🗂️"},
 }
+
 
 def fix_frontmatter():
     base_dir = Path(".team/personas")
@@ -63,13 +62,13 @@ def fix_frontmatter():
                 # Reconstruct title
                 if len(parts) >= 4:
                     raw_title = "-".join(parts[4:]).replace("_", " ")
-                    if not raw_title and len(parts) > 3: # Handle YYYY-MM-DD-Title
-                         raw_title = "-".join(parts[3:]).replace("_", " ")
+                    if not raw_title and len(parts) > 3:  # Handle YYYY-MM-DD-Title
+                        raw_title = "-".join(parts[3:]).replace("_", " ")
                 else:
                     raw_title = stem
             else:
                 # Fallback for archive.md or non-standard names
-                date = "2025-01-01" # Default or today? Maybe file mod time?
+                date = "2025-01-01"  # Default or today? Maybe file mod time?
                 raw_title = stem.replace("_", " ").capitalize()
 
             # If archive.md, give it a generic title
@@ -77,7 +76,7 @@ def fix_frontmatter():
                 raw_title = "Historical Archive"
                 # Keep date generic or try to find first date in content?
                 # Let's verify content for date.
-                first_line = content.strip().split('\n')[0]
+                content.strip().split("\n")[0]
                 # ## 2024-05-23 - ...
                 content_date_match = re.search(r"(\d{4}-\d{2}-\d{2})", content)
                 if content_date_match:
@@ -88,8 +87,8 @@ def fix_frontmatter():
             frontmatter = f"""---
 title: "{title}"
 date: {date}
-author: "{meta['name']}"
-emoji: "{meta['emoji']}"
+author: "{meta["name"]}"
+emoji: "{meta["emoji"]}"
 type: journal
 ---
 
@@ -97,6 +96,7 @@ type: journal
 
             new_content = frontmatter + content
             journal_file.write_text(new_content)
+
 
 if __name__ == "__main__":
     fix_frontmatter()

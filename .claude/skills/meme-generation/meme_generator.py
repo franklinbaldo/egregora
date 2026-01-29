@@ -84,7 +84,7 @@ class MemeGenerator:
         # memegen's escape sequences and allowed characters.
         return urllib.parse.quote(escaped, safe="-_~")
 
-    def generate(  # noqa: PLR0913
+    def generate(
         self,
         template: str,
         top_text: str = "",

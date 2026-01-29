@@ -9,27 +9,29 @@ Rules:
 Detects new persona files in staged changes and checks votes.csv for matching votes.
 """
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add .team to path for imports
 sys.path.insert(0, ".team")
 
+
 def get_active_persona() -> str | None:
     """Get the currently active persona from session."""
     try:
         from repo.features.session import SessionManager
+
         sm = SessionManager()
         return sm.get_active_persona()
     except Exception:
         return None
 
+
 def get_newly_hired_personas() -> list[str]:
     """Get list of newly created persona prompt files in staged changes."""
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
-        capture_output=True, text=True
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=A"], capture_output=True, text=True
     )
     if result.returncode != 0:
         return []
@@ -51,6 +53,7 @@ def get_newly_hired_personas() -> list[str]:
                 pass
     return new_hires
 
+
 def get_votes_for_sequence(voter_sequence: str) -> list[tuple[str, list[str]]]:
     """Get all votes from a voter sequence. Returns list of (sequence_cast, candidates)."""
     votes_file = Path(".team/votes.csv")
@@ -58,23 +61,27 @@ def get_votes_for_sequence(voter_sequence: str) -> list[tuple[str, list[str]]]:
         return []
 
     import csv
+
     votes = []
-    with open(votes_file, mode='r', newline='') as f:
+    with open(votes_file, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if row['voter_sequence'] == voter_sequence:
-                candidates = [c.strip() for c in row.get('candidates', '').split(',')]
-                votes.append((row['sequence_cast'], candidates))
+            if row["voter_sequence"] == voter_sequence:
+                candidates = [c.strip() for c in row.get("candidates", "").split(",")]
+                votes.append((row["sequence_cast"], candidates))
     return votes
+
 
 def get_current_sequence(persona_id: str) -> str | None:
     """Get the currently active sequence for a persona."""
     try:
         from repo.features.voting import VoteManager
+
         vm = VoteManager()
         return vm.get_current_sequence(persona_id)
     except Exception:
         return None
+
 
 def main():
     new_hires = get_newly_hired_personas()
@@ -104,7 +111,7 @@ def main():
     for new_hire in new_hires:
         # Check if there's a vote with this new hire as TOP choice
         found_as_top = False
-        for seq_cast, candidates in votes:
+        for _seq_cast, candidates in votes:
             if candidates and candidates[0] == new_hire:
                 found_as_top = True
                 break
@@ -139,6 +146,7 @@ def main():
 
     print(f"✅ Hire validation passed: {', '.join(new_hires)} voted as top choice")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -15,6 +15,7 @@ Below are the aggregated entries from previous sessions.
 {{ journal_entries }}
 """
 
+
 def test_rendering():
     env = jinja2.Environment()
 
@@ -25,9 +26,9 @@ def test_rendering():
     }
 
     rendered = env.from_string(JOURNAL_MANAGEMENT).render(**context)
-    print("="*60)
+    print("=" * 60)
     print("Test 1: With journal entries")
-    print("="*60)
+    print("=" * 60)
     print(rendered)
     print()
 
@@ -38,9 +39,9 @@ def test_rendering():
     }
 
     rendered2 = env.from_string(JOURNAL_MANAGEMENT).render(**context2)
-    print("="*60)
+    print("=" * 60)
     print("Test 2: Without journal entries (empty)")
-    print("="*60)
+    print("=" * 60)
     print(rendered2)
     print()
 
@@ -61,9 +62,9 @@ Good luck!
     full_context["journal_management"] = env.from_string(JOURNAL_MANAGEMENT).render(**full_context)
 
     final_prompt = env.from_string(prompt_template).render(**full_context)
-    print("="*60)
+    print("=" * 60)
     print("Test 3: Full prompt rendering")
-    print("="*60)
+    print("=" * 60)
     print(final_prompt)
 
     # Check if the instructions are present
@@ -71,9 +72,9 @@ Good luck!
     has_path = ".team/personas/docs_curator/journals/" in final_prompt
     has_entries = "Some previous entries" in final_prompt
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Verification")
-    print("="*60)
+    print("=" * 60)
     print(f"Has journal instructions: {has_instructions}")
     print(f"Has correct path: {has_path}")
     print(f"Has previous entries: {has_entries}")
@@ -82,6 +83,7 @@ Good luck!
         print("\n✅ Template rendering works correctly!")
     else:
         print("\n❌ Template rendering has issues!")
+
 
 if __name__ == "__main__":
     test_rendering()

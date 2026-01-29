@@ -24,7 +24,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
 
         # Get repo from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         remote_url = result.stdout.strip()
 
         # Extract owner/repo from URL
@@ -40,7 +40,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
         if token:
             curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
 
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)  # noqa: S603
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)
         all_prs = json.loads(result.stdout)
 
         # Filter for Jules PRs

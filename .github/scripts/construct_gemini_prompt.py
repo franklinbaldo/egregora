@@ -35,7 +35,9 @@ def main() -> int:
         template = template_path.read_text(encoding="utf-8")
         diff = diff_path.read_text(encoding="utf-8") if diff_path.exists() else "(No diff available)"
         claude_md = claude_md_path.read_text(encoding="utf-8") if claude_md_path.exists() else ""
-        commits = commits_path.read_text(encoding="utf-8") if commits_path.exists() else "(No commits available)"
+        commits = (
+            commits_path.read_text(encoding="utf-8") if commits_path.exists() else "(No commits available)"
+        )
     except FileNotFoundError as e:
         print(f"Error: Required file not found: {e.filename}", file=sys.stderr)
         return 1

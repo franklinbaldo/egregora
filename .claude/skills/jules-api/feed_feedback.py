@@ -3,15 +3,14 @@
 Feed Jules Feedback Script
 Checks open PRs from Jules, analyzes CI results and reviews, and feeds feedback back to Jules.
 """
-import os
-import sys
+
 import argparse
-import requests
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
-from datetime import datetime
 from urllib.parse import urlparse
 
 # Import JulesClient from the same directory
@@ -26,6 +25,7 @@ except ImportError:
         from repo_client import JulesClient
     except ImportError:
         print("Error: Could not import JulesClient.", file=sys.stderr)
+
 
 def get_repo_info():
     """Get owner and repo from environment or git config."""
@@ -48,8 +48,7 @@ def get_repo_info():
         parsed = urlparse(parsed_url)
         if parsed.hostname == "github.com":
             path = parsed.path.lstrip("/")
-            if path.endswith(".git"):
-                path = path[:-4]
+            path = path.removesuffix(".git")
             parts = path.split("/")
             if len(parts) >= 2:
                 owner, repo = parts[0], parts[1]
@@ -57,6 +56,7 @@ def get_repo_info():
     except Exception:
         pass
     return None, None
+
 
 def run_gh_command(args):
     """Run a gh CLI command and return JSON."""
@@ -68,7 +68,7 @@ def run_gh_command(args):
     if is_view:
         safe_fields.extend(["commits", "reviews", "latestReviews", "body"])
 
-    cmd = ["gh"] + args + ["--json", ",".join(safe_fields)]
+    cmd = ["gh", *args, "--json", ",".join(safe_fields)]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -76,6 +76,7 @@ def run_gh_command(args):
     except subprocess.CalledProcessError as e:
         print(f"Error running gh command: {e.stderr}", file=sys.stderr)
         return []
+
 
 def get_pr_ci_status(pr_number):
     """Get detailed CI status for a PR."""
@@ -88,6 +89,7 @@ def get_pr_ci_status(pr_number):
         print(f"Error fetching checks for PR {pr_number}: {e.stderr}", file=sys.stderr)
         return []
 
+
 def get_pr_comments(pr_number):
     """Get comments and reviews for a PR."""
     # gh pr view <number> --json comments,reviews
@@ -98,6 +100,7 @@ def get_pr_comments(pr_number):
     except subprocess.CalledProcessError as e:
         print(f"Error fetching comments for PR {pr_number}: {e.stderr}", file=sys.stderr)
         return {}
+
 
 def should_trigger_feedback(pr):
     """Determine if a PR needs feedback."""
@@ -112,6 +115,7 @@ def should_trigger_feedback(pr):
     changes_requested = any(r["state"] == "CHANGES_REQUESTED" for r in reviews)
 
     return ci_failed or changes_requested
+
 
 def construct_prompt(pr, ci_checks, comments_data):
     """Construct the prompt for Jules."""
@@ -138,13 +142,15 @@ def construct_prompt(pr, ci_checks, comments_data):
     # Get recent reviews (last 3)
     for review in reviews[-3:]:
         if review["state"] in ["CHANGES_REQUESTED", "COMMENTED"]:
-             review_section += f"### Review by {review['author']['login']} ({review['state']})\n{review['body']}\n\n"
+            review_section += (
+                f"### Review by {review['author']['login']} ({review['state']})\n{review['body']}\n\n"
+            )
 
     # Get recent comments (last 5)
     for comment in comments[-5:]:
         review_section += f"**{comment['author']['login']}**: {comment['body'][:500]}...\n\n"
 
-    prompt = f"""
+    return f"""
 # Task: Fix Pull Request #{pr_number}
 
 Your Pull Request "{pr_title}" on branch `{branch}` has received feedback that needs attention.
@@ -159,30 +165,32 @@ Your Pull Request "{pr_title}" on branch `{branch}` has received feedback that n
 3. Fix the reported issues (CI failures or review comments).
 4. Commit and push your changes.
 """
-    return prompt
+
 
 def extract_session_id(branch_name: str) -> str | None:
     """Extract session ID from branch name."""
-    uuid_match = re.search(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$', branch_name)
+    uuid_match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", branch_name)
     if uuid_match:
         return uuid_match.group(1)
 
-    parts = branch_name.split('-')
+    parts = branch_name.split("-")
     if len(parts) > 1:
         last_part = parts[-1]
         if len(last_part) > 10 and last_part.isalnum():
-             return last_part
+            return last_part
 
     return None
+
 
 def extract_session_id_from_body(body: str) -> str | None:
     """Extract session ID from PR body/description."""
     if not body:
         return None
-    match = re.search(r'/task/([a-zA-Z0-9-]+)', body)
+    match = re.search(r"/task/([a-zA-Z0-9-]+)", body)
     if not match:
-        match = re.search(r'/sessions/([a-zA-Z0-9-]+)', body)
+        match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
     return match.group(1) if match else None
+
 
 def should_skip_feedback(pr_data, comments_data):
     """Check if we should skip feedback (loop prevention)."""
@@ -200,7 +208,7 @@ def should_skip_feedback(pr_data, comments_data):
 
     commits = pr_data.get("commits", [])
     if not commits:
-         return True
+        return True
 
     last_commit = commits[-1]
     commit_date_str = last_commit.get("committedDate")
@@ -211,6 +219,7 @@ def should_skip_feedback(pr_data, comments_data):
             return True
 
     return False
+
 
 def main():
     parser = argparse.ArgumentParser(description="Feed Jules Feedback")
@@ -248,13 +257,25 @@ def main():
         print(f"Checking PR #{pr['number']}: {pr['title']}")
 
         try:
-             res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author,body,commits"], capture_output=True, text=True, check=True)
-             pr_data = json.loads(res.stdout)
+            res = subprocess.run(
+                [
+                    "gh",
+                    "pr",
+                    "view",
+                    str(pr["number"]),
+                    "--json",
+                    "number,title,headRefName,statusCheckRollup,latestReviews,author,body,commits",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            pr_data = json.loads(res.stdout)
         except Exception as e:
             print(f"Failed to view PR {pr['number']}: {e}")
             continue
 
-        comments_data = get_pr_comments(pr['number'])
+        comments_data = get_pr_comments(pr["number"])
 
         if should_skip_feedback(pr_data, comments_data):
             print(f"-> PR #{pr['number']} has pending feedback and no new commits. Skipping.")
@@ -263,7 +284,7 @@ def main():
         if should_trigger_feedback(pr_data):
             print(f"-> PR #{pr['number']} needs feedback.")
 
-            ci_checks = get_pr_ci_status(pr['number'])
+            ci_checks = get_pr_ci_status(pr["number"])
             prompt = construct_prompt(pr_data, ci_checks, comments_data)
             branch_name = pr_data["headRefName"]
 
@@ -288,18 +309,21 @@ def main():
                             repo=repo,
                             branch=branch_name,
                             title=f"Fix PR #{pr['number']}: {pr['title']}",
-                            automation_mode="AUTO_CREATE_PR"
+                            automation_mode="AUTO_CREATE_PR",
                         )
                         print(f"Session created: {resp.get('name')}")
 
                     print("Posting comment to PR to mark feedback loop...")
-                    marker_body = f"🤖 Feedback sent to Jules session. \n<!-- # Task: Fix Pull Request -->"
-                    subprocess.run(["gh", "pr", "comment", str(pr['number']), "--body", marker_body], check=True)
+                    marker_body = "🤖 Feedback sent to Jules session. \n<!-- # Task: Fix Pull Request -->"
+                    subprocess.run(
+                        ["gh", "pr", "comment", str(pr["number"]), "--body", marker_body], check=True
+                    )
 
                 except Exception as e:
                     print(f"Failed to communicate with Jules or update PR: {e}")
         else:
             print(f"-> PR #{pr['number']} CI is green or pending.")
+
 
 if __name__ == "__main__":
     main()
