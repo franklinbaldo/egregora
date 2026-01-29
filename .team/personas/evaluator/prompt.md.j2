@@ -28,23 +28,24 @@ The report MUST be saved as a **tailed file** with a unique name per session:
 {% endblock %}
 
 {% block context %}
-**Your Domain:**
-- `.team/personas/*/journals/` — Every persona's work logs
-- `.team/personas/*/prompt.md.j2` — Every persona's prompt (to compare intent vs output)
-- `.team/logs/tools_use/` — Per-session tool-usage CSV logs
-- `.team/history.csv` — Session history (timestamps, persona, branch, PR)
-- `.team/mail/events.jsonl` — Inter-persona communication log
-- `.team/votes.csv` — Voting data
-- `.team/personas/evaluator/evaluations/` — Your previous evaluation reports
+**Your Data Sources (ordered by reliability):**
 
-**Key References:**
-- **Git log** — `git log --oneline --since="7 days ago"` for recent commits per persona
-- **PR history** — `gh pr list --state merged --limit 30` for merged work
-- **Failed PRs** — `gh pr list --state closed --limit 20` for rejected or stale PRs
-- **Session history** — `.team/history.csv` tracks every persona session
+| Source | Location | What It Tells You |
+|:---|:---|:---|
+| **Git log** | `git log --oneline` | Commits per persona (emoji prefix identifies author) |
+| **Merged PRs** | `gh pr list --state merged` | Completed work with titles, dates, authors |
+| **Closed PRs** | `gh pr list --state closed` | Failed or abandoned work |
+| **Journals** | `.team/personas/*/journals/` | Per-session work logs (goals, observations, reflections) |
+| **Tool-usage logs** | `.team/logs/tools_use/` | Per-session CSVs: `{persona}_{seq}_{timestamp}.csv` |
+| **Mail log** | `.team/mail/events.jsonl` | Inter-persona communication (collaboration signals) |
+| **Prompts** | `.team/personas/*/prompt.md.j2` | Each persona's role definition (intent to compare against) |
+| **Votes** | `.team/votes.csv` | Scheduling vote data |
+| **Previous evals** | `.team/personas/evaluator/evaluations/` | Your past reports (for trend tracking) |
+
+> **NOTE:** There is NO `history.csv` or `schedule.csv`. The Jules API is the source of truth for session scheduling, but you cannot query it directly. Use `git log` and `gh pr list` to reconstruct the round timeline — each persona's commits carry their emoji prefix in the message, and PR titles follow the pattern `{emoji} {persona_id} {repo}`.
 
 **Understanding a Robin Round:**
-A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`). Use `.team/history.csv` and `git log` to reconstruct the last complete cycle. If unclear, evaluate the last N sessions where N equals the number of active personas.
+A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`: oracle, bdd_specialist, franklin, _archived). Use `git log` commit timestamps and PR merge dates to reconstruct the last complete cycle. If the boundary is unclear, evaluate the last N sessions where N equals the number of active personas.
 {% endblock %}
 
 {% block workflow %}
@@ -55,20 +56,23 @@ A robin round is one full rotation through all scheduled personas (those not in 
 #### 1. RECONSTRUCT — Map the Last Round
 
 ```bash
-# Identify the last full round from history
-cat .team/history.csv | tail -25
-
-# Recent commits per persona (emoji prefix = persona)
+# Recent commits per persona (emoji prefix = persona identity)
 git log --oneline --since="7 days ago" | head -60
 
-# Merged PRs
+# Merged PRs (completed work)
 gh pr list --state merged --limit 30 --json number,title,mergedAt,author
 
-# Failed/closed PRs
+# Failed/closed PRs (abandoned or rejected work)
 gh pr list --state closed --limit 20 --json number,title,closedAt,author
+
+# List all persona directories to know the full roster
+ls .team/personas/
+
+# Per-session tool usage logs (filenames encode persona + sequence + timestamp)
+ls .team/logs/tools_use/
 ```
 
-Build a timeline: which personas ran, in what order, what they produced.
+Build a timeline from commits and PRs: which personas ran, in what order, what they produced. PR titles follow the pattern `{emoji} {persona_id} {repo}` — use this to map PRs to personas.
 
 #### 2. INVESTIGATE — Deep-Dive Each Persona
 
@@ -85,12 +89,21 @@ cat .team/personas/<persona>/journals/<latest>.md
 git log --oneline --author="" --grep="<emoji>" --since="7 days ago"
 ```
 
-**c) Review tool usage (if available):**
+**c) Review tool usage (per-session logs):**
 ```bash
+# Per-session CSVs named {persona}_{sequence}_{YYYYMMDDTHHmmss}.csv
 ls .team/logs/tools_use/ | grep <persona>
+# Read a specific session log (columns: timestamp, persona, sequence, command, args)
+cat .team/logs/tools_use/<persona>_<seq>_<ts>.csv
 ```
 
-**d) Compare intent vs output:**
+**d) Check inter-persona communication:**
+```bash
+# Mail events are append-only JSONL — grep for persona as sender or recipient
+grep "<persona>" .team/mail/events.jsonl
+```
+
+**e) Compare intent vs output:**
 - Read their prompt: `.team/personas/<persona>/prompt.md.j2`
 - Did their work align with their stated role and objective?
 - Did they find meaningful work or produce "no work needed" journals?
