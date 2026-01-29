@@ -24,7 +24,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 ### Key Features
 
-- **23 Specialized Personas** - Each with unique expertise (security, performance, UX, etc.)
+- **21 Personas (20 AI + 1 Human)** - Each with unique expertise (security, performance, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
 - **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
 - **Mail System** - Async communication between personas for conflict resolution
@@ -39,8 +39,8 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 │  Scheduler Tick                                             │
 │  ↓                                                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │ Curator  │→ │ Refactor │→ │ Visionary│→ │   Bolt   │   │
-│  │    🎭    │  │    🔧    │  │    🔮    │  │    ⚡    │   │
+│  │ Curator  │→ │ Sentinel │→ │ Visionary│→ │   Bolt   │   │
+│  │    🎭    │  │    🛡️    │  │    🔭    │  │    ⚡    │   │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
 │       │             │             │             │           │
 │      PR #1         PR #2         PR #3         PR #4        │
@@ -127,29 +127,27 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │       ├── blocks/            # Reusable blocks
 │       └── partials/          # Partial templates
 │
-├── personas/                   # AI agent definitions (23 personas)
-│   ├── absolutist/            # 🎯 Strict rule enforcement
+├── personas/                   # AI agent definitions (21 personas)
+│   ├── absolutist/            # 💯 Legacy code removal
 │   ├── artisan/               # 🔨 Code craftsmanship
-│   ├── bdd_specialist/        # 🧪 BDD testing expert
+│   ├── bdd_specialist/        # 🥒 BDD testing expert
 │   ├── bolt/                  # ⚡ Performance optimization
 │   ├── builder/               # 🏗️ Data architecture
 │   ├── curator/               # 🎭 UX/UI evaluation
-│   ├── essentialist/          # 💎 Pragmatic cuts
+│   ├── deps/                  # 📦 Dependency management
+│   ├── essentialist/          # 💎 Radical simplicity
 │   ├── forge/                 # ⚒️ Feature implementation
+│   ├── franklin/              # 🧔 Human project lead
 │   ├── janitor/               # 🧹 Code hygiene
 │   ├── lore/                  # 📚 System historian
 │   ├── maya/                  # 💝 User advocate
-│   ├── oracle/                # 🔮 Support agent
-│   ├── organizer/             # 🗂️ Project organization
-│   ├── refactor/              # 🔧 Code quality
+│   ├── meta/                  # 🔍 System introspection
+│   ├── oracle/                # 🔮 Technical support
 │   ├── sapper/                # 💣 Exception structuring
 │   ├── scribe/                # ✍️ Documentation
 │   ├── sentinel/              # 🛡️ Security audits
 │   ├── shepherd/              # 🧑‍🌾 Test coverage
-│   ├── sheriff/               # 🤠 Test stability
-│   ├── simplifier/            # 📉 Complexity reduction
 │   ├── streamliner/           # 🌊 Data optimization
-│   ├── typeguard/             # 🔍 Type safety
 │   ├── visionary/             # 🔭 Strategic RFCs
 │   └── _archived/             # Eliminated personas
 │
@@ -242,31 +240,31 @@ Evaluate generated blogs and create data-driven UX improvements.
 
 ### Complete Persona List
 
+Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Verify) defined in `.team/repo/templates/base/persona.md.j2`.
+
 | Emoji | Name | Role | Focus Area |
 | :---: | :--- | :--- | :--- |
-| 🎯 | **Absolutist** | Rule Enforcer | Strict standards enforcement |
+| 💯 | **Absolutist** | Rule Enforcer | Legacy code removal |
 | 🔨 | **Artisan** | Craftsman | Code quality and refactoring |
-| 🧪 | **BDD Specialist** | Test Expert | Behavior-driven testing |
+| 🥒 | **BDD Specialist** | Test Expert | Behavior-driven testing |
 | ⚡ | **Bolt** | Perf. Engineer | Performance optimization |
 | 🏗️ | **Builder** | Architect | Data architecture, schemas |
 | 🎭 | **Curator** | UX Designer | User experience, blog evaluation |
-| 💎 | **Essentialist** | Pragmatist | Strategic cuts, focus |
+| 📦 | **Deps** | Guardian | Dependency management, security |
+| 💎 | **Essentialist** | Pragmatist | Radical simplicity |
 | ⚒️ | **Forge** | Builder | Feature implementation |
+| 🧔 | **Franklin** | Human Lead | Project lead (human, no AI prompt) |
 | 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
 | 📚 | **Lore** | Historian | System history, ADRs, git forensics |
+| 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
+| 🔍 | **Meta** | Introspector | System introspection, prompt evolution |
 | 🔮 | **Oracle** | Support Agent | Unblock personas with technical guidance |
-| 🗂️ | **Organizer** | Maintainer | Project structure |
-| 🔧 | **Refactor** | Developer | Linting, TDD-based fixes |
 | 💣 | **Sapper** | Structurer | Exception handling patterns |
 | ✍️ | **Scribe** | Writer | Documentation creation & maintenance |
 | 🛡️ | **Sentinel** | Security | Vulnerability scanning |
 | 🧑‍🌾 | **Shepherd** | Test Engineer | Test coverage expansion |
-| 🤠 | **Sheriff** | Build Cop | Test stability, flake fixes |
-| 📉 | **Simplifier** | Reducer | Complexity reduction |
 | 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
-| 🔍 | **Typeguard** | Type Checker | Type safety enforcement |
 | 🔭 | **Visionary** | Strategist | Strategic RFCs with BDD criteria |
-| 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
 
 ### Persona Capabilities
 
@@ -302,11 +300,11 @@ The scheduler supports two execution modes: **Parallel Cycle** and **Scheduled**
 **Sequential execution within tracks, parallel across tracks**
 
 ```
-Track 1:  curator → refactor → visionary → bolt
+Track 1:  curator → sentinel → visionary → bolt
             ↓         ↓          ↓         ↓
           PR #1     PR #2      PR #3     PR #4
 
-Track 2:  sentinel → builder → shepherd
+Track 2:  janitor → builder → shepherd
             ↓          ↓         ↓
           PR #5      PR #6     PR #7
 ```
@@ -333,13 +331,13 @@ Track 2:  sentinel → builder → shepherd
 [tracks]
 default = [
     "personas/curator/prompt.md.j2",
-    "personas/refactor/prompt.md.j2",
+    "personas/sentinel/prompt.md.j2",
     "personas/visionary/prompt.md.j2",
 ]
 
 ops = [
-    "personas/sentinel/prompt.md.j2",
-    "personas/sheriff/prompt.md.j2",
+    "personas/janitor/prompt.md.j2",
+    "personas/shepherd/prompt.md.j2",
 ]
 ```
 
@@ -350,9 +348,9 @@ ops = [
 ```toml
 # schedules.toml
 [schedules]
-simplifier = "0 */2 * * *"    # Every 2 hours
-organizer = "0 * * * *"        # Hourly
-curator = "0 0 * * *"          # Daily at midnight UTC
+janitor = "0 */2 * * *"       # Every 2 hours
+sentinel = "0 * * * *"        # Hourly
+curator = "0 0 * * *"         # Daily at midnight UTC
 ```
 
 **How it works:**
@@ -426,7 +424,7 @@ Complete configuration example:
 # Main development track
 default = [
     "personas/curator/prompt.md.j2",
-    "personas/refactor/prompt.md.j2",
+    "personas/artisan/prompt.md.j2",
     "personas/visionary/prompt.md.j2",
     "personas/bolt/prompt.md.j2",
     "personas/sentinel/prompt.md.j2",
@@ -437,32 +435,32 @@ default = [
 # Operations track (runs in parallel with default)
 ops = [
     "personas/janitor/prompt.md.j2",
-    "personas/sheriff/prompt.md.j2",
+    "personas/deps/prompt.md.j2",
 ]
 
 # Documentation track
 docs = [
     "personas/scribe/prompt.md.j2",
-    "personas/docs_curator/prompt.md.j2",
+    "personas/lore/prompt.md.j2",
 ]
 
 # ===== Scheduled Mode =====
 [schedules]
 
 # Hourly maintenance
-organizer = "0 * * * *"
-pruner = "30 * * * *"
+janitor = "0 * * * *"
+sentinel = "30 * * * *"
 
 # Every 2 hours
-simplifier = "0 */2 * * *"
-streamliner = "15 */2 * * *"
+streamliner = "0 */2 * * *"
+deps = "15 */2 * * *"
 
 # Daily at midnight UTC
-palette = "0 0 * * *"
-essentialist = "0 1 * * *"
+essentialist = "0 0 * * *"
+meta = "0 1 * * *"
 
 # Weekdays only
-taskmaster = "0 9 * * 1-5"  # 9 AM Mon-Fri
+curator = "0 9 * * 1-5"  # 9 AM Mon-Fri
 ```
 
 ---
@@ -830,11 +828,11 @@ smaller, testable units. Focus on src/egregora/agents/ first."
 ## Coordination
 
 **Depends on:**
-- Refactor completing linting fixes
+- Artisan completing code quality fixes
 - Sentinel finishing security audit
 
 **Blocks:**
-- Palette needs UX improvements before design work
+- Forge needs UX improvements before implementation
 - Scribe waits for API docs
 
 **Collaborates with:**
@@ -1178,7 +1176,7 @@ class S3MailBackend(MailBackend):
 
 #### 1. Scheduler Not Advancing
 
-**Symptom:** Curator persona runs repeatedly, never advances to refactor
+**Symptom:** Curator persona runs repeatedly, never advances to next persona
 
 **Causes:**
 
@@ -1202,7 +1200,7 @@ cat .team/state/cycle_state.json
 rm .team/state/cycle_state.json
 
 # Force advance to next persona
-uv run jules schedule tick --prompt-id refactor
+uv run jules schedule tick --prompt-id artisan
 ```
 
 #### 2. Session Stuck
@@ -1437,6 +1435,15 @@ uv run mail inbox --persona system@team
 
 ## 🔄 Changelog
 
+### 2026-01-29
+
+- **Persona count**: 21 (20 AI + 1 human), down from 23
+- **Eliminated**: Typeguard, Sheriff, Simplifier, Organizer, Refactor (consolidated into other personas)
+- **Added**: Deps (dependency management), Meta (system introspection), Franklin (human project lead)
+- **Framework**: Restructured base template from RGCCOV to **ROSAV** (Role, Objective, Situation, Act, Verify)
+- **Collaboration**: Strengthened my-tools email nudges; login now shows unread email notification panel
+- **Self-improvement**: Personas now see exact paths to their prompt and must journal before editing
+
 ### 2026-01-20
 
 - **Persona consolidation**: Reduced from 28 to 23 personas
@@ -1469,5 +1476,5 @@ uv run mail inbox --persona system@team
 ---
 
 **Maintained by:** Weaver persona 🕸️ and human contributors
-**Last Updated:** 2026-01-20
-**Version:** 2.1
+**Last Updated:** 2026-01-29
+**Version:** 3.0

@@ -1,6 +1,8 @@
 # Parallel Personas Implementation Plan
 
-**Status**: Ready for Implementation
+> **Note (2026-01-29):** Historical planning document. The team now has **21 personas** (20 AI + 1 human), not 23. References to Refactor, Sheriff, Simplifier, Organizer, Weaver, Steward are outdated -- these personas have been deleted or archived. The mail system and scheduler described here have been partially implemented via `stateless.py` (round-robin mode). Prompts now use the **ROSAV framework**.
+
+**Status**: Partially Implemented
 **Priority**: High
 **Estimated Complexity**: Medium-High
 **Original Session**: 14848423526856432295

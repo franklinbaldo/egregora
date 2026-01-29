@@ -1,7 +1,9 @@
 # Parallel Personas Implementation - Documentation Package
 
-**Status**: Ready for New Jules Session
-**Original Session**: 14848423526856432295 (UNSTUCK and IN_PROGRESS)
+> **Note (2026-01-29):** This is a historical planning document from 2026-01-11. The team now has **21 personas** (20 AI + 1 human), down from 23 at time of writing. Deleted personas: Typeguard, Sheriff, Simplifier, Organizer, Refactor. Added: Deps, Meta, Franklin. The mail system described here has been implemented. Persona prompts now use the **ROSAV framework** (Role, Objective, Situation, Act, Verify).
+
+**Status**: Partially Implemented (mail system complete, parallel batch mode not yet active)
+**Original Session**: 14848423526856432295
 **Created**: 2026-01-11
 
 ---

@@ -1,5 +1,7 @@
 # Jules System Evaluation & Improvement Report
 
+> **Note (2026-01-29):** Historical evaluation document. References to Sheriff, Refactor, and legacy scheduler components are outdated. The team now has 21 personas (20 AI + 1 human) using the ROSAV prompt framework. The scheduler has been rewritten as `stateless.py` with round-robin mode.
+
 **Date:** 2026-05-21
 **Evaluator:** Jules (Lead Architect Persona)
 
@@ -44,13 +46,13 @@ If `B` (e.g., Refactor) takes 30 minutes, `C` (Visionary) waits. Many agents are
 ```toml
 [tracks]
 # Core Product Track (Sequential)
-product = ["visionary", "forge", "refactor"]
+product = ["visionary", "forge", "artisan"]
 
 # Maintenance Track (Parallel to Product)
-maintenance = ["janitor", "pruner", "shepherd"]
+maintenance = ["janitor", "deps", "shepherd"]
 
 # Quality Track (Parallel to Product)
-quality = ["curator", "sentinel", "docs_curator"]
+quality = ["curator", "sentinel", "scribe"]
 ```
 
 ### 3.2 Task Management Integration
@@ -78,7 +80,7 @@ The file-based `.team/tasks/` system acts as a Kanban board.
 
 ### Phase 3: Intelligence Upgrade
 - [ ] **Dynamic Scheduling**: Agents should request to run based on observation, not just cron.
-- [ ] **Self-Healing**: If an agent fails repeatedly, the scheduler should quarantine it and notify the `Sheriff`.
+- [ ] **Self-Healing**: If an agent fails repeatedly, the scheduler should quarantine it and notify the team.
 
 ---
 

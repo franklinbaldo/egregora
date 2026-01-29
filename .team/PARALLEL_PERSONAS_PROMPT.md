@@ -1,12 +1,14 @@
 # Jules Session Prompt: Implement Parallel Persona Workflow
 
+> **Note (2026-01-29):** Historical prompt document. The team now has **21 personas** (20 AI + 1 human), not 23. The mail system has been implemented. The scheduler now uses `stateless.py` with round-robin mode. References to deleted personas (Refactor, Sheriff, Simplifier, Organizer, Weaver) are outdated. Prompts use the **ROSAV framework**.
+
 ## Context
 
-The Jules scheduler currently runs 23 personas **sequentially** (one after another), taking 23+ ticks to complete a sprint. This is inefficient because many personas work on independent parts of the codebase and could run in parallel.
+The Jules scheduler currently runs 21 personas **sequentially** (one after another) via round-robin. This is inefficient because many personas work on independent parts of the codebase and could run in parallel.
 
-**Goal**: Transform to **parallel batch execution** where multiple personas run simultaneously, with a central integrator (Weaver) managing conflicts through patch-based merging.
+**Goal**: Transform to **parallel batch execution** where multiple personas run simultaneously, with automated conflict resolution.
 
-**Expected Outcome**: Reduce sprint cycle time from 23+ ticks to <6 ticks (~75% improvement).
+**Expected Outcome**: Significant reduction in sprint cycle time.
 
 ---
 
@@ -115,7 +117,7 @@ consolidate_mailboxes(personas, orchestrator)
 
 ### 4. Update All Persona Prompts
 
-**Prepend to ALL 23 persona prompts**:
+**Prepend to ALL persona prompts** (now handled by base template blocks):
 
 ```markdown
 ## 📬 Check Your Mailbox (IMPORTANT)
@@ -161,9 +163,9 @@ Common message types:
    - Test with dry-run mode
    - Gradual rollout (every 5th sprint)
 
-5. **Persona Updates** (Priority 3)
-   - Add mailbox check to all 23 persona prompts
-   - Test with simulated messages
+5. **Persona Updates** (Priority 3) - ✅ DONE
+   - Mailbox check is now in base template blocks (session_continuity, communication, session_protocol)
+   - All 21 personas inherit these blocks via ROSAV framework
 
 6. **End-to-End Testing** (Priority 3)
    - Run full parallel sprint
