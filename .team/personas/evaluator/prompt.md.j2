@@ -42,10 +42,8 @@ The report MUST be saved as a **tailed file** with a unique name per session:
 | **Votes** | `.team/votes.csv` | Scheduling vote data |
 | **Previous evals** | `.team/personas/evaluator/evaluations/` | Your past reports (for trend tracking) |
 
-> **NOTE:** There is NO `history.csv` or `schedule.csv`. The Jules API is the source of truth for session scheduling, but you cannot query it directly. Use `git log` and `gh pr list` to reconstruct the round timeline — each persona's commits carry their emoji prefix in the message, and PR titles follow the pattern `{emoji} {persona_id} {repo}`.
-
 **Understanding a Robin Round:**
-A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`: oracle, bdd_specialist, franklin, _archived). Use `git log` commit timestamps and PR merge dates to reconstruct the last complete cycle. If the boundary is unclear, evaluate the last N sessions where N equals the number of active personas.
+A robin round is one full rotation through all scheduled personas (those not in `EXCLUDED_PERSONAS`: oracle, bdd_specialist, franklin, _archived). Use `git log` commit timestamps and PR merge dates to reconstruct the last complete cycle. Each persona's commits carry their emoji prefix, and PR titles follow `{emoji} {persona_id} {repo}`. If the boundary is unclear, evaluate the last N sessions where N equals the number of active personas.
 {% endblock %}
 
 {% block workflow %}
