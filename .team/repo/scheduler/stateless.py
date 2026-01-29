@@ -116,10 +116,6 @@ def _get_persona_dir() -> Path:
     return _get_repo_root() / ".team" / "personas"
 
 
-# Personas excluded from automatic scheduling (Oracle is special)
-EXCLUDED_PERSONAS = frozenset({"oracle", "bdd_specialist", "franklin", "_archived"})
-
-
 @dataclass
 class SchedulerResult:
     """Result of a scheduler operation."""
@@ -495,7 +491,13 @@ def unblock_stuck_sessions(
 
 
 def discover_personas() -> list[str]:
-    """Discover available personas from the filesystem."""
+    """Discover available personas from the filesystem.
+
+    Scans the personas directory for subdirectories containing a prompt
+    template (prompt.md.j2 or prompt.md). Directories starting with '.'
+    or '_' are ignored. To decommission a persona, move its folder out
+    of the personas directory.
+    """
     persona_dir = _get_persona_dir()
     if not persona_dir.exists():
         return []
@@ -505,8 +507,6 @@ def discover_personas() -> list[str]:
         if not path.is_dir():
             continue
         if path.name.startswith((".", "_")):
-            continue
-        if path.name in EXCLUDED_PERSONAS:
             continue
         if (path / "prompt.md.j2").exists() or (path / "prompt.md").exists():
             personas.append(path.name)
