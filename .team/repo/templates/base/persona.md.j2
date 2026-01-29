@@ -75,6 +75,10 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "partials/pre_commit_instructions.md.j2" %}
 {% endblock %}
 
+{% block session_continuity %}
+{% include "blocks/session_continuity.md.j2" %}
+{% endblock %}
+
 ---
 
 ## 🔄 Workflow
