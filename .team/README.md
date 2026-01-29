@@ -67,12 +67,14 @@ export PYTHONPATH=".team"  # For local development
 
 ### Run a Single Persona
 
+The scheduler CLI only supports `--dry-run`. To run a specific persona, call the scheduler module directly:
+
 ```bash
-# Run the curator persona
-uv run jules schedule tick --prompt-id curator
+# Run the curator persona directly
+uv run python -m repo.scheduler.stateless --persona curator
 
 # Dry run (see what would happen)
-uv run jules schedule tick --prompt-id curator --dry-run
+uv run jules schedule tick --dry-run
 ```
 
 ### Run the Scheduler
@@ -156,10 +158,6 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │
 ├── mail/                       # Mail system storage
 │   └── events.jsonl           # Mail event log
-│
-├── state/                      # Scheduler state
-│   ├── cycle_state.json       # Current cycle position
-│   └── reconciliation/        # PR reconciliation data
 │
 ├── README.md                  # This file
 ├── PARALLEL_PERSONAS_*.md     # Parallel execution docs
@@ -368,9 +366,6 @@ To control which personas run, simply add or remove persona directories.
 # Execute one tick (recommended for CI)
 uv run jules schedule tick
 
-# Run specific persona only
-uv run jules schedule tick --prompt-id curator
-
 # Dry run (show what would execute)
 uv run jules schedule tick --dry-run
 
@@ -549,9 +544,6 @@ PYTHON_EOF
 
 # 3. Dry run scheduler
 uv run jules schedule tick --dry-run
-
-# 4. Run specific persona
-uv run jules schedule tick --prompt-id curator
 ```
 
 #### Debugging
@@ -661,10 +653,7 @@ The scheduler automatically discovers any persona directory with a `prompt.md.j2
 
 ```bash
 # Dry run
-uv run jules schedule tick --prompt-id my_persona --dry-run
-
-# Actual run
-uv run jules schedule tick --prompt-id my_persona
+uv run jules schedule tick --dry-run
 ```
 
 ### Persona Best Practices
@@ -911,7 +900,6 @@ class S3MailBackend(MailBackend):
    - Easy to mock and unit test
 
 4. **Persistence**
-   - JSON for simple state (cycle_state.json)
    - JSONL for append-only logs (mail events)
    - Git for version control (journals, plans)
 
@@ -945,8 +933,8 @@ gh pr list --head jules
 # Check CI status
 gh pr checks <pr-number>
 
-# Force a specific persona
-uv run jules schedule tick --prompt-id artisan
+# Force a specific persona (via module)
+uv run python -m repo.scheduler.stateless --persona artisan
 ```
 
 #### 2. Session Stuck

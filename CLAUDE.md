@@ -357,6 +357,51 @@ Utilities:
 
 ---
 
+## Jules Automation System
+
+The repository uses autonomous AI agents (Jules personas) for maintenance. See [.team/README.md](.team/README.md) for full documentation.
+
+### 22 Personas (21 AI + 1 Human)
+
+Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Verify) defined in `.team/repo/templates/base/persona.md.j2`. Each persona extends this base template via Jinja2 inheritance.
+
+| Emoji | Name | Role |
+|:---:|:---|:---|
+| 💯 | Absolutist | Legacy code removal |
+| 🔨 | Artisan | Code craftsmanship |
+| 🥒 | BDD Specialist | Behavior-driven testing |
+| ⚡ | Bolt | Performance optimization |
+| 🏗️ | Builder | Data architecture |
+| 🎭 | Curator | UX/UI evaluation |
+| 📦 | Deps | Dependency management |
+| 💎 | Essentialist | Radical simplicity |
+| 📊 | Evaluator | Round performance evaluation |
+| ⚒️ | Forge | Feature implementation |
+| 🧔 | Franklin | Human project lead |
+| 🧹 | Janitor | Code cleanup |
+| 📚 | Lore | System historian |
+| 💝 | Maya | User advocate |
+| 🔍 | Meta | System introspection |
+| 🔮 | Oracle | Technical support |
+| 💣 | Sapper | Exception patterns |
+| ✍️ | Scribe | Documentation |
+| 🛡️ | Sentinel | Security audits |
+| 🧑‍🌾 | Shepherd | Test coverage |
+| 🌊 | Streamliner | Data optimization |
+| 🔭 | Visionary | Strategic RFCs |
+
+### Running Personas
+
+```bash
+# Execute one tick (round-robin, next persona)
+uv run jules schedule tick
+
+# Dry run
+uv run jules schedule tick --dry-run
+```
+
+---
+
 ## AI Agent Guidelines
 
 ### General Principles
