@@ -2,13 +2,16 @@
 
 import duckdb
 import pytest
+
 from egregora.database.init import initialize_database
+
 
 @pytest.fixture
 def duckdb_conn():
     conn = duckdb.connect(":memory:")
     yield conn
     conn.close()
+
 
 def test_git_commits_migration(duckdb_conn):
     """Verify that old git_commits table gets updated with new columns."""
@@ -30,7 +33,7 @@ def test_git_commits_migration(duckdb_conn):
     try:
         duckdb_conn.execute("SELECT change_type FROM git_commits")
         pytest.fail("Column change_type should not exist yet")
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
     # 2. Run Initialization (which should trigger migration)
@@ -50,4 +53,4 @@ def test_git_commits_migration(duckdb_conn):
         VALUES ('p', 's', 'A')
     """)
     row = duckdb_conn.execute("SELECT change_type FROM git_commits").fetchall()[0]
-    assert row[0] == 'A'
+    assert row[0] == "A"

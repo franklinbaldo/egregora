@@ -6,7 +6,7 @@ This module defines the strictly typed, append-only tables for the new architect
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeAlias, Union, cast
+from typing import TYPE_CHECKING, cast
 
 import duckdb
 import ibis
@@ -39,7 +39,7 @@ __all__ = [
 
 # Connection TypeAlias for better readability
 # Supports both DuckDB raw connection and Ibis backends
-DatabaseConnection: TypeAlias = Union[duckdb.DuckDBPyConnection, "BaseBackend"]
+type DatabaseConnection = duckdb.DuckDBPyConnection | "BaseBackend"
 
 # ============================================================================
 # Helper Functions
@@ -164,10 +164,10 @@ def _execute_on_connection(conn: DatabaseConnection, sql: str) -> None:
         # Ibis backends typically have raw_sql
         conn.raw_sql(sql)
     elif hasattr(conn, "execute"):
-         # Some Ibis backends or custom connections might expose execute
+        # Some Ibis backends or custom connections might expose execute
         conn.execute(sql)
     else:
-         logger.warning("Could not execute SQL on connection: %s", conn)
+        logger.warning("Could not execute SQL on connection: %s", conn)
 
 
 def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str) -> None:
@@ -246,7 +246,9 @@ def create_index(
     _execute_on_connection(conn, sql)
 
 
-def add_check_constraint(conn: DatabaseConnection, table_name: str, constraint_name: str, check_expression: str) -> None:
+def add_check_constraint(
+    conn: DatabaseConnection, table_name: str, constraint_name: str, check_expression: str
+) -> None:
     """Add a CHECK constraint to an existing table.
 
     Args:

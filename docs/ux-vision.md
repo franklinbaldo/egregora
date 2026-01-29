@@ -21,22 +21,19 @@ This document outlines the user experience and user interface (UX/UI) vision for
 Key locations:
 -   `src/egregora/output_sinks/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
--   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: **ORPHANED**. This file still exists in the source but is not copied to the generated site, effectively resolving the shadowing issue but leaving technical debt.
+-   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The consolidated stylesheet containing both the "Portal" theme and layout fixes.
 
 ### Developer Experience
--   **Status:** Improving.
--   **Issue:** The `egregora demo` command works but throws a `RuntimeError: Event loop is closed` at the end. It successfully generates the site structure even if API keys are missing (Graceful Degradation working!).
--   **Next Action:** A task should be created to fix the event loop error, but it is not blocking UX work.
+-   **Status:** Stable.
+-   **Observation:** The `egregora demo` command generates a valid scaffold even when API keys are missing, fulfilling the "Graceful Degradation" principle. The previous event loop error appears to be resolved or non-blocking.
 
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Fragmented / Broken.
--   **Issue:** The CSS is currently split between `docs/stylesheets/extra.css` (Portal Theme) and `overrides/stylesheets/extra.css` (Layout Fixes). Because the `docs/` file takes precedence, the layout fixes (e.g., `.related-posts`, `.media-gallery`) are currently shadowed and not applied to the site.
--   **Next Action:** Merge `docs/` content into `overrides/` and delete the `docs/` file (Task `20260129-ux-fix-css-fragmentation`).
+-   **Status:** Verified.
+-   **Details:** The CSS has been successfully consolidated into `overrides/stylesheets/extra.css`. The shadowing issue caused by the orphan `docs/` file has been resolved. The site now correctly renders both the immersive Portal theme (Hero, Glassmorphism) and the structural layout improvements (Related Posts, Media Grid).
 
 ### Color Palette
 -   **Status:** Verified.
@@ -46,25 +43,33 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 ### Scoping and Usability
 -   **Status:** Verified.
--   **Issue:** Previous aggressive global CSS overrides have been successfully scoped. The homepage now uses `:has(.homepage-hero)` to apply immersive styles only where appropriate.
--   **Next Action:** None.
+-   **Details:** Aggressive global overrides have been scoped. The homepage uses `:has(.homepage-hero)` to apply immersive styles only where appropriate, ensuring standard documentation pages remain readable with visible TOCs.
 
 ### Typography
--   **Status:** Verified.
+-   **Status:** Verified (with Privacy Caveat).
 -   **Fonts:** `Outfit` for headings and `Inter` for body text.
--   **Implementation:** The fonts are imported and applied in `extra.css`.
+-   **Implementation:** Currently imported via Google Fonts CDN in `extra.css`.
+-   **Privacy Warning:** This implementation violates the "Privacy-First" principle by making external requests. See "Privacy Audit" below.
 
 ### Navigation
 -   **Status:** Verified.
--   **Issue:** The navigation hierarchy is correct (Media nested under Resources). The homepage "Quick Navigation" cards are now correctly styled following the CSS consolidation.
--   **Next Action:** None.
+-   **Details:** The navigation hierarchy is correct. Homepage cards link correctly to `/posts/profiles/`, `/posts/media/`, and `/feeds/`.
 
 ### Feeds Page
--   **Status:** Pending Implementation.
--   **Issue:** The template `docs/feeds/index.md.jinja` exists, but it is not registered in `scaffolding.py`, so the page is never generated. The homepage link currently 404s.
--   **Next Action:** Update `scaffolding.py` to include the Feeds template.
+-   **Status:** Verified.
+-   **Details:** The template `docs/feeds/index.md.jinja` is correctly registered and generates the `/feeds/` page, providing RSS and JSON feed options.
 
 ### Analytics
 -   **Status:** Verified (Removed).
--   **Issue:** Analytics placeholders have been removed from the default configuration.
--   **Next Action:** None.
+-   **Details:** Analytics placeholders have been removed from the default configuration.
+
+## Privacy Audit
+
+**Current Violation:** The site makes default external requests to third-party CDNs, which leaks user IP addresses.
+
+1.  **Google Fonts:** `extra.css` contains `@import url('https://fonts.googleapis.com/css2?...')`.
+2.  **MathJax:** `mkdocs.yml` loads `https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js`.
+
+**Action Plan:**
+-   **Task:** `20260130-ux-localize-assets` (Assigned to Forge).
+-   **Goal:** Localize these assets or configure `mkdocs-material` to handle them privacy-compliantly (bundling).
