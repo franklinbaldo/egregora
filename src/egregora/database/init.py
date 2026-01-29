@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
+    ASSET_CACHE_SCHEMA,
     ELO_HISTORY_SCHEMA,
     ELO_RATINGS_SCHEMA,
     GIT_COMMITS_SCHEMA,
@@ -101,6 +102,17 @@ def initialize_database(backend: BaseBackend) -> None:
 
     # 5. Git History Cache
     create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA)
+
+    # Manual Migration: Ensure new columns exist for existing tables (Schema Evolution)
+    try:
+        _execute_sql(conn, "ALTER TABLE git_commits ADD COLUMN IF NOT EXISTS change_type VARCHAR")
+        _execute_sql(conn, "ALTER TABLE git_commits ADD COLUMN IF NOT EXISTS stats JSON")
+    except Exception as e:
+        # Note: If table was just created, columns exist.
+        # DuckDB 'ADD COLUMN IF NOT EXISTS' is safe.
+        # If backend doesn't support this syntax, it might fail, so we log debug.
+        logger.debug("Schema evolution for git_commits (add columns) failed or skipped: %s", e)
+
     # Composite index for "What was the SHA of this path at time T?"
     _execute_sql(
         conn,
@@ -132,6 +144,11 @@ def initialize_database(backend: BaseBackend) -> None:
         "post_b_slug",
         index_type="Standard",
     )
+
+    # 8. Asset Cache
+    create_table_if_not_exists(conn, "asset_cache", ASSET_CACHE_SCHEMA)
+    create_index(conn, "asset_cache", "idx_asset_cache_url", "url", index_type="Standard")
+    create_index(conn, "asset_cache", "idx_asset_cache_hash", "content_hash", index_type="Standard")
 
     logger.info("✓ Database tables initialized successfully")
 

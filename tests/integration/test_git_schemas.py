@@ -52,8 +52,8 @@ def test_git_commits_insertion(duckdb_conn):
     # Insert a dummy record
     ts = datetime.now(UTC)
     sql = """
-    INSERT INTO git_commits (repo_path, commit_sha, commit_timestamp, author, message)
-    VALUES ('src/main.py', 'abc1234', ?, 'Visionary', 'Initial commit')
+    INSERT INTO git_commits (repo_path, commit_sha, commit_timestamp, author, message, change_type, stats)
+    VALUES ('src/main.py', 'abc1234', ?, 'Visionary', 'Initial commit', 'A', '{"insertions": 10}')
     """
     duckdb_conn.execute(sql, [ts])
 
@@ -62,6 +62,26 @@ def test_git_commits_insertion(duckdb_conn):
     assert len(result) == 1
     assert result[0][0] == "src/main.py"
     assert result[0][1] == "abc1234"
+    assert result[0][5] == "A"
+
+
+def test_git_commits_change_type(duckdb_conn):
+    """Verify filtering by change_type."""
+    initialize_database(duckdb_conn)
+    ts = datetime.now(UTC)
+
+    sql = """
+    INSERT INTO git_commits (repo_path, commit_sha, commit_timestamp, author, message, change_type)
+    VALUES
+    ('file1.py', 'sha1', ?, 'Dev', 'Add file', 'A'),
+    ('file1.py', 'sha2', ?, 'Dev', 'Mod file', 'M')
+    """
+    duckdb_conn.execute(sql, [ts, ts])
+
+    result = duckdb_conn.execute("SELECT * FROM git_commits WHERE change_type = 'A'").fetchall()
+    assert len(result) == 1
+    assert result[0][0] == "file1.py"
+    assert result[0][5] == "A"
 
 
 def test_git_refs_insertion(duckdb_conn):

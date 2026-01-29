@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "ANNOTATIONS_SCHEMA",
+    "ASSET_CACHE_SCHEMA",
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
     "GIT_COMMITS_SCHEMA",
@@ -517,6 +518,22 @@ GIT_COMMITS_SCHEMA = ibis.schema(
         "commit_timestamp": dt.Timestamp(timezone="UTC"),
         "author": dt.string(nullable=True),
         "message": dt.string(nullable=True),
+        "change_type": dt.string,  # 'A', 'M', 'D', 'R'
+        "stats": dt.JSON(nullable=True),  # e.g. {"insertions": 10, "deletions": 5}
+    }
+)
+
+ASSET_CACHE_SCHEMA = ibis.schema(
+    {
+        "url": dt.string,
+        "content_hash": dt.string,
+        "content_type": dt.string,
+        "content": dt.binary,
+        "etag": dt.string(nullable=True),
+        "last_modified": dt.string(nullable=True),
+        "fetched_at": dt.Timestamp(timezone="UTC"),
+        "expires_at": dt.Timestamp(timezone="UTC", nullable=True),
+        "metadata": dt.JSON(nullable=True),
     }
 )
 
