@@ -19,57 +19,55 @@ class TestStatelessScheduler(unittest.TestCase):
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_exists_and_updates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch updates existing branch to match main."""
-        mock_run.return_value.returncode = 0
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock(returncode=0)
+            # ls-remote returns non-empty stdout when branch exists
+            if cmd[1:3] == ["ls-remote", "--heads"]:
+                result.stdout = f"abc123\trefs/heads/{stateless.JULES_BRANCH}\n"
+            return result
+
+        mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
-<<<<<<< HEAD
-        # Verify essential calls are made, ignoring others
+        # Verify essential calls are made
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
             check=True,
             capture_output=True,
-=======
-        # fetch + rev-parse check + force-update branch
-        mock_run.assert_has_calls(
-            [
-                call(["git", "fetch", "origin", "main"], capture_output=True),
-                call(
-                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
-                    capture_output=True,
-                ),
-                call(
-                    ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
-                    check=True,
-                    capture_output=True,
-                ),
-            ]
->>>>>>> 46f284e (fix: resolve CI failures in stateless scheduler PR)
         )
 
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
-        """Test ensure_jules_branch when branch missing."""
+        """Test ensure_jules_branch when branch missing on remote."""
 
         def side_effect(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1] == "rev-parse" and "--verify" in cmd:
-                return MagicMock(returncode=1)
-            return MagicMock(returncode=0)
+            result = MagicMock(returncode=0)
+            # ls-remote returns empty stdout when branch doesn't exist
+            if cmd[1:3] == ["ls-remote", "--heads"]:
+                result.stdout = ""
+            return result
 
         mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
 
-        # Verify essential calls are made, ignoring others
+        # Verify essential calls are made
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True
+        )
+        mock_run.assert_any_call(
+            ["git", "push", "-u", "origin", stateless.JULES_BRANCH], check=True, capture_output=True
         )
 
     @patch("repo.scheduler.stateless._get_persona_dir")

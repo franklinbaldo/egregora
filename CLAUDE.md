@@ -400,14 +400,11 @@ Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Ve
 ### Running Personas
 
 ```bash
-# Run specific persona
-uv run jules schedule tick --prompt-id curator
+# Execute one tick (round-robin, next persona)
+uv run jules schedule tick
 
 # Dry run
-uv run jules schedule tick --prompt-id curator --dry-run
-
-# Run all
-uv run jules schedule tick --all
+uv run jules schedule tick --dry-run
 ```
 
 ---

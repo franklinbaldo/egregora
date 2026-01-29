@@ -199,11 +199,11 @@ The scheduler (`.github/workflows/jules_scheduler.yml`) runs hourly or on dispat
 # Manual trigger
 uv run --with requests --with python-frontmatter --with jinja2 \
   --with typer --with pydantic \
-  python -m repo.cli schedule tick [--all] [--prompt-id <id>] [--dry-run]
+  python -m repo.cli schedule tick [--dry-run]
 ```
 
 **How it works**:
-1. Scans `.team/personas/*/prompt.md` for enabled personas
+1. Discovers personas from `.team/personas/` (dirs with `prompt.md.j2`)
 2. Ensures `.team/personas/<id>/journals/` exists
 3. Renders each prompt with injected variables:
    - `{{ emoji }}`: Persona's brand emoji
@@ -211,7 +211,7 @@ uv run --with requests --with python-frontmatter --with jinja2 \
    - `{{ pre_commit_instructions }}`: Required pre-commit instructions
    - `{{ journal_management }}`: Journal writing instructions
    - `{{ journal_entries }}`: Latest journal entries for context
-4. Uses `schedules.toml` or per-prompt metadata to decide when to run
+4. Round-robin selects the next persona alphabetically
 5. Creates sessions via `JulesClient` targeting configured branch
 
 ### Auto-fix Workflow
