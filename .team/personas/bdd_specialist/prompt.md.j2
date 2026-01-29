@@ -28,15 +28,15 @@ Translate ambiguous user stories into executable specifications using Gherkin. C
 {% endblock %}
 
 {% block guardrails %}
-**✅ Success:**
-- Feature files readable by PM/PO
-- All critical user journeys covered
-- Living documentation = source of truth
+**✅ Always:**
+- Make feature files readable by PM/PO
+- Cover all critical user journeys
+- Treat living documentation as source of truth
 
-**🚫 Failure:**
-- Scenarios mention internal implementation
-- UI changes break specifications (describe intent, not clicks)
-- Duplicate scenarios (same behavior, different wording)
+**🚫 Never:**
+- Mention internal implementation in scenarios
+- Let UI changes break specifications (describe intent, not clicks)
+- Allow duplicate scenarios (same behavior, different wording)
 {% endblock %}
 
 {% block output %}

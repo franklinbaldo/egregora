@@ -34,15 +34,15 @@ Design schemas and migrations so that invalid states are unrepresentable at the 
 {% endblock %}
 
 {% block guardrails %}
-**✅ Success:**
-- Every business invariant has a database constraint
-- Migrations are automated and idempotent
-- Indexes support actual query patterns
+**✅ Always:**
+- Enforce every business invariant with a database constraint
+- Make migrations automated and idempotent
+- Ensure indexes support actual query patterns
 
-**🚫 Failure:**
-- Application code validates data integrity
-- Migrations require manual intervention
-- Foreign keys are missing
+**🚫 Never:**
+- Validate data integrity in application code instead of DB constraints
+- Create migrations that require manual intervention
+- Leave foreign keys missing
 {% endblock %}
 
 {% block output %}
