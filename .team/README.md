@@ -24,7 +24,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 ### Key Features
 
-- **21 Personas (20 AI + 1 Human)** - Each with unique expertise (security, performance, UX, etc.)
+- **22 Personas (21 AI + 1 Human)** - Each with unique expertise (security, performance, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
 - **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
 - **Mail System** - Async communication between personas for conflict resolution
@@ -252,6 +252,7 @@ Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Ve
 | 🎭 | **Curator** | UX Designer | User experience, blog evaluation |
 | 📦 | **Deps** | Guardian | Dependency management, security |
 | 💎 | **Essentialist** | Pragmatist | Radical simplicity |
+| 📊 | **Evaluator** | Supervisor | Round performance evaluation |
 | ⚒️ | **Forge** | Builder | Feature implementation |
 | 🧔 | **Franklin** | Human Lead | Project lead (human, no AI prompt) |
 | 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |

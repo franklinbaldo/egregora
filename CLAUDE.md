@@ -368,7 +368,7 @@ Utilities:
 
 The repository uses autonomous AI agents (Jules personas) for maintenance. See [.team/README.md](.team/README.md) for full documentation.
 
-### 21 Personas (20 AI + 1 Human)
+### 22 Personas (21 AI + 1 Human)
 
 Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Verify) defined in `.team/repo/templates/base/persona.md.j2`. Each persona extends this base template via Jinja2 inheritance.
 
@@ -382,6 +382,7 @@ Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Ve
 | 🎭 | Curator | UX/UI evaluation |
 | 📦 | Deps | Dependency management |
 | 💎 | Essentialist | Radical simplicity |
+| 📊 | Evaluator | Round performance evaluation |
 | ⚒️ | Forge | Feature implementation |
 | 🧔 | Franklin | Human project lead |
 | 🧹 | Janitor | Code cleanup |
