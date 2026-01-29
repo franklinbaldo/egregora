@@ -24,9 +24,6 @@ Key locations:
 -   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).
 -   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: **ORPHANED**. This file still exists in the source but is not copied to the generated site, effectively resolving the shadowing issue but leaving technical debt.
 
-**Code Hygiene:**
--   Artifacts found in `overrides/stylesheets`: `test.txt` and an unused `favicon.png`. These should be removed.
-
 ### Developer Experience
 -   **Status:** Improving.
 -   **Issue:** The `egregora demo` command works but throws a `RuntimeError: Event loop is closed` at the end. It successfully generates the site structure even if API keys are missing (Graceful Degradation working!).
@@ -37,9 +34,9 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Functional (Cleanup Pending).
--   **Resolution:** The CSS shadowing issue is functionally resolved because `docs/stylesheets/extra.css` is not being copied to the build. However, the source file still exists and needs to be deleted to prevent confusion.
--   **Next Action:** Delete `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`.
+-   **Status:** Fragmented / Broken.
+-   **Issue:** The CSS is currently split between `docs/stylesheets/extra.css` (Portal Theme) and `overrides/stylesheets/extra.css` (Layout Fixes). Because the `docs/` file takes precedence, the layout fixes (e.g., `.related-posts`, `.media-gallery`) are currently shadowed and not applied to the site.
+-   **Next Action:** Merge `docs/` content into `overrides/` and delete the `docs/` file (Task `20260129-ux-fix-css-fragmentation`).
 
 ### Color Palette
 -   **Status:** Verified.
