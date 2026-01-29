@@ -120,8 +120,8 @@ def test_get_url_enrichment_candidates_with_no_limit(db_connection, messages_tab
         "https://example.com/two",
         "https://example.com/one",
         "https://example.com/three",
-        "https://example.com/four",
         "http://example.com/five",
+        "https://example.com/four",
     ]
 
 
