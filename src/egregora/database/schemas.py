@@ -53,7 +53,7 @@ def create_table_if_not_exists(
     *,
     overwrite: bool = False,
     check_constraints: dict[str, str] | None = None,
-    primary_key: str | None = None,
+    primary_key: str | list[str] | None = None,
     foreign_keys: list[str] | None = None,
 ) -> None:
     """Create a table using Ibis if it doesn't already exist.
@@ -65,7 +65,7 @@ def create_table_if_not_exists(
         overwrite: If True, drop existing table first
         check_constraints: Optional dict of constraint_name -> check_expression
                           Example: {"chk_status": "status IN ('draft', 'published')"}
-        primary_key: Optional column name to set as PRIMARY KEY
+        primary_key: Optional column name (or list of columns) to set as PRIMARY KEY
         foreign_keys: Optional list of foreign key constraint strings
                       Example: ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
 
@@ -85,7 +85,11 @@ def create_table_if_not_exists(
 
         # Add PRIMARY KEY
         if primary_key:
-            all_clauses.append(f"PRIMARY KEY ({quote_identifier(primary_key)})")
+            if isinstance(primary_key, str):
+                pk_clause = quote_identifier(primary_key)
+            else:
+                pk_clause = ", ".join(quote_identifier(c) for c in primary_key)
+            all_clauses.append(f"PRIMARY KEY ({pk_clause})")
 
         # Add FOREIGN KEYs
         if foreign_keys:
@@ -170,13 +174,13 @@ def _execute_on_connection(conn: DatabaseConnection, sql: str) -> None:
         logger.warning("Could not execute SQL on connection: %s", conn)
 
 
-def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str) -> None:
+def add_primary_key(conn: DatabaseConnection, table_name: str, columns: str | list[str]) -> None:
     """Add a primary key constraint to an existing table.
 
     Args:
         conn: Database connection (Ibis or raw DuckDB)
         table_name: Name of the table
-        column_name: Column to use as primary key
+        columns: Column(s) to use as primary key (string or list of strings)
 
     Note:
         DuckDB requires ALTER TABLE for primary key constraints.
@@ -185,13 +189,18 @@ def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str)
     try:
         quoted_table = quote_identifier(table_name)
         quoted_constraint = quote_identifier(f"pk_{table_name}")
-        quoted_col = quote_identifier(column_name)
-        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} PRIMARY KEY ({quoted_col})"
+
+        if isinstance(columns, str):
+            pk_cols = quote_identifier(columns)
+        else:
+            pk_cols = ", ".join(quote_identifier(c) for c in columns)
+
+        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} PRIMARY KEY ({pk_cols})"
         _execute_on_connection(conn, sql)
     except (duckdb.Error, RuntimeError) as e:
         # Constraint may already exist - log and continue
         # RuntimeError can happen from Ibis backends on SQL error
-        logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
+        logger.debug("Could not add primary key to %s.%s: %s", table_name, columns, e)
 
 
 def ensure_identity_column(

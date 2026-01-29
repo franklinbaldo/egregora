@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import duckdb
+
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     ASSET_CACHE_SCHEMA,
@@ -101,7 +103,9 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
     # 5. Git History Cache
-    create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA)
+    create_table_if_not_exists(
+        conn, "git_commits", GIT_COMMITS_SCHEMA, primary_key=["repo_path", "commit_sha"]
+    )
 
     # Manual Migration: Ensure new columns exist for existing tables (Schema Evolution)
     try:
@@ -146,9 +150,20 @@ def initialize_database(backend: BaseBackend) -> None:
     )
 
     # 8. Asset Cache
-    create_table_if_not_exists(conn, "asset_cache", ASSET_CACHE_SCHEMA)
+    create_table_if_not_exists(conn, "asset_cache", ASSET_CACHE_SCHEMA, primary_key="url")
     create_index(conn, "asset_cache", "idx_asset_cache_url", "url", index_type="Standard")
     create_index(conn, "asset_cache", "idx_asset_cache_hash", "content_hash", index_type="Standard")
+
+    # 9. Run Migrations
+    # V5: Add Primary Keys to legacy tables (asset_cache, git_commits)
+    try:
+        if isinstance(conn, duckdb.DuckDBPyConnection):
+            from egregora.database.migrations_v5_pks import migrate_add_pks
+
+            migrate_add_pks(conn)
+    except Exception as e:
+        logger.error("Failed to run V5 migrations: %s", e)
+        raise
 
     logger.info("✓ Database tables initialized successfully")
 

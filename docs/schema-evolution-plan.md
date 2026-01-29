@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Owner**: Builder
-**Last Updated**: 2026-01-26
+**Last Updated**: 2026-01-30
 
 ## Philosophy: Structure Before Scale
 
@@ -41,11 +41,11 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
 
 ## 2. Planned Improvements
 
-### 2.1 Enforce `doc_type` Integrity in `documents`
+### 2.1 Enforce `doc_type` Integrity in `documents` (Completed)
 
 **Problem**: The `documents` table is sparse/wide. Columns like `title` or `filename` are nullable because they don't apply to all types. However, a "Post" *must* have a title. Currently, the database allows a "Post" with NULL title.
 
-**Solution**: Add conditional CHECK constraints to `documents` table.
+**Solution**: Add conditional CHECK constraints to `documents` table. (Implemented Jan 2026)
 
 ```sql
 CHECK (
@@ -73,3 +73,4 @@ CHECK (
 -   [x] Migrate `ContentRepository` to use `documents` table (Completed Jan 2026).
 -   [x] Verify `media` table usage and consolidate (Completed Jan 2026).
 -   [x] Add indexes to `documents` table (`doc_type`, `slug`, `created_at`, `status`) (Completed Jan 2026).
+-   [x] Add Primary Key to `asset_cache` and `git_commits` (Completed Jan 2026).
