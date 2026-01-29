@@ -12,11 +12,12 @@ MODERN (2025-11-18): Imports site path resolution from
 
 from __future__ import annotations
 
+import builtins
 import logging
 import shutil
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
@@ -444,7 +445,7 @@ class MkDocsAdapter(BaseOutputSink):
             raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
-    def get_markdown_extensions(self) -> List[str]:
+    def get_markdown_extensions(self) -> builtins.list[str]:
         """Get list of supported markdown extensions for MkDocs Material theme.
 
         Reads from configuration if available, otherwise returns standard defaults.
@@ -716,11 +717,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         *,
         recursive: bool = False,
         exclude_names: set[str] | None = None,
-    ) -> List[Document]:
+    ) -> builtins.list[Document]:
         if not directory or not directory.exists():
             return []
 
-        documents: List[Document] = []
+        documents: list[Document] = []
         glob_func = directory.rglob if recursive else directory.glob
         for path in glob_func("*.md"):
             if not path.is_file():
@@ -764,8 +765,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: List[str],
-        profiles_updated: List[str],
+        _posts_created: builtins.list[str],
+        profiles_updated: builtins.list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
