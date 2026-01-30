@@ -14,9 +14,11 @@ theme:
   custom_dir: ../overrides
   language: en
   favicon: assets/images/favicon.svg
-  font:
-    text: Roboto
-    code: Roboto Mono
+  font: false
+  # Fonts are loaded locally via extra.css for privacy compliance
+  # font:
+  #   text: Roboto
+  #   code: Roboto Mono
   palette:
     # Light mode
     - media: '(prefers-color-scheme: light)'
@@ -75,7 +77,7 @@ theme:
 plugins:
   - social:
       cards: true
-  - offline
+  # - offline  # Removed to prevent external request to unpkg.com (iframe-worker)
   - search:
       lang: en
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
@@ -247,8 +249,10 @@ extra:
     {% endif %}
   {% endif %}
 
-extra_javascript:
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+# Extra JavaScript (MathJax removed for privacy compliance - no external requests)
+# To re-enable math, download MathJax/KaTeX locally or uncomment the line below (leaks IP to unpkg.com)
+# extra_javascript:
+#   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 # Custom CSS for improved UX
 extra_css:
