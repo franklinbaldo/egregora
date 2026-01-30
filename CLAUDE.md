@@ -314,14 +314,7 @@ tests/
 - `pre-commit`: Ruff linting, formatting, vulture
 - `test-unit`: Unit tests with coverage (10 min timeout)
 - `test-e2e`: E2E tests with coverage (30 min timeout)
-- `security`: Dependency vulnerability scanning (safety, pip-audit)
 - `build`: Package build verification
-
-**Jules (`jules.yml`)** - AI agent automation:
-- Stateless persona rotation
-- API-driven session management
-- Auto-merge on CI pass
-- Auto-fix for failed PRs
 
 **Docs (`docs-pages.yml`)** - Documentation deployment
 
@@ -360,54 +353,6 @@ Utilities:
   tenacity                 # Retry logic
   ratelimit                # Rate limiting
   scikit-learn             # ELO algorithm
-```
-
----
-
-## Jules Automation System
-
-The repository uses autonomous AI agents (Jules personas) for maintenance. See [.team/README.md](.team/README.md) for full documentation.
-
-### 22 Personas (21 AI + 1 Human)
-
-Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Verify) defined in `.team/repo/templates/base/persona.md.j2`. Each persona extends this base template via Jinja2 inheritance.
-
-| Emoji | Name | Role |
-|:---:|:---|:---|
-| 💯 | Absolutist | Legacy code removal |
-| 🔨 | Artisan | Code craftsmanship |
-| 🥒 | BDD Specialist | Behavior-driven testing |
-| ⚡ | Bolt | Performance optimization |
-| 🏗️ | Builder | Data architecture |
-| 🎭 | Curator | UX/UI evaluation |
-| 📦 | Deps | Dependency management |
-| 💎 | Essentialist | Radical simplicity |
-| 📊 | Evaluator | Round performance evaluation |
-| ⚒️ | Forge | Feature implementation |
-| 🧔 | Franklin | Human project lead |
-| 🧹 | Janitor | Code cleanup |
-| 📚 | Lore | System historian |
-| 💝 | Maya | User advocate |
-| 🔍 | Meta | System introspection |
-| 🔮 | Oracle | Technical support |
-| 💣 | Sapper | Exception patterns |
-| ✍️ | Scribe | Documentation |
-| 🛡️ | Sentinel | Security audits |
-| 🧑‍🌾 | Shepherd | Test coverage |
-| 🌊 | Streamliner | Data optimization |
-| 🔭 | Visionary | Strategic RFCs |
-
-### Running Personas
-
-```bash
-# Run specific persona
-uv run jules schedule tick --prompt-id curator
-
-# Dry run
-uv run jules schedule tick --prompt-id curator --dry-run
-
-# Run all
-uv run jules schedule tick --all
 ```
 
 ---
