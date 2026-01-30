@@ -43,6 +43,13 @@ Feature: Egregora Command Processing
     Then the command type should be "interests"
     And the interests parameter should contain "BDD, Gherkin, testing"
 
+  Scenario: Parsing an unknown command
+    Given a message with the unknown command "/egregora unknown_cmd some params"
+    When the system parses the command
+    Then the command type should be "unknown_cmd"
+    And the action should be "unknown"
+    And the raw parameters should contain "some params"
+
   Scenario: Filtering commands from a message list
     Given a list of messages containing both commands and regular text
     When the system filters out the command messages
