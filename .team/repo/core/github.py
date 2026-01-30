@@ -6,6 +6,7 @@ import os
 import re
 import zipfile
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from repo.core.exceptions import GitHubError
@@ -544,12 +545,33 @@ def get_repo_info() -> dict[str, str]:
             # - https://github.com/owner/repo.git
             # - git@github.com:owner/repo.git
             # - http://local_proxy@127.0.0.1:PORT/git/owner/repo (proxy format)
-            if "github.com" in url:
-                parts = url.replace(".git", "").replace(":", "/").split("/")
-                if len(parts) >= 2:
-                    owner = parts[-2]
-                    repo_full = f"{owner}/{parts[-1]}"
-            else:
+            repo_detected = False
+
+            # First, try to handle standard HTTP(S) GitHub URLs using proper URL parsing
+            if url.startswith("http://") or url.startswith("https://"):
+                try:
+                    parsed = urlparse(url)
+                    # Only treat as GitHub if the hostname is exactly github.com
+                    if parsed.hostname == "github.com":
+                        path_parts = parsed.path.rstrip("/").replace(".git", "").split("/")
+                        # Expect path like /owner/repo
+                        if len(path_parts) >= 3:
+                            owner = path_parts[-2]
+                            repo_full = f"{owner}/{path_parts[-1]}"
+                            repo_detected = True
+                except Exception:
+                    # Fall through to proxy/generic handling below
+                    pass
+
+            # Next, handle SSH-style GitHub URLs: git@github.com:owner/repo(.git)
+            if not repo_detected:
+                ssh_match = re.match(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$", url)
+                if ssh_match:
+                    owner = ssh_match.group(1)
+                    repo_full = f"{owner}/{ssh_match.group(2)}"
+                    repo_detected = True
+
+            if not repo_detected:
                 # Handle proxy/generic URL format: .../git/owner/repo or .../owner/repo
                 url_clean = url.replace(".git", "")
                 # Try to find /git/owner/repo pattern first
