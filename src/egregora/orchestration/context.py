@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from egregora.input_adapters.base import InputAdapter
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
+    from egregora.orchestration.error_boundary import ErrorBoundary
     from egregora.output_sinks import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
 
@@ -135,6 +136,7 @@ class PipelineState:
     usage_tracker: UsageTracker | None = None
     output_registry: OutputSinkRegistry | None = None
     embedding_router: EmbeddingRouter | None = None
+    error_boundary: ErrorBoundary | None = None
     smoke_test: bool = False
 
 
@@ -242,6 +244,10 @@ class PipelineContext:
     @property
     def embedding_router(self) -> EmbeddingRouter | None:
         return self.state.embedding_router
+
+    @property
+    def error_boundary(self) -> ErrorBoundary | None:
+        return self.state.error_boundary
 
     # Forward config properties
     @property

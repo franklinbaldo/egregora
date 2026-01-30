@@ -35,6 +35,7 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.error_boundary import DefaultErrorBoundary
 from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
@@ -293,6 +294,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         annotations_store=annotations_store,
         usage_tracker=UsageTracker(),
         output_registry=output_registry,
+        error_boundary=DefaultErrorBoundary(),
         smoke_test=run_params.smoke_test,
     )
 

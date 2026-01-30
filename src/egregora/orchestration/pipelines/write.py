@@ -443,7 +443,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
+                if ctx.error_boundary:
+                    ctx.error_boundary.handle_writer_error(exc)
+                else:
+                    logger.exception("Failed to generate announcement: %s", exc)
 
     clean_messages_list = filter_commands(messages_list)
 
@@ -480,7 +483,16 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE WRITER
     # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
     # in the generator. If it fails here, it fails.
-    writer_result = write_posts_for_window(params)
+    try:
+        writer_result = write_posts_for_window(params)
+    except Exception as e:
+        if ctx.error_boundary:
+            ctx.error_boundary.handle_writer_error(e)
+        else:
+            raise e
+        # If error boundary suppresses, return empty
+        writer_result = {}
+
     posts = writer_result.get("posts", [])
     profiles = writer_result.get("profiles", [])
 
@@ -494,19 +506,16 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         )
 
     # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
     for post in posts:
         if hasattr(post, "document_id"):  # Is a Document
             try:
                 output_sink.persist(post)
             except Exception as exc:
-                logger.exception("Failed to persist post: %s", exc)
+                if ctx.error_boundary:
+                    # Persistence failure for posts is FATAL (journal integrity)
+                    ctx.error_boundary.handle_journal_error(exc)
+                else:
+                    logger.exception("Failed to persist post: %s", exc)
 
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
@@ -520,9 +529,15 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
+                if ctx.error_boundary:
+                    ctx.error_boundary.handle_journal_error(exc)
+                else:
+                    logger.exception("Failed to persist profile: %s", exc)
     except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
+        if ctx.error_boundary:
+            ctx.error_boundary.handle_enrichment_error(exc)
+        else:
+            logger.exception("Failed to generate profile posts: %s", exc)
 
     # Process background tasks (Banner, etc)
     # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
@@ -548,16 +563,34 @@ def process_background_tasks(ctx: PipelineContext) -> None:
     if not hasattr(ctx, "task_store") or not ctx.task_store:
         return
 
-    banner_worker = BannerWorker(ctx)
-    banner_worker.run()
+    try:
+        banner_worker = BannerWorker(ctx)
+        banner_worker.run()
+    except Exception as e:
+        if ctx.error_boundary:
+            ctx.error_boundary.handle_enrichment_error(e)
+        else:
+            logger.warning("Banner generation failed: %s", e)
 
-    profile_worker = ProfileWorker(ctx)
-    profile_worker.run()
+    try:
+        profile_worker = ProfileWorker(ctx)
+        profile_worker.run()
+    except Exception as e:
+        if ctx.error_boundary:
+            ctx.error_boundary.handle_enrichment_error(e)
+        else:
+            logger.warning("Profile background task failed: %s", e)
 
     # Enrichment is already done in generator, but if new tasks were added:
     if ctx.config.enrichment.enabled:
-        enrichment_worker = EnrichmentWorker(ctx)
-        enrichment_worker.run()
+        try:
+            enrichment_worker = EnrichmentWorker(ctx)
+            enrichment_worker.run()
+        except Exception as e:
+            if ctx.error_boundary:
+                ctx.error_boundary.handle_enrichment_error(e)
+            else:
+                logger.warning("Enrichment failed: %s", e)
 
 
 def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
@@ -568,9 +601,11 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_sink, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except (ValueError, TypeError, AttributeError) as e:
-            # Non-critical failure
-            logger.warning("Auto-taxonomy failed: %s", e)
+        except Exception as e:
+            if dataset.context.error_boundary:
+                dataset.context.error_boundary.handle_rag_error(e)
+            else:
+                logger.warning("Auto-taxonomy failed: %s", e)
 
 
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
@@ -633,8 +668,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
             raise  # Re-raise to allow proper cleanup
-        except Exception:
-            # Broad catch is intentional: record failure for any exception, then re-raise
-            raise  # Re-raise original exception to preserve error context
+        except Exception as e:
+            if ctx.error_boundary:
+                ctx.error_boundary.handle_generic_error(e)
+            else:
+                raise e
 
         return results
