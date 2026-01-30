@@ -292,37 +292,41 @@ def get_or_create_oracle_session(
     # No usable Oracle session found, create new one
     print("  Creating new Oracle session...")
 
-    oracle_prompt = f"""# 🔮 Oracle - Technical Support
+    # Load Oracle's prompt from disk so the facilitator uses the same
+    # prompt as every other persona — no hardcoded string.
+    oracle_prompt: str | None = None
+    try:
+        persona_dir = _get_persona_dir()
+        loader = PersonaLoader(persona_dir, base_context={
+            "owner": repo_info["owner"],
+            "repo": repo,
+        })
+        oracle_prompt_file = persona_dir / "oracle" / "prompt.md.j2"
+        if not oracle_prompt_file.exists():
+            oracle_prompt_file = persona_dir / "oracle" / "prompt.md"
+        if oracle_prompt_file.exists():
+            config = loader.load_persona(oracle_prompt_file)
+            oracle_prompt = config.prompt_body
+    except Exception as e:
+        print(f"  Warning: could not load Oracle prompt from disk: {e}")
 
-You are the Oracle, a technical support specialist for the {repo} repository.
+    if not oracle_prompt:
+        oracle_prompt = (
+            f"You are the Oracle, a technical support specialist for {repo}. "
+            "Help other AI personas when they get stuck by answering technical questions. "
+            "Do NOT modify code or create PRs — only provide guidance."
+        )
 
-## Your Role
-You help other AI personas when they get stuck by answering their technical questions.
-You have deep knowledge of the codebase and can provide guidance on:
-- Architecture decisions
-- Code patterns
-- API usage
-- Testing strategies
-- Best practices
+    # Read automation_mode from Oracle's frontmatter (defaults to FULL)
+    automation_mode = "MANUAL"
+    try:
+        import frontmatter as fm
 
-## Instructions
-1. When you receive a question, analyze it carefully
-2. Provide a clear, actionable answer
-3. Include code examples when helpful
-4. Reference relevant files in the codebase
-5. Keep answers focused and concise
-
-## Important
-- You are a support agent, not a coder
-- Do NOT modify code yourself
-- Do NOT create PRs
-- ONLY provide guidance and answers
-- Your answers will be forwarded to the stuck persona
-
-## Repository
-- Owner: {repo_info["owner"]}
-- Repo: {repo}
-"""
+        oracle_file = _get_persona_dir() / "oracle" / "prompt.md.j2"
+        if oracle_file.exists():
+            automation_mode = fm.load(oracle_file).metadata.get("automation_mode", "MANUAL")
+    except Exception:
+        pass
 
     try:
         result = client.create_session(
@@ -331,7 +335,7 @@ You have deep knowledge of the codebase and can provide guidance on:
             repo=repo,
             branch=JULES_BRANCH,
             title=f"{ORACLE_TITLE_PREFIX} {repo}",
-            automation_mode="MANUAL",  # Oracle doesn't create PRs
+            automation_mode=automation_mode,
             require_plan_approval=False,
         )
         session_id = result.get("name", "").split("/")[-1]
@@ -495,9 +499,13 @@ def discover_personas() -> list[str]:
 
     Scans the personas directory for subdirectories containing a prompt
     template (prompt.md.j2 or prompt.md). Directories starting with '.'
-    or '_' are ignored. To decommission a persona, move its folder out
-    of the personas directory.
+    or '_' are ignored. Personas with ``scheduled: false`` in their
+    frontmatter are skipped (e.g. Oracle, which runs only as a
+    facilitator). To decommission a persona entirely, move its folder
+    out of the personas directory.
     """
+    import frontmatter as fm
+
     persona_dir = _get_persona_dir()
     if not persona_dir.exists():
         return []
@@ -508,8 +516,16 @@ def discover_personas() -> list[str]:
             continue
         if path.name.startswith((".", "_")):
             continue
-        if (path / "prompt.md.j2").exists() or (path / "prompt.md").exists():
-            personas.append(path.name)
+        prompt_file = path / "prompt.md.j2"
+        if not prompt_file.exists():
+            prompt_file = path / "prompt.md"
+        if not prompt_file.exists():
+            continue
+        # Respect per-persona scheduling opt-out
+        meta = fm.load(prompt_file).metadata
+        if not meta.get("scheduled", True):
+            continue
+        personas.append(path.name)
 
     return sorted(personas)
 

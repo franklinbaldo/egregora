@@ -72,39 +72,37 @@ class TestStatelessScheduler(unittest.TestCase):
 
     @patch("repo.scheduler.stateless._get_persona_dir")
     def test_discover_personas(self, mock_get_dir: MagicMock) -> None:
-        """Test discover_personas filtering."""
-        mock_path = MagicMock()
-        mock_get_dir.return_value = mock_path
-        mock_path.exists.return_value = True
+        """Test discover_personas filtering with frontmatter opt-out."""
+        import tempfile
+        from pathlib import Path
 
-        # Setup directories
-        d1 = MagicMock()
-        d1.is_dir.return_value = True
-        d1.name = "persona1"
-        (d1 / "prompt.md.j2").exists.return_value = True
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            mock_get_dir.return_value = base
 
-        d2 = MagicMock()
-        d2.is_dir.return_value = True
-        d2.name = ".hidden"  # Skipped: starts with "."
+            # persona1: normal, should be discovered
+            (base / "persona1").mkdir()
+            (base / "persona1" / "prompt.md.j2").write_text("---\nid: persona1\nemoji: '1'\n---\nHello")
 
-        d3 = MagicMock()
-        d3.is_dir.return_value = True
-        d3.name = "oracle"
-        (d3 / "prompt.md.j2").exists.return_value = True  # Has prompt, discovered
+            # .hidden: starts with ".", should be skipped
+            (base / ".hidden").mkdir()
+            (base / ".hidden" / "prompt.md.j2").write_text("---\nid: hidden\n---\n")
 
-        d4 = MagicMock()
-        d4.is_dir.return_value = False  # Skipped: not a dir
+            # oracle: scheduled: false, should be skipped
+            (base / "oracle").mkdir()
+            (base / "oracle" / "prompt.md.j2").write_text(
+                "---\nid: oracle\nemoji: '🔮'\nscheduled: false\nautomation_mode: MANUAL\n---\nOracle"
+            )
 
-        d5 = MagicMock()
-        d5.is_dir.return_value = True
-        d5.name = "franklin"  # No prompt file, skipped
-        (d5 / "prompt.md.j2").exists.return_value = False
-        (d5 / "prompt.md").exists.return_value = False
+            # noprompt: no prompt file, should be skipped
+            (base / "noprompt").mkdir()
 
-        mock_path.iterdir.return_value = [d1, d2, d3, d4, d5]
+            # curator: normal, should be discovered
+            (base / "curator").mkdir()
+            (base / "curator" / "prompt.md.j2").write_text("---\nid: curator\nemoji: '🎭'\n---\nCurator")
 
-        personas = stateless.discover_personas()
-        self.assertEqual(personas, ["oracle", "persona1"])
+            personas = stateless.discover_personas()
+            self.assertEqual(personas, ["curator", "persona1"])
 
     def test_get_next_persona(self) -> None:
         personas = ["a", "b", "c"]

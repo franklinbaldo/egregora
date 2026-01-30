@@ -65,18 +65,6 @@ export GITHUB_TOKEN="your-github-token"
 export PYTHONPATH=".team"  # For local development
 ```
 
-### Run a Single Persona
-
-The scheduler CLI only supports `--dry-run`. To run a specific persona, call the scheduler module directly:
-
-```bash
-# Run the curator persona directly
-uv run python -m repo.scheduler.stateless --persona curator
-
-# Dry run (see what would happen)
-uv run jules schedule tick --dry-run
-```
-
 ### Run the Scheduler
 
 ```bash
@@ -933,8 +921,8 @@ gh pr list --head jules
 # Check CI status
 gh pr checks <pr-number>
 
-# Force a specific persona (via module)
-uv run python -m repo.scheduler.stateless --persona artisan
+# Run a dry-run tick to see what would happen
+uv run jules schedule tick --dry-run
 ```
 
 #### 2. Session Stuck
