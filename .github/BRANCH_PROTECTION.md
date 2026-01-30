@@ -146,7 +146,7 @@ The auto-merge workflow is configured to:
 - ✅ **Only merge patch and minor updates** (not major versions)
 - ✅ **Only run for Dependabot/Renovate** (not untrusted actors)
 - ✅ **Wait for all required checks** before merging
-- ✅ **Uses squash merge** for clean history
+- ✅ **Uses rebase merge** for linear history (falls back to merge commit if rebase fails)
 
 **Major updates still require manual review** to prevent breaking changes from being auto-merged.
 
