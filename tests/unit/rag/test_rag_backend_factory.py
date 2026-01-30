@@ -57,8 +57,10 @@ def test_embed_fn_uses_rag_settings_for_router(
     created_router = Mock()
     created_router.embed.return_value = [[0.1]]
 
-    get_router_mock = Mock(return_value=created_router)
-    monkeypatch.setattr(rag, "get_router", get_router_mock)
+    # Mock create_embedding_router instead of get_router
+    monkeypatch.setattr(rag, "create_embedding_router", Mock(return_value=created_router))
+    # Reset module-level router singleton
+    monkeypatch.setattr(rag, "_router", None)
 
     class DummyBackend:
         def __init__(self, *, embed_fn, **_: object) -> None:
