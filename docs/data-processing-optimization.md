@@ -1,6 +1,6 @@
 # Data Processing Optimization Plan
 
-Last updated: 2026-01-07
+Last updated: 2026-01-30
 
 ## Current Data Processing Patterns
 
@@ -43,6 +43,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Change:** Replaced the "declarative" Ibis loop (which still executed N aggregation queries) with a "Fetch-then-Compute" pattern. We now fetch all timestamps in a single O(1) query, compute window boundaries in Python (microseconds), and yield lazy table slices.
   - **Impact:** Benchmark showed **32x speedup** (3.2s -> 0.1s for 10,000 messages). Eliminated the hidden N+1 query cost of the previous implementation.
 
+- **Refactored `get_media_enrichment_candidates` to Vectorized Regex.**
+  - **Date:** 2026-01-30
+  - **Change:** Replaced the imperative Python loop (iterating over rows and running regex in Python) with a single vectorized Ibis/DuckDB query. The new implementation uses `regexp_extract_all` for 5 parallel patterns (Markdown, WA, Attachment, Plain, UUID), unnests the streams, unions them, applies filters in-database (mostly), and deduplicates via window functions.
+  - **Impact:** Benchmark showed **~3x speedup** (1.1s -> 0.34s for 10,000 messages). Crucially, it moves heavy text processing to the DB engine.
+
 ## Optimization Strategy
 
 My strategy is to systematically replace imperative, iterative data processing loops with declarative, vectorized Ibis expressions. The core principle is to "let the database do the work."
@@ -51,5 +56,3 @@ My strategy is to systematically replace imperative, iterative data processing l
 2.  **Translate to Window Functions:** Rewrite the logic using Ibis window functions (`ibis.window`, `ibis.row_number`, etc.) or column-wise arithmetic to compute window identifiers for all rows at once.
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
-
-For this session, I focused on refactoring `_window_by_bytes`.
