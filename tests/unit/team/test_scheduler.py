@@ -19,13 +19,22 @@ class TestStatelessScheduler(unittest.TestCase):
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_exists_and_updates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch updates existing branch to match main."""
-        mock_run.return_value.returncode = 0
+
+        def side_effect(cmd, **kwargs):
+            result = MagicMock(returncode=0)
+            # ls-remote returns non-empty stdout when branch exists
+            if cmd[1:3] == ["ls-remote", "--heads"]:
+                result.stdout = f"abc123\trefs/heads/{stateless.JULES_BRANCH}\n"
+            return result
+
+        mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
-        # Verify essential calls are made, ignoring others
+        # Verify essential calls are made
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
@@ -35,54 +44,65 @@ class TestStatelessScheduler(unittest.TestCase):
 
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
-        """Test ensure_jules_branch when branch missing."""
+        """Test ensure_jules_branch when branch missing on remote."""
 
         def side_effect(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1] == "rev-parse" and "--verify" in cmd:
-                return MagicMock(returncode=1)
-            return MagicMock(returncode=0)
+            result = MagicMock(returncode=0)
+            # ls-remote returns empty stdout when branch doesn't exist
+            if cmd[1:3] == ["ls-remote", "--heads"]:
+                result.stdout = ""
+            return result
 
         mock_run.side_effect = side_effect
         stateless.ensure_jules_branch()
 
-        # Verify essential calls are made, ignoring others
+        # Verify essential calls are made
         mock_run.assert_any_call(["git", "fetch", "origin", "main"], capture_output=True)
         mock_run.assert_any_call(
-            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
+            ["git", "ls-remote", "--heads", "origin", stateless.JULES_BRANCH],
             capture_output=True,
+            text=True,
         )
         mock_run.assert_any_call(
             ["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True
         )
+        mock_run.assert_any_call(
+            ["git", "push", "-u", "origin", stateless.JULES_BRANCH], check=True, capture_output=True
+        )
 
     @patch("repo.scheduler.stateless._get_persona_dir")
     def test_discover_personas(self, mock_get_dir: MagicMock) -> None:
-        """Test discover_personas filtering."""
-        mock_path = MagicMock()
-        mock_get_dir.return_value = mock_path
-        mock_path.exists.return_value = True
+        """Test discover_personas filtering with frontmatter opt-out."""
+        import tempfile
+        from pathlib import Path
 
-        # Setup directories
-        d1 = MagicMock()
-        d1.is_dir.return_value = True
-        d1.name = "persona1"
-        (d1 / "prompt.md.j2").exists.return_value = True
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            mock_get_dir.return_value = base
 
-        d2 = MagicMock()
-        d2.is_dir.return_value = True
-        d2.name = ".hidden"
+            # persona1: normal, should be discovered
+            (base / "persona1").mkdir()
+            (base / "persona1" / "prompt.md.j2").write_text("---\nid: persona1\nemoji: '1'\n---\nHello")
 
-        d3 = MagicMock()
-        d3.is_dir.return_value = True
-        d3.name = "oracle"  # Excluded
+            # .hidden: starts with ".", should be skipped
+            (base / ".hidden").mkdir()
+            (base / ".hidden" / "prompt.md.j2").write_text("---\nid: hidden\n---\n")
 
-        d4 = MagicMock()
-        d4.is_dir.return_value = False  # Not dir
+            # oracle: scheduled: false, should be skipped
+            (base / "oracle").mkdir()
+            (base / "oracle" / "prompt.md.j2").write_text(
+                "---\nid: oracle\nemoji: '🔮'\nscheduled: false\nautomation_mode: MANUAL\n---\nOracle"
+            )
 
-        mock_path.iterdir.return_value = [d1, d2, d3, d4]
+            # noprompt: no prompt file, should be skipped
+            (base / "noprompt").mkdir()
 
-        personas = stateless.discover_personas()
-        self.assertEqual(personas, ["persona1"])
+            # curator: normal, should be discovered
+            (base / "curator").mkdir()
+            (base / "curator" / "prompt.md.j2").write_text("---\nid: curator\nemoji: '🎭'\n---\nCurator")
+
+            personas = stateless.discover_personas()
+            self.assertEqual(personas, ["curator", "persona1"])
 
     def test_get_next_persona(self) -> None:
         personas = ["a", "b", "c"]

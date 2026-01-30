@@ -39,19 +39,19 @@ class TestPersonaLoader(unittest.TestCase):
 
     def test_load_specific_persona(self):
         """Test loading a specific persona by path."""
-        # Load curator persona specifically
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        # Load shepherd persona specifically
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
 
         assert len(personas) == 1
-        curator = personas[0]
+        shepherd = personas[0]
 
-        assert curator.id == "curator"
-        assert curator.emoji == "🎭"
-        assert "UX/UI" in curator.description or "UX/UI" in curator.prompt_body
+        assert shepherd.id == "shepherd"
+        assert shepherd.emoji == "🧑‍🌾"
+        assert "test" in shepherd.description.lower() or "test" in shepherd.prompt_body.lower()
 
     def test_persona_has_required_fields(self):
         """Test that rendered personas have all required fields."""
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
         # Required PersonaConfig fields
@@ -64,7 +64,7 @@ class TestPersonaLoader(unittest.TestCase):
 
     def test_context_variables_injected(self):
         """Test that context variables are properly injected."""
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
         # Check for injected variables in rendered prompt
@@ -75,7 +75,7 @@ class TestPersonaLoader(unittest.TestCase):
         """Test that password is generated and injected."""
         import uuid
 
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
         # Calculate expected password
@@ -86,29 +86,29 @@ class TestPersonaLoader(unittest.TestCase):
 
     def test_journal_entries_collected(self):
         """Test that journal entries are collected if they exist."""
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
-        # Curator has journal entries, so journal_entries should be non-empty
-        # (This might fail if curator has no journals, which is ok for this test)
+        # Shepherd may have journal entries
+        # (This might fail if shepherd has no journals, which is ok for this test)
         # Just verify the field exists
         assert hasattr(persona, "journal_entries")
         assert isinstance(persona.journal_entries, str)
 
     def test_template_inheritance_works(self):
         """Test that Jinja2 template inheritance is working."""
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
-        # Check for RGCCOV framework sections (from base template)
+        # Check for ROSAV framework sections (from base template)
         assert "## 🎭 Role" in persona.prompt_body or "Role" in persona.prompt_body
-        assert "## 🎯 Goal" in persona.prompt_body or "Goal" in persona.prompt_body
-        assert "## 📋 Context" in persona.prompt_body or "Context" in persona.prompt_body
+        assert "## 🎯 Objective" in persona.prompt_body or "Objective" in persona.prompt_body
+        assert "## 📋 Situation" in persona.prompt_body or "Situation" in persona.prompt_body
         assert "## ⚠️ Constraints" in persona.prompt_body or "Constraints" in persona.prompt_body
 
     def test_blocks_and_partials_rendered(self):
         """Test that blocks and partials are rendered."""
-        personas = self.loader.load_personas(["personas/curator/prompt.md.j2"])
+        personas = self.loader.load_personas(["personas/shepherd/prompt.md.j2"])
         persona = personas[0]
 
         # Check for common blocks
