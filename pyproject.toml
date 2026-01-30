@@ -450,7 +450,7 @@ omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 show_missing = true
 skip_covered = false
 precision = 2
-fail_under = 45.0
+fail_under = 60.0
 
 [tool.deptry]
 ignore_notebooks = true
