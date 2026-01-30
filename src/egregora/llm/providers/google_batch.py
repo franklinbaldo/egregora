@@ -170,7 +170,7 @@ class GoogleBatchModel(Model):
             logger.exception("[BatchAPI] ClientError")
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
 
-    def _extract_inline_results(self, job: Any, requests: list[dict[str, Any]]) -> list[BatchResult]:
+    def _extract_inline_results(self, job: types.BatchJob, requests: list[dict[str, Any]]) -> list[BatchResult]:
         """Extract results from inline batch response."""
         results: list[BatchResult] = []
 
@@ -213,7 +213,7 @@ class GoogleBatchModel(Model):
         return results
 
     # TODO: [Taskmaster] Refactor for clarity and conciseness
-    def _response_to_dict(self, response: Any) -> dict[str, Any]:
+    def _response_to_dict(self, response: types.GenerateContentResponse | dict[str, Any]) -> dict[str, Any]:
         """Convert SDK response object to dict format."""
         if isinstance(response, dict):
             return response
@@ -221,6 +221,7 @@ class GoogleBatchModel(Model):
         result: dict[str, Any] = {}
         if hasattr(response, "candidates"):
             candidates = []
+            # types.GenerateContentResponse has candidates which is list[Candidate]
             for cand in response.candidates or []:
                 cand_dict: dict[str, Any] = {}
                 if hasattr(cand, "content") and cand.content:
@@ -275,7 +276,7 @@ class GoogleBatchModel(Model):
         return job
 
     def _download_results(
-        self, client: Any, output_uri: str, requests: list[dict[str, Any]]
+        self, client: genai.Client, output_uri: str, requests: list[dict[str, Any]]
     ) -> list[BatchResult]:
         # httpx.get is blocking
         try:
