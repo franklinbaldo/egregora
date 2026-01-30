@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 import respx
 
-# Add .team to path so we can import repo.github
+# Add .team to path so we can import repo.core.github
 REPO_ROOT = Path(__file__).parents[3]
 TEAM_PATH = REPO_ROOT / ".team"
 if str(TEAM_PATH) not in sys.path:

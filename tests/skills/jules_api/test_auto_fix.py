@@ -6,14 +6,14 @@ class TestAutoFixPrompt:
     def setup_method(self) -> None:
         self.team_path = Path(__file__).parents[3] / ".team"
         sys.path.insert(0, str(self.team_path))
-        import repo.auto_fix
+        from repo.features import autofix as auto_fix
 
-        self.auto_fix = repo.auto_fix
+        self.auto_fix = auto_fix
 
     def teardown_method(self) -> None:
         sys.path.remove(str(self.team_path))
-        if "repo.auto_fix" in sys.modules:
-            del sys.modules["repo.auto_fix"]
+        if "repo.features.autofix" in sys.modules:
+            del sys.modules["repo.features.autofix"]
 
     def test_render_feedback_prompt_includes_ci_logs(self) -> None:
         details = {

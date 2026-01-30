@@ -11,7 +11,7 @@ from typing import Any
 # Import the extraction logic from repo module
 sys.path.insert(0, ".team")
 
-import repo.github as jules_github
+from repo.core import github as jules_github
 
 SessionIdPatterns = dict[str, list[tuple[int | None, str, str | None] | tuple[int | None, str]]]
 

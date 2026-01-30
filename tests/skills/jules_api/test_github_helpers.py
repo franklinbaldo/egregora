@@ -6,14 +6,14 @@ class TestGithubHelpers:
     def setup_method(self) -> None:
         self.team_path = Path(__file__).parents[3] / ".team"
         sys.path.insert(0, str(self.team_path))
-        import repo.github
+        from repo.core import github
 
-        self.github = repo.github
+        self.github = github
 
     def teardown_method(self) -> None:
         sys.path.remove(str(self.team_path))
-        if "repo.github" in sys.modules:
-            del sys.modules["repo.github"]
+        if "repo.core.github" in sys.modules:
+            del sys.modules["repo.core.github"]
 
     def test_last_commit_author_login_prefers_user_login(self) -> None:
         commits = [{"authors": [{"user": {"login": "google-labs-jules[bot]"}}]}]

@@ -125,7 +125,7 @@ def get_session(self, session_id: str) -> dict[str, Any]:
 
 ### Current Implementation
 ```python
-# .team/repo/auto_fix.py:52-58
+# .team/repo/features/autofix.py:52-58
 try:
     session = client.get_session(session_id)
     # Always send message to existing session, regardless of state

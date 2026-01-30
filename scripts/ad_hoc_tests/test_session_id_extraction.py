@@ -9,7 +9,7 @@ from typing import Any
 
 # Import the extraction logic from repo module
 sys.path.insert(0, ".team")
-import repo.github as jules_github
+from repo.core import github as jules_github
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:

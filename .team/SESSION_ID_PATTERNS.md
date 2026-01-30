@@ -6,7 +6,7 @@ All PRs created by Jules contain a **session ID** that uniquely identifies the J
 
 ## Session ID Extraction Logic
 
-The extraction logic (`_extract_session_id()` in `.team/repo/github.py`) supports multiple patterns:
+The extraction logic (`_extract_session_id()` in `.team/repo/core/github.py`) supports multiple patterns:
 
 ### 1. **Numeric ID in Branch Name** (Primary Pattern - 100% of current PRs)
 
@@ -46,7 +46,7 @@ The extraction logic (`_extract_session_id()` in `.team/repo/github.py`) support
 
 ## Auto-Fix Behavior
 
-The auto-fixer (`auto_reply_to_jules()` in `.team/repo/auto_fix.py`) follows this logic:
+The auto-fixer (`auto_reply_to_jules()` in `.team/repo/features/autofix.py`) follows this logic:
 
 ```
 1. Check if PR has CI failures or merge conflicts

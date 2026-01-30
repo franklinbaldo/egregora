@@ -26,7 +26,7 @@ The evaluation correctly identified a blocking bug in `scheduler_managers.py`.
 The evaluation praises a function `run_gh_command` in `github.py` for having "good retry logic".
 
 *   **Reality**:
-    *   `run_gh_command` **does not exist** in `repo/github.py`.
+    *   `run_gh_command` **does not exist** in `repo/core/github.py`.
     *   It exists in `.claude/skills/jules-api/feed_feedback.py` (a helper script).
     *   It uses `subprocess.run` **without any retry logic**.
 *   **Risk**: Following the evaluation's implied advice to "keep doing this" would be misguided, as the "good code" doesn't exist.
