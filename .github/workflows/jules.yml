@@ -130,12 +130,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           # Check if PR body contains Jules URL
           if echo "$PR_BODY" | grep -qE 'jules\.google\.com/(task|session)'; then
             echo "is_jules=true" >> $GITHUB_OUTPUT
             echo "✅ Found Jules URL in PR body"
-          elif [[ "${{ github.event.pull_request.user.login }}" == "google-labs-jules"* ]]; then
+          elif [[ "$PR_AUTHOR" == "google-labs-jules"* ]]; then
             echo "is_jules=true" >> $GITHUB_OUTPUT
             echo "✅ PR created by Jules bot"
           else
@@ -300,9 +301,11 @@ jobs:
       - name: Identify PR (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         id: manual-pr
+        env:
+          PR_NUMBER_INPUT: ${{ github.event.inputs.pr_number }}
         run: |
           echo "has_pr=true" >> $GITHUB_OUTPUT
-          echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER_INPUT" >> $GITHUB_OUTPUT
 
       - name: Identify PR (workflow_run)
         if: github.event_name == 'workflow_run'
