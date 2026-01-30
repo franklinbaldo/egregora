@@ -15,7 +15,7 @@ theme:
   language: en
   favicon: assets/images/favicon.svg
   font:
-    text: Roboto
+    text: Inter
     code: Roboto Mono
   palette:
     # Light mode
@@ -75,7 +75,9 @@ theme:
 plugins:
   - social:
       cards: true
-  - offline
+  # Privacy: 'offline' plugin injects unpkg scripts. Removed to ensure no external requests.
+  # - offline
+  - privacy
   - search:
       lang: en
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
@@ -247,8 +249,10 @@ extra:
     {% endif %}
   {% endif %}
 
-extra_javascript:
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+extra_javascript: []
+  # MathJax is disabled by default for privacy (no external requests).
+  # Uncomment to enable math support (requires internet connection).
+  # - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 # Custom CSS for improved UX
 extra_css:
