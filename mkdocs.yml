@@ -162,6 +162,7 @@ nav:
   - Home: index.md
   - Quick Start: getting-started/quickstart.md
   - About: about.md
+  - Why Egregora?: why-egregora.md
   - FAQ: faq.md
   - ADR:
       - Index: adr/README.md
@@ -171,8 +172,10 @@ nav:
       - Deployment: getting-started/deployment.md
   - Reference:
       - Technical Reference: reference/index.md
+      - Jules API: reference/jules-api.md
   - Community:
       - Contributing: community/contributing.md
+      - Target Audience: user-personas.md
       - Personas: personas.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
 
