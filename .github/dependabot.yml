@@ -1,0 +1,49 @@
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # Python dependencies
+  # NOTE: This project uses uv (not pip), which Dependabot doesn't support yet.
+  # Dependabot will read pyproject.toml but won't update uv.lock correctly.
+  #
+  # Options for better dependency management:
+  # 1. Use Renovate (https://docs.renovatebot.com/) - has experimental uv support
+  # 2. Manually update: `uv lock --upgrade` and commit
+  # 3. Wait for official Dependabot uv support (tracking: github/feedback#9)
+  #
+  # For now, keeping pip ecosystem enabled for pyproject.toml awareness,
+  # but expect manual intervention for uv.lock updates.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Group minor and patch updates to reduce PR noise
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Limit open PRs since manual uv lock updates will be needed
+    open-pull-requests-limit: 5

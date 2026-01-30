@@ -11,6 +11,7 @@ name: CI
 #   pre-commit:  Linting, formatting, static analysis (ruff, vulture, etc.)
 #   test-unit:   Unit tests with coverage
 #   test-e2e:    End-to-end tests with coverage
+#   security:    Dependency vulnerability scanning
 #   build:       Package build verification
 #
 # BRANCH PROTECTION:
@@ -114,6 +115,23 @@ jobs:
           files: ./coverage.xml
           flags: e2e
           fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Check dependencies for vulnerabilities
+        run: |
+          uvx safety check --full-report || true
+          uvx pip-audit || true
 
   build:
     name: Build Package
