@@ -165,6 +165,15 @@ nav:
   - FAQ: faq.md
   - ADR:
       - Index: adr/README.md
+  - Planning:
+      - Feedback Loop: jules_feedback_loop_plan.md
+      - Organization: organization-plan.md
+      - Schema Evolution: schema-evolution-plan.md
+      - User Personas: user-personas.md
+      - UX Vision: ux-vision.md
+      - Video Script: video-script-getting-started.md
+      - Why Egregora: why-egregora.md
+      - Optimization: data-processing-optimization.md
   - Getting Started:
       - Installation: getting-started/installation.md
       - Configuration: getting-started/configuration.md

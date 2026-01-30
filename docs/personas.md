@@ -159,7 +159,7 @@ Specific objective this persona achieves.
 2. **STEP 2**: Next action
 3. **STEP 3**: Final verification
 {% endblock %}
-{% endraw %}
+{% endraw %}{{ "{% endraw %}" }}{% raw %}
 ```
 {% endraw %}
 
@@ -209,7 +209,7 @@ Reference these in your custom blocks:
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
-{% endraw %}
+{% endraw %}{{ "{% endraw %}" }}{% raw %}
 ```
 {% endraw %}
 
@@ -274,7 +274,7 @@ Personas must work **independently** without human input:
 - Don't ask humans for approval
 - Document uncertainties in journal
 {% endblock %}
-{% endraw %}
+{% endraw %}{{ "{% endraw %}" }}{% raw %}
 ```
 {% endraw %}
 
@@ -290,7 +290,7 @@ Always define **measurable success criteria**:
 - Linter shows 0 errors (run `uv run ruff check`)
 - Documentation updated in docs/
 {% endblock %}
-{% endraw %}
+{% endraw %}{{ "{% endraw %}" }}{% raw %}
 ```
 {% endraw %}
 
@@ -326,7 +326,7 @@ Use Jinja2 conditionals for flexible prompts:
 {% else %}
 This is your first session!
 {% endif %}
-{% endraw %}
+{% endraw %}{{ "{% endraw %}" }}{% raw %}
 ```
 {% endraw %}
 
