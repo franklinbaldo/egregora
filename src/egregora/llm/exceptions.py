@@ -15,6 +15,10 @@ class AllModelsExhaustedError(LLMProviderError):
         super().__init__(message)
 
 
+class AllApiKeysExhaustedError(LLMProviderError):
+    """Raised when all API keys have been exhausted for a provider."""
+
+
 class BatchJobError(LLMProviderError):
     """Base exception for errors related to batch job processing."""
 

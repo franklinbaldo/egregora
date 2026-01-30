@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.llm.api_keys import get_google_api_keys
+from egregora.llm.exceptions import AllApiKeysExhaustedError, AllModelsExhaustedError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -121,6 +122,7 @@ class GeminiKeyRotator:
 
         # Determine max attempts (try all keys once)
         max_attempts = len(self.api_keys)
+        last_exception: Exception | None = None
 
         for _ in range(max_attempts):
             api_key = self.current_key
@@ -144,6 +146,7 @@ class GeminiKeyRotator:
 
                 return result
             except Exception as exc:
+                last_exception = exc
                 # Always rotate on error too
                 self.next_key()
 
@@ -165,7 +168,9 @@ class GeminiKeyRotator:
         logger.error("[KeyRotator] All %d API keys exhausted/rate-limited", len(self.api_keys))
         # Re-raise the last exception if we have one, or a generic error
         msg = "All API keys exhausted"
-        raise RuntimeError(msg)
+        if last_exception:
+            raise AllApiKeysExhaustedError(msg) from last_exception
+        raise AllApiKeysExhaustedError(msg)
 
 
 class GeminiModelCycler:
@@ -256,6 +261,7 @@ class GeminiModelCycler:
             is_rate_limit_error = default_rate_limit_check
 
         self.reset()
+        caught_exceptions: list[Exception] = []
 
         while True:
             model = self.current_model
@@ -267,17 +273,20 @@ class GeminiModelCycler:
                 return result
             except Exception as exc:
                 if is_rate_limit_error(exc):
+                    caught_exceptions.append(exc)
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
 
                     next_model = self.next_model()
                     if next_model is None:
-                        logger.exception("[ModelCycler] All models rate-limited")
-                        raise
+                        logger.error("[ModelCycler] All models rate-limited")
+                        msg = "All models rate-limited"
+                        raise AllModelsExhaustedError(
+                            msg,
+                            causes=caught_exceptions,
+                        ) from exc
                     continue
                 # Non-rate-limit error - propagate
                 raise
-
-        return None  # Unreachable, but satisfies type checker
 
 
 def default_rate_limit_check(exc: Exception) -> bool:
