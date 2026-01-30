@@ -169,8 +169,9 @@ jobs:
         id: check-jules-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          BRANCH="$HEAD_BRANCH"
           echo "Branch: $BRANCH"
 
           # Always allow main and jules branches
@@ -198,7 +199,6 @@ jobs:
             echo "is_jules=false" >> $GITHUB_OUTPUT
             echo "⏭️ No Jules URL in PR body - skipping scheduler"
           fi
-
       - uses: actions/checkout@v4
         if: github.event_name != 'workflow_run' || steps.check-jules-pr.outputs.is_jules == 'true'
         with:
