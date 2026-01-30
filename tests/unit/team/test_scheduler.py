@@ -2,7 +2,7 @@ import sys
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 # Add .team to path so we can import repo.scheduler
 # We use relative path from repo root
