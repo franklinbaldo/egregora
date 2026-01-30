@@ -25,7 +25,7 @@ console = Console()
 def render(
     persona_id: str = typer.Argument(
         ...,
-        help="Persona ID to render (e.g., 'curator', 'meta')"
+        help="Persona ID to render (e.g., 'scribe', 'meta')"
     ),
     output: Optional[Path] = typer.Option(
         None, "--output", "-o",

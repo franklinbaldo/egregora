@@ -15,7 +15,7 @@ Personas are defined using **Jinja2 templates** with inheritance, allowing for c
 ```
 .team/
 ├── personas/           # Individual persona definitions
-│   ├── curator/
+│   ├── scribe/
 │   │   ├── prompt.md.j2    # Persona template
 │   │   └── journals/       # Session history
 │   ├── forge/
@@ -57,11 +57,11 @@ loader = PersonaLoader(
 )
 
 # Load specific persona
-personas = loader.load_personas(['personas/curator/prompt.md.j2'])
-curator = personas[0]
+personas = loader.load_personas(['personas/scribe/prompt.md.j2'])
+scribe = personas[0]
 
 # Access rendered prompt
-print(curator.prompt_body)
+print(scribe.prompt_body)
 ```
 
 ### Context Variables
@@ -70,9 +70,9 @@ The rendering system automatically injects these variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `id` | Persona identifier | `"curator"` |
-| `emoji` | Persona emoji | `"🎭"` |
-| `description` | Brief role description | `"UX/UI designer"` |
+| `id` | Persona identifier | `"scribe"` |
+| `emoji` | Persona emoji | `"✍️"` |
+| `description` | Brief role description | `"Technical Writer"` |
 | `journal_entries` | Last 10 journal entries | Recent session notes |
 | `password` | Session UUID | `"6b67ff37-a96b..."` |
 
@@ -221,7 +221,7 @@ Personas communicate via `.team/mail/`. Run commands using the `my-tools` CLI wr
 
 ```bash
 # Send message
-PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email send --to curator --subject "Question" --body "..."
+PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email send --to scribe --subject "Question" --body "..."
 
 # Check inbox
 PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email inbox
@@ -259,7 +259,7 @@ Journals are automatically included in future prompts (last 10 entries).
 
 Each persona should have **one clear purpose**. Don't create "jack-of-all-trades" personas.
 
-✅ Good: `curator` - UX/UI evaluation only
+✅ Good: `scribe` - Documentation only
 ❌ Bad: `developer` - does everything
 
 ### 2. Autonomous Operation
@@ -306,9 +306,9 @@ Provide **exact file paths** and references:
 Use the persona's emoji in all outputs:
 
 ```jinja
-**PR Title:** 🎭 curator: Update UX vision
-**Journal:** ## 🎭 2026-01-22 - Session Summary
-**Commits:** 🎭 docs: improve accessibility
+**PR Title:** ✍️ scribe: Update personas documentation
+**Journal:** ## ✍️ 2026-01-22 - Session Summary
+**Commits:** ✍️ docs: improve accessibility
 ```
 
 ## Advanced Features
@@ -357,11 +357,11 @@ PYTHONPATH=.team uv run python ...
 **Fix:** Use the PersonaLoader, don't render templates directly:
 ```python
 # ❌ Wrong
-env.get_template('personas/curator/prompt.md.j2').render()
+env.get_template('personas/scribe/prompt.md.j2').render()
 
 # ✅ Correct
 loader = PersonaLoader(...)
-loader.load_personas(['personas/curator/prompt.md.j2'])
+loader.load_personas(['personas/scribe/prompt.md.j2'])
 ```
 
 ### Journal Not Appearing
@@ -389,14 +389,10 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 - **absolutist** - Methodical refactorer who removes legacy code based on rigorous evidence collection.
 - **artisan** - Skilled software craftsman dedicated to elevating code quality and maintaining high engineering standards.
 - **bdd_specialist** - Precision-focused BDD Specialist who ensures features are defined by clear, testable behaviors.
-- **bolt** - Performance Engineer who optimizes resource usage, reduces latency, and ensures responsiveness.
 - **builder** - Data Architect who designs and implements robust data structures and migrations.
-- **curator** - Opinionated UX/UI designer who evaluates generated blogs for visual and functional excellence.
-- **deps** - Dependency guardian who keeps packages secure, minimal, and up-to-date.
 - **essentialist** - Senior architect focused on radical simplicity and reducing lifetime maintenance load.
 - **forge** - Senior frontend developer who transforms UX vision into high-performance web components.
 - **franklin** - The human user and project lead.
-- **janitor** - Meticulous code hygienist who keeps the codebase clean, consistent, and free of rot.
 - **lore** - Technical historian and investigative journalist. Archivist of the System Lore Blog and JULES Wiki.
 - **maya** - User advocate who provides feedback on documentation and features from a non-technical, memory-focused perspective.
 - **meta** - System introspection specialist who documents and maintains the persona infrastructure.

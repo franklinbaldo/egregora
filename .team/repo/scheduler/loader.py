@@ -41,7 +41,7 @@ class PersonaLoader:
         """Load all personas in cycle order.
 
         Args:
-            cycle_list: Ordered list of relative paths (e.g., ["personas/curator/prompt.md"])
+            cycle_list: Ordered list of relative paths (e.g., ["personas/scribe/prompt.md"])
                        If empty, loads all personas from directory
 
         Returns:

@@ -27,7 +27,7 @@ app = typer.Typer(
 def send(
     to: str = typer.Option(
         ..., "--to", 
-        help="Recipient Persona ID (e.g., curator@team)"
+        help="Recipient Persona ID (e.g., scribe@team)"
     ),
     subject: str = typer.Option(
         ..., "--subject", "-s", 

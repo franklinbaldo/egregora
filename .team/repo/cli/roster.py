@@ -75,7 +75,7 @@ def list_personas():
 @app.command(name="view")
 @log_tool_command(prefix="roster")
 def view_persona(
-    persona_id: str = typer.Argument(..., help="The Persona ID to inspect (e.g., refactor, curator)")
+    persona_id: str = typer.Argument(..., help="The Persona ID to inspect (e.g., absolutist, scribe)")
 ):
     """
     🔍 VIEW DETAILS.
