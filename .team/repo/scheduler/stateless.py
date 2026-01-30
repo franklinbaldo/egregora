@@ -522,7 +522,11 @@ def discover_personas() -> list[str]:
         if not prompt_file.exists():
             continue
         # Respect per-persona scheduling opt-out
-        meta = fm.load(prompt_file).metadata
+        try:
+            meta = fm.load(prompt_file).metadata
+        except Exception as exc:  # noqa: BLE001
+            print(f"  Warning: skipping {path.name} (malformed frontmatter: {exc})")
+            continue
         if not meta.get("scheduled", True):
             continue
         personas.append(path.name)
