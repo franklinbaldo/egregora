@@ -84,6 +84,10 @@ def sync_jules_to_main() -> None:
     (e.g. if non-Jules PRs were merged directly to main). This updates
     jules to point to the same commit as main so the next Jules session
     starts from the latest code.
+
+    SAFETY: Before resetting, verifies that all jules commits are already
+    in main (i.e. origin/jules is an ancestor of origin/main). If jules
+    has commits that main doesn't, the reset is skipped to prevent data loss.
     """
     print("\nSyncing jules branch to match main...")
 
@@ -110,6 +114,25 @@ def sync_jules_to_main() -> None:
 
     print(f"  main  @ {main_sha[:10]}")
     print(f"  jules @ {jules_sha[:10]}")
+
+    # SAFETY CHECK: Verify jules is an ancestor of main (all jules commits
+    # are in main). If jules has commits that main doesn't, resetting would
+    # destroy them. The forward sync should have merged them, but this guard
+    # prevents data loss if the forward sync failed silently or was skipped.
+    ancestor_check = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", "origin/jules", "origin/main"],
+    )
+    if ancestor_check.returncode != 0:
+        print(
+            "  WARNING: jules has commits not in main. "
+            "Skipping reverse sync to prevent data loss.",
+            file=sys.stderr,
+        )
+        print(
+            "  Run the forward sync (jules → main) first to preserve these commits.",
+            file=sys.stderr,
+        )
+        return
 
     # Update jules to point to same commit as main
     try:

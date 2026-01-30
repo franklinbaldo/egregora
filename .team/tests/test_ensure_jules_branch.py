@@ -8,7 +8,7 @@ and pushes the branch when it's missing.
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from repo.scheduler.stateless import JULES_BRANCH, ensure_jules_branch
 
@@ -89,8 +89,8 @@ class TestEnsureJulesBranchRemoteExists:
     """When the jules branch already exists on the remote."""
 
     @patch("repo.scheduler.stateless.subprocess.run")
-    def test_updates_existing_branch(self, mock_run):
-        """Branch is force-updated to match main and pushed."""
+    def test_preserves_existing_branch(self, mock_run):
+        """Branch is left as-is to preserve unmerged commits."""
         def side_effect(cmd, **kwargs):
             if cmd == ["git", "ls-remote", "--heads", "origin", JULES_BRANCH]:
                 # ls-remote returns a ref → branch exists
@@ -109,14 +109,13 @@ class TestEnsureJulesBranchRemoteExists:
         assert ["git", "branch", "-D", JULES_BRANCH] not in commands
         assert ["git", "push", "-u", "origin", JULES_BRANCH] not in commands
 
-        # Should update existing branch
-        assert ["git", "fetch", "origin", JULES_BRANCH] in commands
-        assert ["git", "branch", "-f", JULES_BRANCH, "origin/main"] in commands
-        assert ["git", "push", "--force-with-lease", "origin", JULES_BRANCH] in commands
+        # Should NOT reset the branch to main (would destroy unmerged commits)
+        assert ["git", "branch", "-f", JULES_BRANCH, "origin/main"] not in commands
+        assert ["git", "push", "--force-with-lease", "origin", JULES_BRANCH] not in commands
 
     @patch("repo.scheduler.stateless.subprocess.run")
-    def test_does_not_push_with_force(self, mock_run):
-        """Uses --force-with-lease (not --force) to avoid overwriting concurrent work."""
+    def test_no_push_when_branch_exists(self, mock_run):
+        """No push operations when branch already exists on remote."""
         def side_effect(cmd, **kwargs):
             if cmd == ["git", "ls-remote", "--heads", "origin", JULES_BRANCH]:
                 return _make_completed_process(
@@ -132,6 +131,25 @@ class TestEnsureJulesBranchRemoteExists:
             c for c in mock_run.call_args_list
             if c.args and "push" in c.args[0]
         ]
-        for push_call in push_calls:
-            cmd = push_call.args[0]
-            assert "--force" not in cmd, "Should use --force-with-lease, not --force"
+        assert len(push_calls) == 0, "Should not push when branch already exists"
+
+    @patch("repo.scheduler.stateless.subprocess.run")
+    def test_only_runs_fetch_and_check(self, mock_run):
+        """When branch exists, only fetch main and check remote — nothing else."""
+        def side_effect(cmd, **kwargs):
+            if cmd == ["git", "ls-remote", "--heads", "origin", JULES_BRANCH]:
+                return _make_completed_process(
+                    stdout=f"abc123\trefs/heads/{JULES_BRANCH}\n",
+                )
+            return _make_completed_process()
+
+        mock_run.side_effect = side_effect
+
+        ensure_jules_branch()
+
+        commands = [c.args[0] for c in mock_run.call_args_list]
+
+        # Only two git commands should run
+        assert len(commands) == 2
+        assert commands[0] == ["git", "fetch", "origin", "main"]
+        assert commands[1] == ["git", "ls-remote", "--heads", "origin", JULES_BRANCH]
