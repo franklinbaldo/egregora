@@ -261,8 +261,7 @@ class TestMergeCompletedPrs(unittest.TestCase):
         merge_calls = [
             call
             for call in mock_run.call_args_list
-            if call[0][0]
-            == ["gh", "pr", "merge", "123", "--merge", "--delete-branch", "--admin"]
+            if call[0][0] == ["gh", "pr", "merge", "123", "--merge", "--delete-branch", "--admin"]
         ]
         self.assertTrue(merge_calls)
 
@@ -348,9 +347,7 @@ class TestMergeCompletedPrs(unittest.TestCase):
         self.assertEqual(merged, 1)
 
         # Verify ready call
-        ready_calls = [
-            call for call in mock_run.call_args_list if call[0][0] == ["gh", "pr", "ready", "127"]
-        ]
+        ready_calls = [call for call in mock_run.call_args_list if call[0][0] == ["gh", "pr", "ready", "127"]]
         self.assertTrue(ready_calls)
 
     @patch("repo.scheduler.stateless.subprocess.run")
@@ -363,9 +360,7 @@ class TestMergeCompletedPrs(unittest.TestCase):
 
 class TestOracleSession(unittest.TestCase):
     @patch("repo.scheduler.stateless._get_persona_dir")
-    def test_get_or_create_oracle_session_reuses_existing(
-        self, mock_get_dir: MagicMock
-    ) -> None:
+    def test_get_or_create_oracle_session_reuses_existing(self, mock_get_dir: MagicMock) -> None:
         """Test reuses existing Oracle session."""
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {
@@ -412,9 +407,7 @@ class TestOracleSession(unittest.TestCase):
             self.assertEqual(call_args["automation_mode"], "FULL")
 
     @patch("repo.scheduler.stateless._get_persona_dir")
-    def test_get_or_create_oracle_session_fallback_prompt(
-        self, mock_get_dir: MagicMock
-    ) -> None:
+    def test_get_or_create_oracle_session_fallback_prompt(self, mock_get_dir: MagicMock) -> None:
         """Test uses fallback prompt if file missing."""
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {"sessions": []}
@@ -488,9 +481,7 @@ class TestUnblockStuckSessions(unittest.TestCase):
         }
         # Activities has a question
         mock_client.get_activities.return_value = {
-            "activities": [
-                {"originator": "AGENT", "text": "Help me?", "createTime": "2024-01-01T10:00:00Z"}
-            ]
+            "activities": [{"originator": "AGENT", "text": "Help me?", "createTime": "2024-01-01T10:00:00Z"}]
         }
 
         mock_get_oracle.return_value = "oracle-sid"
@@ -520,9 +511,7 @@ class TestUnblockStuckSessions(unittest.TestCase):
         # If it returns None, it tries to approve.
 
         with patch("repo.scheduler.stateless.extract_question_from_session", return_value=None):
-            result = stateless.facilitate_stuck_session(
-                mock_client, stuck, "oracle", repo_info
-            )
+            result = stateless.facilitate_stuck_session(mock_client, stuck, "oracle", repo_info)
             self.assertTrue(result)
             mock_client.approve_plan.assert_called_once_with("s1")
 
