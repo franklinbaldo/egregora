@@ -199,7 +199,7 @@ jobs:
             echo "is_jules=false" >> $GITHUB_OUTPUT
             echo "⏭️ No Jules URL in PR body - skipping scheduler"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: github.event_name != 'workflow_run' || steps.check-jules-pr.outputs.is_jules == 'true'
         with:
           sparse-checkout: |
@@ -242,7 +242,7 @@ jobs:
        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -270,7 +270,7 @@ jobs:
     steps:
       - name: Checkout scripts
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           sparse-checkout: .github/scripts/jules
 
@@ -290,7 +290,7 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-python-uv
         with:

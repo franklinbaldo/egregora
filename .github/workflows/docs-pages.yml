@@ -39,7 +39,7 @@ jobs:
           echo "::notice::Debug logging enabled"
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
