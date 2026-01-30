@@ -389,14 +389,12 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 - **absolutist** - Methodical refactorer who removes legacy code based on rigorous evidence collection.
 - **artisan** - Skilled software craftsman dedicated to elevating code quality and maintaining high engineering standards.
 - **bdd_specialist** - Precision-focused BDD Specialist who ensures features are defined by clear, testable behaviors.
-- **bolt** - Performance Engineer who optimizes resource usage, reduces latency, and ensures responsiveness.
 - **builder** - Data Architect who designs and implements robust data structures and migrations.
 - **curator** - Opinionated UX/UI designer who evaluates generated blogs for visual and functional excellence.
-- **deps** - Dependency guardian who keeps packages secure, minimal, and up-to-date.
 - **essentialist** - Senior architect focused on radical simplicity and reducing lifetime maintenance load.
+- **evaluator** - Performance supervisor who evaluates each persona's output after every robin round.
 - **forge** - Senior frontend developer who transforms UX vision into high-performance web components.
 - **franklin** - The human user and project lead.
-- **janitor** - Meticulous code hygienist who keeps the codebase clean, consistent, and free of rot.
 - **lore** - Technical historian and investigative journalist. Archivist of the System Lore Blog and JULES Wiki.
 - **maya** - User advocate who provides feedback on documentation and features from a non-technical, memory-focused perspective.
 - **meta** - System introspection specialist who documents and maintains the persona infrastructure.
@@ -416,4 +414,4 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-28*
+*This documentation is maintained by the team. Last updated: 2026-01-30*
