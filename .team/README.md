@@ -24,7 +24,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 ### Key Features
 
-- **22 Personas (21 AI + 1 Human)** - Each with unique expertise (security, performance, UX, etc.)
+- **17 Personas (16 AI + 1 Human)** - Each with unique expertise (security, testing, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
 - **Round-Robin Scheduling** - Stateless scheduler rotates through all personas automatically
 - **Mail System** - Async communication between personas for conflict resolution
@@ -115,18 +115,15 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │       ├── blocks/            # Reusable blocks
 │       └── partials/          # Partial templates
 │
-├── personas/                   # AI agent definitions (21 personas)
+├── personas/                   # AI agent definitions (17 personas)
 │   ├── absolutist/            # 💯 Legacy code removal
 │   ├── artisan/               # 🔨 Code craftsmanship
 │   ├── bdd_specialist/        # 🥒 BDD testing expert
-│   ├── bolt/                  # ⚡ Performance optimization
 │   ├── builder/               # 🏗️ Data architecture
-│   ├── curator/               # 🎭 UX/UI evaluation
-│   ├── deps/                  # 📦 Dependency management
 │   ├── essentialist/          # 💎 Radical simplicity
-│   ├── forge/                 # ⚒️ Feature implementation
+│   ├── evaluator/             # 📊 Round performance evaluation
+│   ├── forge/                 # ⚒️ Features, UX, and code cleanup
 │   ├── franklin/              # 🧔 Human project lead
-│   ├── janitor/               # 🧹 Code hygiene
 │   ├── lore/                  # 📚 System historian
 │   ├── maya/                  # 💝 User advocate
 │   ├── meta/                  # 🔍 System introspection
@@ -289,11 +286,12 @@ The scheduler uses **stateless round-robin** mode (implemented in `stateless.py`
 5. Completed PRs are auto-merged before creating new sessions
 
 ```
-absolutist → artisan → bdd_specialist → bolt → builder → curator →
-deps → essentialist → forge → janitor → lore → maya → meta →
-oracle → sapper → scribe → sentinel → shepherd → streamliner →
-visionary → (wrap around)
+absolutist → artisan → bdd_specialist → builder → essentialist →
+evaluator → forge → lore → maya → meta → sapper → scribe →
+sentinel → shepherd → streamliner → visionary → (wrap around)
 ```
+
+Note: Oracle (`scheduled: false`) and Franklin (human, no prompt) are not in the rotation.
 
 ### Oracle Facilitator
 
@@ -1156,6 +1154,15 @@ uv run mail inbox --persona system@team
 ---
 
 ## 🔄 Changelog
+
+### 2026-01-30
+
+- **Persona count**: 17 (16 AI + 1 human), down from 21
+- **Cut**: Bolt (perf), Deps (dependency mgmt), Janitor (cleanup), Curator (UX eval)
+- **Merged**: Janitor (code cleanup) and Curator (UX evaluation) duties absorbed into Forge
+- **Forge** is now a full-stack implementer: features + UX evaluation + code cleanup
+- **Scheduler**: frontmatter-based `scheduled: false` opt-out replaces hardcoded exclusion list
+- **Oracle**: prompt loaded from disk instead of hardcoded string
 
 ### 2026-01-29
 
