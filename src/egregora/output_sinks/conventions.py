@@ -228,7 +228,7 @@ class StandardUrlConvention(UrlConvention):
 
         if not subject_uuid:
             return self._join(ctx, self.routes.posts_prefix, safe_slug)
-        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), safe_slug)
+        return self._join(ctx, self.routes.profiles_prefix, slugify(str(subject_uuid)), safe_slug)
 
     def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
         window_label = document.metadata.get("window_label")

@@ -926,7 +926,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     raise ProfileMetadataError(document.document_id, "subject")
 
                 # Successfully routing to author-specific directory
-                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir = self.profiles_dir / slugify(str(subject_uuid))
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
                 logger.debug("Routing PROFILE to author directory: %s/%s", subject_uuid, slug)
@@ -951,7 +951,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     return announcements_dir / f"{slug}.md"
 
                 # Route to author's profile feed directory
-                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir = self.profiles_dir / slugify(str(subject_uuid))
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
                 logger.debug("Routing ANNOUNCEMENT to author directory: %s/%s", subject_uuid, slug)
