@@ -47,9 +47,6 @@ if [ "$is_draft" = "true" ]; then
   gh pr ready "$PR_NUMBER"
 fi
 
-# Enable auto-merge (prefer rebase, fallback to merge commit)
-echo "🔀 Enabling auto-merge (rebase) for PR #$PR_NUMBER"
-if ! gh pr merge "$PR_NUMBER" --auto --rebase --delete-branch 2>/dev/null; then
-  echo "⚠️ Rebase auto-merge failed; falling back to merge commit"
-  gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
-fi
+# Enable auto-merge (merge commit)
+echo "🔀 Enabling auto-merge for PR #$PR_NUMBER"
+gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
