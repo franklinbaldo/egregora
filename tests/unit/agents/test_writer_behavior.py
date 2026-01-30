@@ -1,31 +1,29 @@
 """Behavioral tests for the writer agent."""
 
-from datetime import datetime, UTC
-from unittest.mock import MagicMock, call, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
-    ThinkingPart,
     TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
 )
-from pydantic_ai.exceptions import ModelHTTPError
 
+from egregora.agents.types import PromptTooLargeError, WriterDeps
 from egregora.agents.writer import (
+    JOURNAL_TYPE_TEXT,
+    JOURNAL_TYPE_THINKING,
+    JOURNAL_TYPE_TOOL_CALL,
     _execute_writer_with_error_handling,
     _extract_intercalated_log,
     _extract_tool_results,
-    JournalEntry,
-    JOURNAL_TYPE_THINKING,
-    JOURNAL_TYPE_TEXT,
-    JOURNAL_TYPE_TOOL_CALL,
-    JOURNAL_TYPE_TOOL_RETURN,
 )
-from egregora.agents.types import WriterDeps, PromptTooLargeError
-from egregora.config.settings import EgregoraConfig
+
 
 class TestWriterBehavior:
     """Behavioral tests for the writer agent logic."""
@@ -76,7 +74,7 @@ class TestWriterBehavior:
                 ToolReturnPart(
                     tool_name="other_tool",
                     content={"status": "success", "path": "ignored.md"},
-                )
+                ),
             ]
         )
 
@@ -109,7 +107,7 @@ class TestWriterBehavior:
     @patch("egregora.agents.writer._iter_writer_models")
     @patch("egregora.agents.writer._iter_provider_keys")
     @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-    def test_rotation_on_429_error(self, mock_write, mock_keys, mock_models):
+    def test_rotation_on_429_error(self, mock_write, mock_keys, mock_models, test_config):
         """Test that execution rotates keys on 429 Too Many Requests."""
         # Given
         mock_models.return_value = ["google-gla:gemini-flash"]
@@ -120,7 +118,7 @@ class TestWriterBehavior:
         mock_write.side_effect = [error_429, (["post1"], [])]
 
         # Use real config to avoid Mock attribute issues
-        config = EgregoraConfig()
+        config = test_config
 
         deps = MagicMock(spec=WriterDeps)
         deps.window_label = "test-window"
@@ -141,21 +139,23 @@ class TestWriterBehavior:
     @patch("egregora.agents.writer._iter_provider_keys")
     @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
     @patch("egregora.agents.writer._override_text_models")
-    def test_model_cycling_on_server_error(self, mock_override, mock_write, mock_keys, mock_models):
+    def test_model_cycling_on_server_error(
+        self, mock_override, mock_write, mock_keys, mock_models, test_config
+    ):
         """Test that execution cycles models on 500 Server Error."""
         # Given
         mock_models.return_value = ["modelA", "modelB"]
-        mock_keys.return_value = [None] # No specific keys for these models
+        mock_keys.return_value = [None]  # No specific keys for these models
 
         # First model fails with 500, second succeeds
         error_500 = ModelHTTPError(status_code=500, model_name="modelA", body="Server Error")
         mock_write.side_effect = [error_500, (["post1"], [])]
 
         # Mock config override to return a new config for the new model
-        config = EgregoraConfig()
+        config = test_config.model_copy(deep=True)
         config.models.writer = "modelA"
 
-        new_config = EgregoraConfig()
+        new_config = test_config.model_copy(deep=True)
         new_config.models.writer = "modelB"
         mock_override.return_value = new_config
 
@@ -177,7 +177,7 @@ class TestWriterBehavior:
     @patch("egregora.agents.writer._iter_writer_models")
     @patch("egregora.agents.writer._iter_provider_keys")
     @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-    def test_exhaustion_raises_runtime_error(self, mock_write, mock_keys, mock_models):
+    def test_exhaustion_raises_runtime_error(self, mock_write, mock_keys, mock_models, test_config):
         """Test that exhaustion of all keys/models raises RuntimeError."""
         # Given
         mock_models.return_value = ["modelA"]
@@ -187,7 +187,7 @@ class TestWriterBehavior:
         error = ModelHTTPError(status_code=500, model_name="modelA", body="Server Error")
         mock_write.side_effect = error
 
-        config = EgregoraConfig()
+        config = test_config
         deps = MagicMock(spec=WriterDeps)
         deps.window_label = "test-window"
 
@@ -198,7 +198,7 @@ class TestWriterBehavior:
     @patch("egregora.agents.writer._iter_writer_models")
     @patch("egregora.agents.writer._iter_provider_keys")
     @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-    def test_prompt_too_large_aborts_rotation(self, mock_write, mock_keys, mock_models):
+    def test_prompt_too_large_aborts_rotation(self, mock_write, mock_keys, mock_models, test_config):
         """Test that PromptTooLargeError aborts rotation immediately."""
         # Given
         mock_models.return_value = ["modelA", "modelB"]
@@ -208,7 +208,7 @@ class TestWriterBehavior:
         error = PromptTooLargeError(token_count=1000, limit=500)
         mock_write.side_effect = error
 
-        config = EgregoraConfig()
+        config = test_config
         deps = MagicMock(spec=WriterDeps)
         deps.window_label = "test-window"
 
