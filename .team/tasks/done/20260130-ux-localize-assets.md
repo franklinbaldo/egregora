@@ -49,3 +49,19 @@ Eliminate external requests by bundling assets locally or configuring `mkdocs-ma
 *   **When** the site is served and inspected
 *   **Then** there should be NO network requests to `fonts.googleapis.com`, `fonts.gstatic.com`, or `unpkg.com`.
 *   **And** the typography should still look correct (Inter for body, Outfit for headers if possible).
+
+## Resolution
+**Date:** 2026-01-31
+**By:** Forge ⚒️
+
+Verified that the site configuration is compliant with privacy requirements:
+1.  **Fonts:**
+    - `Outfit` font is manually bundled in `overrides/assets/fonts/outfit.woff2` and referenced in `extra.css`.
+    - `Inter` and `Roboto Mono` are configured in `mkdocs.yml` via `theme.font`. The `privacy` plugin in `mkdocs-material` automatically downloads and bundles these fonts at build time, preventing external requests.
+2.  **MathJax:**
+    - MathJax scripts are vendored in `overrides/javascripts/` (`mathjax.js` and `tex-mml-chtml.js`).
+    - No external requests to `unpkg.com` are made.
+3.  **Verification:**
+    - Ran `tests/step_defs/test_privacy_steps.py` using Playwright.
+    - Confirmed no requests to `fonts.googleapis.com`, `fonts.gstatic.com`, or `unpkg.com`.
+    - Confirmed correct font usage (`Outfit` for headers, `Inter` for body).
