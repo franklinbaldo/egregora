@@ -173,18 +173,12 @@ class MessageRepository:
 
         # Post-processing: Extract filename from path (e.g., path/to/image.jpg -> image.jpg)
         filename_only_pattern = r"([^/]+)$"
-        combined = combined.mutate(
-            clean_filename=combined.filename.re_extract(filename_only_pattern, 1)
-        )
-        combined = combined.mutate(
-            clean_filename=ibis.coalesce(combined.clean_filename, combined.filename)
-        )
+        combined = combined.mutate(clean_filename=combined.filename.re_extract(filename_only_pattern, 1))
+        combined = combined.mutate(clean_filename=ibis.coalesce(combined.clean_filename, combined.filename))
 
         # Filter out invalid TLDs (heuristics from find_all_media_references)
         ext_pattern = r"\.([^.]+)$"
-        combined = combined.mutate(
-            ext=combined.clean_filename.re_extract(ext_pattern, 1).lower()
-        )
+        combined = combined.mutate(ext=combined.clean_filename.re_extract(ext_pattern, 1).lower())
         ignored_tlds = ("com", "org", "net", "io", "co", "de", "fr", "uk")
         combined = combined.filter(~combined.ext.isin(ignored_tlds))
 

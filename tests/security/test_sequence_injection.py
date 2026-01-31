@@ -30,7 +30,7 @@ def test_ensure_sequence_default_injection():
             # or succeed if the injection is perfect.
             # But the DROP TABLE should execute if it's vulnerable.
             storage.ensure_sequence_default("users", "id", payload)
-        except Exception:
+        except Exception:  # noqa: S110
             # We don't care if the function raises an error (e.g. syntax error in the trailing part),
             # as long as the side effect (DROP TABLE) happened.
             pass
