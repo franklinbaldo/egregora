@@ -42,16 +42,21 @@ class ModelKeyRotator:
         self,
         models: list[str] | None = None,
         api_keys: list[str] | None = None,
+        key_rotator: GeminiKeyRotator | None = None,
     ) -> None:
         """Initialize combined rotator.
 
         Args:
             models: List of models. Defaults to DEFAULT_GEMINI_MODELS.
             api_keys: List of API keys. If None, loads from environment.
+            key_rotator: Existing key rotator instance.
 
         """
         self.models = models or DEFAULT_GEMINI_MODELS.copy()
-        self.key_rotator = GeminiKeyRotator(api_keys=api_keys)
+        if key_rotator:
+            self.key_rotator = key_rotator
+        else:
+            self.key_rotator = GeminiKeyRotator(api_keys=api_keys)
         self.current_model_idx = 0
         self._exhausted_models: set[str] = set()
 
@@ -67,7 +72,7 @@ class ModelKeyRotator:
         return self.models[self.current_model_idx]
 
     def _next_model(self) -> str | None:
-        """Move to next model and reset key rotator.
+        """Move to next model.
 
         Returns:
             Next model name, or None if all exhausted.
@@ -85,16 +90,22 @@ class ModelKeyRotator:
             next_idx = (self.current_model_idx + 1 + i) % len(self.models)
             if self.models[next_idx] not in self._exhausted_models:
                 self.current_model_idx = next_idx
-                self.key_rotator.reset()  # Reset keys for new model
+                # Do NOT reset keys here - keep cycling through keys for the new model
+                # But we SHOULD clear exhausted state of keys so we can try them on new model?
+                self.key_rotator.clear_exhausted()
                 logger.info("[ModelKeyRotator] Rotating to model: %s", self.current_model)
                 return self.current_model
 
         return None
 
-    def reset(self) -> None:
-        """Reset to start from beginning."""
+    def reset_models(self) -> None:
+        """Reset model iteration to start from beginning."""
         self.current_model_idx = 0
         self._exhausted_models.clear()
+
+    def reset(self) -> None:
+        """Reset everything (models and keys)."""
+        self.reset_models()
         self.key_rotator.reset()
 
     def call_with_rotation(
@@ -119,11 +130,15 @@ class ModelKeyRotator:
         if is_rate_limit_error is None:
             is_rate_limit_error = default_rate_limit_check
 
-        # TODO: [Taskmaster] Refactor complex `call_with_rotation` method
-        # This method is too long and has a high cyclomatic complexity.
-        # It should be broken down into smaller, more manageable functions
-        # to improve readability and maintainability.
-        self.reset()
+        # Only reset models for a new call, keep key rotation state (Round-Robin)
+        # But we MUST clear any exhausted keys from previous calls if we want to retry them?
+        # If a key failed with rate limit in prev call, should we try it again now?
+        # Yes, usually rate limits are short-lived or per-request-burst.
+        # So we assume fresh start for key viability, but we want to continue sequence.
+
+        self.reset_models()
+        self.key_rotator.clear_exhausted()
+
         last_exception: Exception | None = None
 
         # Try all Gemini models + keys
@@ -133,12 +148,19 @@ class ModelKeyRotator:
 
             try:
                 result = call_fn(model, api_key)
-                self.reset()
+
+                # Success!
+                # Proactively rotate key for load balancing (handled by key_rotator.rotate() via next_key behavior in simple impl?)
+                # Wait, my fix to GeminiKeyRotator separated rotate() and next_key()!
+                # I need to call rotate() here!
+
+                self.key_rotator.rotate()
+
                 return result
             except Exception as exc:
                 last_exception = exc
                 if is_rate_limit_error(exc):
-                    # Try next key for same model
+                    # Try next key for same model (marks current as exhausted)
                     next_key = self.key_rotator.next_key()
                     if next_key:
                         # Still have keys for this model
@@ -147,7 +169,7 @@ class ModelKeyRotator:
                     # All keys exhausted for this model, try next model
                     next_model = self._next_model()
                     if next_model:
-                        # Moved to new model, keys are reset
+                        # Moved to new model, exhausted keys are cleared in _next_model
                         continue
 
                     # All Gemini models+keys exhausted
@@ -155,6 +177,8 @@ class ModelKeyRotator:
                     break
 
                 # Non-rate-limit error - propagate immediately
+                # But we should probably rotate key for next time?
+                self.key_rotator.rotate()
                 raise
 
         # All models+keys exhausted

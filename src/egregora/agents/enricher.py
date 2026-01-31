@@ -1,7 +1,7 @@
 """Enrichment agent logic for processing URLs and media.
 
 This module implements the enrichment workflow using Pydantic-AI agents. It provides:
-- UrlEnrichmentAgent & MediaEnrichmentAgent
+- EnrichmentWorker (Orchestrates URL and Media enrichment)
 - Async orchestration via enrich_table
 """
 
@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from egregora.input_adapters.base import MediaMapping
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
+    from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +499,15 @@ class EnrichmentWorker(BaseWorker):
         self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
         self.staged_files: set[str] = set()
 
+        # Initialize ModelKeyRotator if enabled (reusing state across batches)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        self.rotator: ModelKeyRotator | None = None
+        if rotation_enabled:
+            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
+
+            rotation_models = getattr(self.enrichment_config, "rotation_models", None)
+            self.rotator = ModelKeyRotator(models=rotation_models)
+
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
             try:
                 self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
@@ -841,15 +851,8 @@ class EnrichmentWorker(BaseWorker):
             pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
         ).strip()
 
-        # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-
-            rotator = ModelKeyRotator(models=rotation_models)
-
+        # Use initialized rotator if available
+        if self.rotator:
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
@@ -859,7 +862,7 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
+            response_text = self.rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
             model_name = self.ctx.config.models.enricher
@@ -1247,15 +1250,8 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}, *parts]
 
-        # Build model+key rotator if enabled
-        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
-
+        # Use initialized rotator if available
+        if self.rotator:
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
@@ -1265,7 +1261,7 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
+            response_text = self.rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
             response = client.models.generate_content(

@@ -59,8 +59,22 @@ class GeminiKeyRotator:
         """Get the index of the current API key."""
         return self.current_idx
 
+    def rotate(self) -> str:
+        """Proactively rotate to the next key without marking current as exhausted.
+
+        Used for load balancing on success.
+        """
+        self.current_idx = (self.current_idx + 1) % len(self.api_keys)
+        # Skip exhausted keys if any (though typically rotate is used when keys are good)
+        for _ in range(len(self.api_keys)):
+            if self.api_keys[self.current_idx] not in self._exhausted_keys:
+                break
+            self.current_idx = (self.current_idx + 1) % len(self.api_keys)
+
+        return self.current_key
+
     def next_key(self) -> str | None:
-        """Advance to the next API key.
+        """Advance to the next API key and mark current as exhausted.
 
         Returns:
             The next API key, or None if all keys are exhausted.
@@ -85,10 +99,14 @@ class GeminiKeyRotator:
 
         return None
 
+    def clear_exhausted(self) -> None:
+        """Clear the set of exhausted keys, but keep the current index."""
+        self._exhausted_keys.clear()
+
     def reset(self) -> None:
         """Reset the rotator to start fresh."""
         self.current_idx = 0
-        self._exhausted_keys.clear()
+        self.clear_exhausted()
 
     def call_with_rotation(
         self,
@@ -130,7 +148,7 @@ class GeminiKeyRotator:
                 # Should not happen in pure round-robin unless we wrapped around
                 if len(keys_tried_for_request) >= len(self.api_keys):
                     break
-                self.next_key()
+                self.rotate() # Skip to next
                 continue
 
             keys_tried_for_request.add(api_key)
@@ -140,14 +158,21 @@ class GeminiKeyRotator:
 
                 # Proactive rotation: Move to next key for the *next* request
                 # This ensures we distribute load even on success.
-                self.next_key()
+                self.rotate()
 
                 return result
             except Exception as exc:
                 # Always rotate on error too
-                self.next_key()
+                # If rate limit, we mark exhausted via next_key()
+                # If other error, we just rotate() to try next key?
+                # No, unrelated errors usually shouldn't retry?
+                # But original code retried all errors?
+                # "except Exception as exc: ... Non-rate-limit error - propagate immediately"
 
                 if is_rate_limit_error(exc):
+                    # Mark current as exhausted and move next
+                    self.next_key()
+
                     # Log warning but continue loop to try next key
                     logger.warning(
                         "[KeyRotator] Rate limit on key index %d (tried %d/%d): %s",
@@ -158,7 +183,9 @@ class GeminiKeyRotator:
                     )
                     continue
 
-                # Non-rate-limit error - propagate immediately
+                # Non-rate-limit error
+                # We should probably rotate anyway so next call uses next key?
+                self.rotate()
                 raise
 
         # If we exit loop, we exhausted all keys with rate limits
@@ -168,149 +195,7 @@ class GeminiKeyRotator:
         raise RuntimeError(msg)
 
 
-class GeminiModelCycler:
-    """Cycle through Gemini models on 429 errors.
-
-    Usage:
-        cycler = GeminiModelCycler()
-        result = cycler.call_with_rotation(
-            lambda model: client.generate(model=model, ...),
-            is_rate_limit_error=lambda e: "429" in str(e),
-        )
-    """
-
-    def __init__(
-        self,
-        models: list[str] | None = None,
-        max_retries_per_model: int = 1,
-    ) -> None:
-        """Initialize the model cycler.
-
-        Args:
-            models: List of Gemini model names to cycle through.
-                   Defaults to DEFAULT_GEMINI_MODELS.
-            max_retries_per_model: Max retries per model before rotating.
-
-        """
-        self.models = models or DEFAULT_GEMINI_MODELS.copy()
-        self.max_retries_per_model = max_retries_per_model
-        self.current_idx = 0
-        self._exhausted_models: set[str] = set()
-
-    @property
-    def current_model(self) -> str:
-        """Get the current model in the rotation."""
-        return self.models[self.current_idx]
-
-    def next_model(self) -> str | None:
-        # TODO: [Taskmaster] Refactor duplicated rotation logic
-        """Advance to the next model in rotation.
-
-        Returns:
-            The next model name, or None if all models are exhausted.
-
-        """
-        self._exhausted_models.add(self.current_model)
-        available = [m for m in self.models if m not in self._exhausted_models]
-
-        if not available:
-            logger.warning("[ModelCycler] All models exhausted")
-            return None
-
-        # Find next available model
-        for i in range(len(self.models)):
-            next_idx = (self.current_idx + 1 + i) % len(self.models)
-            if self.models[next_idx] not in self._exhausted_models:
-                self.current_idx = next_idx
-                logger.info("[ModelCycler] Rotating to model: %s", self.current_model)
-                return self.current_model
-
-        return None
-
-    def reset(self) -> None:
-        """Reset the cycler to start fresh."""
-        self.current_idx = 0
-        self._exhausted_models.clear()
-
-    def call_with_rotation(
-        self,
-        call_fn: Callable[[str], Any],
-        is_rate_limit_error: Callable[[Exception], bool] | None = None,
-    ) -> Any:
-        # TODO: [Taskmaster] Unify state management with GeminiKeyRotator
-        """Call a function with automatic model rotation on rate limit errors.
-
-        Args:
-            call_fn: Function that takes a model name and makes the API call.
-            is_rate_limit_error: Function to check if an exception is a rate limit error.
-                                Defaults to checking for "429" or "Too Many Requests" in message.
-
-        Returns:
-            The result from call_fn on success.
-
-        Raises:
-            Exception: The last exception if all models fail.
-
-        """
-        if is_rate_limit_error is None:
-            is_rate_limit_error = default_rate_limit_check
-
-        self.reset()
-
-        while True:
-            model = self.current_model
-
-            try:
-                result = call_fn(model)
-                # Success - reset for next call
-                self.reset()
-                return result
-            except Exception as exc:
-                if is_rate_limit_error(exc):
-                    logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
-
-                    next_model = self.next_model()
-                    if next_model is None:
-                        logger.exception("[ModelCycler] All models rate-limited")
-                        raise
-                    continue
-                # Non-rate-limit error - propagate
-                raise
-
-        return None  # Unreachable, but satisfies type checker
-
-
 def default_rate_limit_check(exc: Exception) -> bool:
     """Default check for rate limit errors."""
     msg = str(exc).lower()
     return "429" in msg or "too many requests" in msg or "rate limit" in msg
-
-
-def create_model_cycler(
-    config_models: list[str] | None = None,
-) -> GeminiModelCycler:
-    """Create a model cycler from config.
-
-    Args:
-        config_models: Models from config, or None to use defaults.
-
-    Returns:
-        Configured GeminiModelCycler instance.
-
-    """
-    return GeminiModelCycler(models=config_models)
-
-
-def create_key_rotator(
-    api_keys: list[str] | None = None,
-) -> GeminiKeyRotator:
-    """Create a key rotator from config or environment.
-
-    Args:
-        api_keys: API keys, or None to load from environment.
-
-    Returns:
-        Configured GeminiKeyRotator instance.
-
-    """
-    return GeminiKeyRotator(api_keys=api_keys)
