@@ -14,7 +14,6 @@ from ibis import udf
 from egregora.data_primitives.datetime_utils import ensure_datetime
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.ops.media import find_all_media_references
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @udf.scalar.builtin
-def regexp_extract_all(text: str, pattern: str) -> list[str]:
+def regexp_extract_all(text: str, pattern: str, group: int = 0) -> list[str]:
     """Extract all matches of pattern from text."""
 
 
@@ -135,76 +134,102 @@ class MessageRepository:
         if limit <= 0:
             return []
 
-        unique_media: set[str] = set()
-        metadata_lookup: dict[str, dict[str, Any]] = {}
-        document_lookup: dict[str, Any] = {}
+        # 1. Filter rows with text
+        candidates = messages_table.filter(messages_table.text.notnull())
 
-        for batch in self._iter_table_batches(
-            messages_table.select(
-                "ts",
-                "text",
-                "event_id",
-                "tenant_id",
-                "source",
-                "thread_id",
-                "author_uuid",
-                "created_at",
-                "created_by_run",
-            ).order_by("ts")
-        ):
-            for row in batch:
-                if len(unique_media) >= limit:
-                    break
+        # Patterns
+        # Markdown Links & Images: [...](url) -> group 1
+        # Captures both ![alt](url) and [text](url)
+        md_pattern = r"\[(?:[^\]]*)\]\(([^)]+)\)"
 
-                message = row.get("text")
-                if not message:
-                    continue
+        # Plain Filename: \b([\w\-\.]+\.\w{2,})\b -> group 0 (full match)
+        # We capture group 0 by passing 0 to regexp_extract_all
+        plain_file_pattern = r"\b([\w\-\.]+\.\w{2,})\b"
 
-                refs = find_all_media_references(message, include_uuids=bool(row.get("media_type")))
-                if not refs:
-                    continue
+        cols = [
+            "ts",
+            "event_id",
+            "tenant_id",
+            "source",
+            "thread_id",
+            "author_uuid",
+            "created_at",
+            "created_by_run",
+        ]
 
-                timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-                row_metadata = {
-                    "ts": timestamp,
-                    "event_id": self._uuid_to_str(row.get("event_id")),
-                    "tenant_id": row.get("tenant_id"),
-                    "source": row.get("source"),
-                    "thread_id": self._uuid_to_str(row.get("thread_id")),
-                    "author_uuid": self._uuid_to_str(row.get("author_uuid")),
-                    "created_at": row.get("created_at"),
-                    "created_by_run": self._uuid_to_str(row.get("created_by_run")),
-                }
+        # Helper to construct candidate sets
+        def _extract_candidates(pattern: str, group: int) -> Table:
+            q = candidates.mutate(filenames=regexp_extract_all(candidates.text, pattern, group))
+            return q.select(filename=q.filenames.unnest(), **{c: q[c] for c in cols})
 
-                for ref in set(refs):
-                    if ref in unique_media:
-                        existing = metadata_lookup.get(ref)
-                        if existing:
-                            existing_ts = existing.get("ts")
-                            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                                existing.update(row_metadata)
-                        continue
+        # Set 1: Markdown References (Images & Links)
+        q1 = _extract_candidates(md_pattern, 1)
 
-                    unique_media.add(ref)
-                    metadata_lookup[ref] = row_metadata.copy()
+        # Set 2: Plain Filenames
+        q2 = _extract_candidates(plain_file_pattern, 0)
 
-                    doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
-                    document_lookup[ref] = Document(
-                        content=b"",
-                        type=DocumentType.MEDIA,
-                        id=doc_id,
-                        metadata={
-                            "filename": ref,
-                            "original_filename": ref,
-                            "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream",
-                        },
-                    )
+        # Combine all sets
+        combined = q1.union(q2)
 
-            if len(unique_media) >= limit:
-                break
-
-        sorted_refs = sorted(
-            unique_media, key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
+        # Post-processing: Extract filename from path (e.g., path/to/image.jpg -> image.jpg)
+        filename_only_pattern = r"([^/]+)$"
+        combined = combined.mutate(
+            clean_filename=combined.filename.re_extract(filename_only_pattern, 1)
+        )
+        combined = combined.mutate(
+            clean_filename=ibis.coalesce(combined.clean_filename, combined.filename)
         )
 
-        return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
+        # Filter out invalid TLDs (heuristics from find_all_media_references)
+        ext_pattern = r"\.([^.]+)$"
+        combined = combined.mutate(
+            ext=combined.clean_filename.re_extract(ext_pattern, 1).lower()
+        )
+        ignored_tlds = ("com", "org", "net", "io", "co", "de", "fr", "uk")
+        combined = combined.filter(~combined.ext.isin(ignored_tlds))
+
+        # Deduplicate: Keep earliest timestamp for each filename
+        w = ibis.window(group_by="clean_filename", order_by="ts")
+        combined = combined.mutate(rank=ibis.row_number().over(w))
+        combined = combined.filter(combined.rank == 0)
+
+        # Limit and Sort
+        combined = combined.order_by(["ts", "clean_filename"]).limit(limit)
+
+        try:
+            results = combined.execute()
+        except Exception:
+            logger.exception("Failed to execute media enrichment query")
+            return []
+
+        output_items = []
+        for row in results.to_dict("records"):
+            ref = row["clean_filename"]
+            if not ref:
+                continue
+
+            metadata = {
+                "ts": ensure_datetime(row["ts"]) if row["ts"] else None,
+                "event_id": self._uuid_to_str(row["event_id"]),
+                "tenant_id": row["tenant_id"],
+                "source": row["source"],
+                "thread_id": self._uuid_to_str(row["thread_id"]),
+                "author_uuid": self._uuid_to_str(row["author_uuid"]),
+                "created_at": row["created_at"],
+                "created_by_run": self._uuid_to_str(row["created_by_run"]),
+            }
+
+            doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
+            doc = Document(
+                content=b"",
+                type=DocumentType.MEDIA,
+                id=doc_id,
+                metadata={
+                    "filename": ref,
+                    "original_filename": ref,
+                    "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream",
+                },
+            )
+            output_items.append((ref, doc, metadata))
+
+        return output_items

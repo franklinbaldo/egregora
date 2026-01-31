@@ -48,6 +48,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Change:** Replaced the imperative loop which executed N queries with a "Fetch-then-Compute" pattern. Now fetches all timestamps in one query and uses `bisect` to count messages in each partition locally.
   - **Impact:** Benchmark showed improvement from 1.19s to 0.85s for 50 splits. Reduced queries from N to 1.
 
+- **Refactored `get_media_enrichment_candidates` to be Declarative.**
+  - **Date:** 2026-02-27
+  - **Change:** Replaced the imperative N+1 loop which iterated over row batches with a single declarative Ibis query using `regexp_extract_all` and `unnest`.
+  - **Impact:** Benchmark showed **3x speedup** (1.13s -> 0.39s for 50k messages) and eliminated row-by-row Python processing.
+
 ## Optimization Strategy
 
 My strategy is to systematically replace imperative, iterative data processing loops with declarative, vectorized Ibis expressions. The core principle is to "let the database do the work."
