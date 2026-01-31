@@ -285,8 +285,6 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Window, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
-        # TODO: [Taskmaster] Refactor this method to reduce its complexity.
-        # TODO: [Taskmaster] Decompose _process_single_window method
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -381,17 +379,7 @@ class PipelineRunner:
             except (ValueError, TypeError) as e:
                 logger.warning("Failed to convert message to DTO: %s", e)
 
-        command_messages = extract_commands_list(messages_list)
-        announcements_generated = 0
-        if command_messages:
-            for cmd_msg in command_messages:
-                try:
-                    announcement = command_to_announcement(cmd_msg)
-                    output_sink.persist(announcement)
-                    announcements_generated += 1
-                except Exception as exc:
-                    msg = f"Failed to generate announcement for command: {exc}"
-                    raise CommandAnnouncementError(msg) from exc
+        announcements_generated = self._process_commands(messages_list, output_sink)
 
         clean_messages_list = filter_commands(messages_list)
 
@@ -438,27 +426,7 @@ class PipelineRunner:
             msg = f"Failed to generate profile posts: {exc}"
             raise ProfileGenerationError(msg) from exc
 
-        # Scheduled tasks are returned as "pending:<task_id>"
-        scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
-        generated_posts = len(posts) - scheduled_posts
-
-        scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-        generated_profiles = len(profiles) - scheduled_profiles
-
-        # Construct status message
-        status_parts = []
-        if generated_posts > 0:
-            status_parts.append(f"{generated_posts} posts")
-        if scheduled_posts > 0:
-            status_parts.append(f"{scheduled_posts} scheduled posts")
-        if generated_profiles > 0:
-            status_parts.append(f"{generated_profiles} profiles")
-        if scheduled_profiles > 0:
-            status_parts.append(f"{scheduled_profiles} scheduled profiles")
-        if announcements_generated > 0:
-            status_parts.append(f"{announcements_generated} announcements")
-
-        status_msg = ", ".join(status_parts) if status_parts else "0 items"
+        status_msg = self._construct_status_message(posts, profiles, announcements_generated)
 
         logger.info(
             "%s[green]✔ Generated[/] %s for %s",
@@ -534,7 +502,6 @@ class PipelineRunner:
 
         return str(summary or "").strip(), str(instructions or "").strip()
 
-    # TODO: [Taskmaster] Extract command processing logic from _process_single_window
     def _process_commands(self, messages_list: list[dict], output_sink: OutputSink) -> int:
         """Processes commands from a list of messages."""
         announcements_generated = 0
@@ -550,7 +517,6 @@ class PipelineRunner:
                     raise CommandAnnouncementError(msg) from exc
         return announcements_generated
 
-    # TODO: [Taskmaster] Extract status message generation from _process_single_window
     def _construct_status_message(self, posts: list, profiles: list, announcements_generated: int) -> str:
         """Constructs a status message for logging."""
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
