@@ -4,7 +4,7 @@ status: todo
 title: "Refactor site validation logic into a reusable utility"
 created_at: "2025-12-31T01:33:34Z"
 target_module: "src/egregora/cli/main.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## 📋 Refactor site validation logic into a reusable utility

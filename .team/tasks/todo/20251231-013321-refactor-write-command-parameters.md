@@ -4,7 +4,7 @@ status: todo
 title: "Refactor write command to use a Pydantic model"
 created_at: "2025-12-31T01:33:21Z"
 target_module: "src/egregora/cli/main.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## 📋 Refactor write command to use a Pydantic model for its parameters

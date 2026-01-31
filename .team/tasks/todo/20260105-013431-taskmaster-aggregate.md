@@ -4,7 +4,7 @@ status: todo
 title: "Taskmaster Run: src/egregora/agents/taxonomy.py"
 created_at: "2026-01-05T01:34:31Z"
 target_module: "src/egregora/agents/taxonomy.py"
-assigned_persona: "taskmaster"
+assigned_persona: "artisan"
 ---
 
 ## Summary

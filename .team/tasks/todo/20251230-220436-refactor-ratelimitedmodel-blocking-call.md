@@ -4,7 +4,7 @@ status: todo
 title: "Refactor RateLimitedModel to Handle Blocking Calls in Async Methods"
 created_at: "2025-12-30T22:04:36Z"
 target_module: "src/egregora/llm/providers/rate_limited.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## Description

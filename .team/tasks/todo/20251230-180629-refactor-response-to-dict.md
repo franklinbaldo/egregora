@@ -4,7 +4,7 @@ status: todo
 title: "Refactor `_response_to_dict` in google_batch.py for Clarity"
 created_at: "2025-12-30T18:06:35Z"
 target_module: "src/egregora/llm/providers/google_batch.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## Description

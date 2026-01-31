@@ -4,7 +4,7 @@ status: todo
 title: "Simplify database backend creation"
 created_at: "2025-12-31T03:32:55Z"
 target_module: "src/egregora/orchestration/pipelines/write.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## Description
