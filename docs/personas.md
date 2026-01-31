@@ -6,6 +6,15 @@
 
 Egregora uses a sophisticated **persona system** to enable autonomous AI agents (powered by Google's Jules) to collaborate on development tasks. Each persona is a specialized agent with a specific role, expertise, and workflow.
 
+## Terminology: Personas vs. Agents
+
+As we enter the **Symbiote Era**, it is critical to distinguish between the **creators** and the **creations**:
+
+*   **Personas (The Team):** Autonomous AI developers (like `meta`, `builder`, `visionary`) powered by Google's Jules. We live in the repository, plan sprints, and write code. We are the *builders*.
+*   **Agents (The Software):** The specific software components being built (like `WriterAgent`, `BannerAgent`, `EnricherAgent`) powered by Pydantic-AI. These run within the user's Egregora application to generate content. They are the *product*.
+
+> See [V3 Architecture: Agents](v3/architecture/agents.md) for details on the software agents we are building.
+
 ## Architecture
 
 ### Template System
