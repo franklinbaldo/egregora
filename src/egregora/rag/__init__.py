@@ -16,12 +16,13 @@ Usage:
 """
 
 import logging
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
-from egregora.rag.embedding_router import TaskType, get_router
+from egregora.rag.embedding_router import EmbeddingRouter, TaskType, create_embedding_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
@@ -33,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Global backend instance (lazily initialized)
 _backend: VectorStore | None = None
+
+# Module-level router singleton
+_router: EmbeddingRouter | None = None
+_router_lock = threading.Lock()
 
 
 def get_backend(db_dir: Path | str | None = None) -> VectorStore:
@@ -120,6 +125,27 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
     return backend.query(request)
 
 
+def _get_module_router(model: str) -> EmbeddingRouter:
+    """Get or create the module-level embedding router singleton."""
+    global _router
+    with _router_lock:
+        if _router is None:
+            _router = create_embedding_router(model=model)
+    return _router
+
+
+def shutdown() -> None:
+    """Shutdown the RAG module resources (router, backend)."""
+    global _router, _backend
+
+    with _router_lock:
+        if _router is not None:
+            _router.stop()
+            _router = None
+
+    _backend = None
+
+
 # Re-export embedding function helper for convenience
 @lru_cache(maxsize=16)
 def embed_fn(
@@ -148,5 +174,5 @@ def embed_fn(
             # Fallback if config fails
             model = "models/gemini-embedding-001"
 
-    router = get_router(model=model)
+    router = _get_module_router(model=model)
     return router.embed(list(texts), task_type=task_type)
