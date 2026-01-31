@@ -14,9 +14,7 @@ theme:
   custom_dir: ../overrides
   language: en
   favicon: assets/images/favicon.svg
-  font:
-    text: Roboto
-    code: Roboto Mono
+  font: false
   palette:
     # Light mode
     - media: '(prefers-color-scheme: light)'
@@ -75,7 +73,6 @@ theme:
 plugins:
   - social:
       cards: true
-  - offline
   - search:
       lang: en
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
@@ -246,9 +243,6 @@ extra:
       link: https://linkedin.com/in/{{ linkedin_user }}
     {% endif %}
   {% endif %}
-
-extra_javascript:
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 # Custom CSS for improved UX
 extra_css:

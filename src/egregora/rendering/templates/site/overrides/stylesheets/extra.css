@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
-
 :root,
 [data-md-color-primary="custom"] {
   /* Official Palette */
@@ -43,14 +41,12 @@ h2,
 h3,
 .md-header__title,
 .md-nav__link {
-  font-family: 'Outfit', sans-serif !important;
   letter-spacing: -0.02em;
 }
 
 body,
 .md-typeset,
 .md-input {
-  font-family: 'Inter', sans-serif !important;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -235,11 +231,6 @@ body,
 */
 
 .md-typeset {
-  /*
-    Align blog post font with the main theme's font (Roboto), as defined in mkdocs.yml.
-    This ensures a consistent reading experience across the entire site.
-  */
-  font-family: "Roboto", sans-serif;
   font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
 }
 
