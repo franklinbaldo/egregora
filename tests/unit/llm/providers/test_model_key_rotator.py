@@ -1,9 +1,7 @@
 """Tests for ModelKeyRotator."""
-import pytest
-from unittest.mock import MagicMock
 
 from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-from egregora.llm.providers.model_cycler import GeminiKeyRotator
+
 
 class TestModelKeyRotator:
     def test_rotator_load_balancing_behavior(self):
@@ -46,7 +44,8 @@ class TestModelKeyRotator:
         def mock_call(model, key):
             calls.append((model, key))
             if model == "model1":
-                raise ValueError("429 Too Many Requests") # Simulate Rate Limit
+                msg = "429 Too Many Requests"
+                raise ValueError(msg)  # Simulate Rate Limit
             return "success"
 
         rotator.call_with_rotation(mock_call)
@@ -72,15 +71,9 @@ class TestModelKeyRotator:
 
         # This is fine.
 
-        expected_calls = [
-            ("model1", "key1"),
-            ("model1", "key2"),
-            ("model1", "key1"), # Wait, I'm confused about next_key behavior on exhaustion.
-        ]
-
         # Let's just assert final success was on model2
         assert calls[-1][0] == "model2"
         # And it tried both keys on model1
         model1_calls = [c for c in calls if c[0] == "model1"]
         assert len(model1_calls) == 2
-        assert set(c[1] for c in model1_calls) == {"key1", "key2"}
+        assert {c[1] for c in model1_calls} == {"key1", "key2"}

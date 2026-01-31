@@ -1,6 +1,7 @@
 """Tests for GeminiKeyRotator."""
-import pytest
+
 from egregora.llm.providers.model_cycler import GeminiKeyRotator
+
 
 class TestGeminiKeyRotator:
     def test_exhaustion_behavior(self):
@@ -16,7 +17,7 @@ class TestGeminiKeyRotator:
 
         # Call 2 (Success)
         rotator.call_with_rotation(lambda k: "success")
-        assert rotator.current_key == "key1" # Back to start (Round Robin)
+        assert rotator.current_key == "key1"  # Back to start (Round Robin)
 
         # Verify NO exhaustion error
         rotator.call_with_rotation(lambda k: "success")
@@ -29,7 +30,8 @@ class TestGeminiKeyRotator:
 
         def fail_first(key):
             if key == "key1":
-                raise ValueError("429 Too Many Requests")
+                msg = "429 Too Many Requests"
+                raise ValueError(msg)
             return "success"
 
         # Call should succeed with key2

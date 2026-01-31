@@ -325,9 +325,7 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
 
     if table_name == "messages":
         valid_media_types = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
-        return {
-            "chk_messages_media_type": f"(media_type IS NULL) OR (media_type IN ({valid_media_types}))"
-        }
+        return {"chk_messages_media_type": f"(media_type IS NULL) OR (media_type IN ({valid_media_types}))"}
 
     return {}
 

@@ -148,7 +148,7 @@ class GeminiKeyRotator:
                 # Should not happen in pure round-robin unless we wrapped around
                 if len(keys_tried_for_request) >= len(self.api_keys):
                     break
-                self.rotate() # Skip to next
+                self.rotate()  # Skip to next
                 continue
 
             keys_tried_for_request.add(api_key)
