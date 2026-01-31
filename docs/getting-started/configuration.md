@@ -1,5 +1,8 @@
 # Configuration
 
+!!! tip "For Most Users"
+    You probably don't need to read this page! Egregora is designed to work with **zero configuration** for 95% of users. The defaults are carefully chosen to create beautiful results automatically.
+
 **MODERN (Phase 2-4)**: Egregora configuration lives in `.egregora.toml`, separate from rendering (MkDocs).
 
 Configuration sources (priority order):
