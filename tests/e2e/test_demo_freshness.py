@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from egregora.assets import get_demo_chat_path
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType
 from egregora.orchestration.context import PipelineRunParams
@@ -13,7 +14,6 @@ from egregora.output_sinks.mkdocs.scaffolding import ensure_mkdocs_project
 # Determine the project root to reliably find the 'demo' directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 DEMO_DIR = PROJECT_ROOT / "demo"
-SAMPLE_INPUT_FILE = PROJECT_ROOT / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
 
 
 def are_dirs_equal(dir1: Path, dir2: Path) -> tuple[bool, str]:
@@ -69,8 +69,9 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
     if not DEMO_DIR.exists():
         pytest.skip(f"Demo directory not found at {DEMO_DIR} - run 'uv run egregora demo' to generate it")
 
-    if not SAMPLE_INPUT_FILE.exists():
-        pytest.skip(f"Sample input file not found at {SAMPLE_INPUT_FILE}")
+    input_path = get_demo_chat_path()
+    if not input_path.exists():
+        pytest.skip(f"Sample input file not found at {input_path}")
 
     temp_demo_path = tmp_path / "demo"
     temp_demo_path.mkdir()
@@ -89,7 +90,7 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
         output_dir=temp_demo_path,
         config=config,
         source_type=SourceType.WHATSAPP.value,
-        input_path=SAMPLE_INPUT_FILE,
+        input_path=input_path,
         refresh="all",  # `force=True` in the CLI command translates to this
         smoke_test=True,  # Run in offline mode to avoid API errors
     )

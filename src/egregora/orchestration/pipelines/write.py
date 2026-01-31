@@ -511,10 +511,14 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = cast(
-            "list[Document]",
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
-        )
+        if ctx.state.smoke_test:
+            logger.info("Smoke test mode: skipping profile generation.")
+            profile_docs = []
+        else:
+            profile_docs = cast(
+                "list[Document]",
+                generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
+            )
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
