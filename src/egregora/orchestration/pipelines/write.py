@@ -34,6 +34,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, WriterResources
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
+from egregora.config.write_options import WriteCommandConfig
 from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
@@ -57,33 +58,9 @@ from egregora.orchestration.pipelines.etl.setup import (
 
 logger = logging.getLogger(__name__)
 console = Console()
-__all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
+__all__ = ["WhatsAppProcessOptions", "WriteCommandConfig", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
-
-
-@dataclass
-class WriteCommandOptions:
-    """Options for the write command."""
-
-    input_file: Path
-    source: str
-    output: Path
-    step_size: int
-    step_unit: WindowUnit
-    overlap: float
-    enable_enrichment: bool
-    from_date: str | None
-    to_date: str | None
-    timezone: str | None
-    model: str | None
-    max_prompt_tokens: int
-    use_full_context_window: bool
-    max_windows: int | None
-    resume: bool
-    refresh: str | None
-    force: bool
-    debug: bool
 
 
 @dataclass(frozen=True)
@@ -108,68 +85,69 @@ class WhatsAppProcessOptions:
 
 
 def _prepare_write_config(
-    options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
+    config: WriteCommandConfig, from_date_obj: date_type | None, to_date_obj: date_type | None
 ) -> Any:
-    """Prepare Egregora configuration from options."""
-    base_config = load_egregora_config(options.output)
+    """Prepare Egregora configuration from config."""
+    base_config = load_egregora_config(config.output)
     models_update: dict[str, str] = {}
-    if options.model:
+    if config.model:
         models_update = {
-            "writer": options.model,
-            "enricher": options.model,
-            "enricher_vision": options.model,
-            "ranking": options.model,
-            "editor": options.model,
+            "writer": config.model,
+            "enricher": config.model,
+            "enricher_vision": config.model,
+            "ranking": config.model,
+            "editor": config.model,
         }
     return base_config.model_copy(
         deep=True,
         update={
             "pipeline": base_config.pipeline.model_copy(
                 update={
-                    "step_size": options.step_size,
-                    "step_unit": options.step_unit,
-                    "overlap_ratio": options.overlap,
-                    "timezone": options.timezone,
+                    "step_size": config.step_size,
+                    "step_unit": config.step_unit,
+                    "overlap_ratio": config.overlap,
+                    "timezone": config.timezone,
                     "from_date": from_date_obj.isoformat() if from_date_obj else None,
                     "to_date": to_date_obj.isoformat() if to_date_obj else None,
-                    "max_prompt_tokens": options.max_prompt_tokens,
-                    "use_full_context_window": options.use_full_context_window,
-                    "max_windows": options.max_windows,
-                    "checkpoint_enabled": options.resume,
+                    "max_prompt_tokens": config.max_prompt_tokens,
+                    "use_full_context_window": config.use_full_context_window,
+                    "max_windows": config.max_windows,
+                    "checkpoint_enabled": config.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
 
-def _resolve_write_options(
-    input_file: Path,
-    options_json: str | None,
-    cli_defaults: dict[str, Any],
-) -> WriteCommandOptions:
-    """Merge CLI options with JSON options and defaults."""
-    # Start with CLI values as base
-    defaults = cli_defaults.copy()
+def _resolve_write_config(
+    base_config: WriteCommandConfig,
+    source_type: str,
+) -> WriteCommandConfig:
+    """Merge config with source type and JSON options."""
+    # Start with base config + source
+    current_config = base_config.model_copy(update={"source": source_type})
 
-    if options_json:
+    if current_config.options:
         try:
-            overrides = json.loads(options_json)
+            overrides = json.loads(current_config.options)
             # Update with JSON overrides, converting enums if strings
+            cleaned_overrides = {}
             for k, v in overrides.items():
                 if k == "step_unit" and isinstance(v, str):
-                    defaults[k] = WindowUnit(v)
+                    cleaned_overrides[k] = WindowUnit(v)
                 elif k == "output" and isinstance(v, str):
-                    defaults[k] = Path(v)
+                    cleaned_overrides[k] = Path(v)
                 else:
-                    defaults[k] = v
+                    cleaned_overrides[k] = v
+            current_config = current_config.model_copy(update=cleaned_overrides)
         except json.JSONDecodeError as e:
             console.print(f"[red]Error parsing options JSON: {e}[/red]")
             raise SystemExit(1) from e
 
-    return WriteCommandOptions(input_file=input_file, **defaults)
+    return current_config
 
 
 def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[tuple[str, str]]:
@@ -223,70 +201,24 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
 
 
 # TODO: [Taskmaster] Refactor validation logic into separate functions
-def run_cli_flow(
-    input_file: Path,
-    *,
-    output: Path = Path("site"),
-    source: str | None = None,
-    step_size: int = 100,
-    step_unit: WindowUnit = WindowUnit.MESSAGES,
-    overlap: float = 0.0,
-    enable_enrichment: bool = True,
-    from_date: str | None = None,
-    to_date: str | None = None,
-    timezone: str | None = None,
-    model: str | None = None,
-    max_prompt_tokens: int = 400000,
-    use_full_context_window: bool = False,
-    max_windows: int | None = None,
-    resume: bool = True,
-    refresh: str | None = None,
-    force: bool = False,
-    debug: bool = False,
-    options: str | None = None,
-    smoke_test: bool = False,
-    exit_on_error: bool = True,
-) -> None:
+def run_cli_flow(config: WriteCommandConfig) -> None:
     """Execute the write flow from CLI arguments.
 
     Args:
-        source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
-                If None, will use default_source from config, or run all sources if default is None.
-        exit_on_error: If True, raise SystemExit(1) on failure. If False, re-raise the exception.
-
+        config: Configuration object containing all write command parameters.
     """
-    cli_values = {
-        "source": source,
-        "output": output,
-        "step_size": step_size,
-        "step_unit": step_unit,
-        "overlap": overlap,
-        "enable_enrichment": enable_enrichment,
-        "from_date": from_date,
-        "to_date": to_date,
-        "timezone": timezone,
-        "model": model,
-        "max_prompt_tokens": max_prompt_tokens,
-        "use_full_context_window": use_full_context_window,
-        "max_windows": max_windows,
-        "resume": resume,
-        "refresh": refresh,
-        "force": force,
-        "debug": debug,
-    }
-
-    if debug:
+    if config.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    from_date_obj, to_date_obj = validate_dates(from_date, to_date)
-    validate_timezone_arg(timezone)
+    from_date_obj, to_date_obj = validate_dates(config.from_date, config.to_date)
+    validate_timezone_arg(config.timezone)
 
-    output_dir = output.expanduser().resolve()
+    output_dir = config.output.expanduser().resolve()
     ensure_site_initialized(output_dir)
     try:
         validate_api_key(output_dir)
     except SystemExit as e:
-        if exit_on_error:
+        if config.exit_on_error:
             raise
         # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
         msg = f"API key validation failed: {e}"
@@ -296,30 +228,26 @@ def run_cli_flow(
     base_config = load_egregora_config(output_dir)
 
     # Determine which sources to run
-    sources_to_run = _resolve_sources_to_run(source, base_config)
+    sources_to_run = _resolve_sources_to_run(config.source, base_config)
 
     # Process each source
     for source_key, source_type in sources_to_run:
         # Prepare options with current source
-        parsed_options = _resolve_write_options(
-            input_file=input_file,
-            options_json=options,
-            cli_defaults={**cli_values, "source": source_type},
-        )
+        current_config = _resolve_write_config(config, source_type)
 
-        egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+        egregora_config = _prepare_write_config(current_config, from_date_obj, to_date_obj)
 
         runtime = RuntimeContext(
             output_dir=output_dir,
-            input_file=parsed_options.input_file,
-            model_override=parsed_options.model,
-            debug=parsed_options.debug,
+            input_file=current_config.input_file,
+            model_override=current_config.model,
+            debug=current_config.debug,
         )
 
         try:
             console.print(
                 Panel(
-                    f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                    f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {current_config.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {current_config.step_size} {current_config.step_unit.value}",
                     title="⚙️  Egregora Pipeline",
                     border_style="cyan",
                 )
@@ -330,8 +258,8 @@ def run_cli_flow(
                 source_type=source_type,
                 source_key=source_key,
                 input_path=runtime.input_file,
-                refresh="all" if parsed_options.force else parsed_options.refresh,
-                smoke_test=smoke_test,
+                refresh="all" if current_config.force else current_config.refresh,
+                smoke_test=config.smoke_test,
             )
             run(run_params)
             console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
@@ -341,7 +269,7 @@ def run_cli_flow(
         except Exception as e:
             console.print_exception(show_locals=False)
             console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            if exit_on_error:
+            if config.exit_on_error:
                 raise SystemExit(1) from e
             raise e
 

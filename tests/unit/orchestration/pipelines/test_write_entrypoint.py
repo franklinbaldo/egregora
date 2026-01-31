@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from egregora.config.settings import SiteSettings, SourceSettings
+from egregora.config.write_options import WriteCommandConfig
 from egregora.constants import SourceType
 
 
@@ -28,7 +29,11 @@ def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, m
     mock_config = config_factory()
     mock_load_config.return_value = mock_config
 
-    run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source=SourceType.WHATSAPP.value)
+    run_cli_flow(
+        WriteCommandConfig(
+            input_file=Path("test.zip"), output=Path("site"), source=SourceType.WHATSAPP.value
+        )
+    )
 
     # Verify run was called
     assert mock_run.called
@@ -64,7 +69,9 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
     )
     mock_load_config.return_value = config
 
-    run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source=None)
+    run_cli_flow(
+        WriteCommandConfig(input_file=Path("test.zip"), output=Path("site"), source=None)
+    )
 
     assert mock_run.call_count == 2
     first_params = mock_run.call_args_list[0][0][0]
@@ -94,7 +101,9 @@ def test_run_cli_flow_invalid_source_key_exits(
     mock_load_config.return_value = config
 
     try:
-        run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source="ghost")
+        run_cli_flow(
+            WriteCommandConfig(input_file=Path("test.zip"), output=Path("site"), source="ghost")
+        )
     except SystemExit:
         pass
     else:
@@ -122,7 +131,9 @@ def test_run_cli_flow_scaffolds_if_no_config(
 
     mock_load_config.return_value = config_factory()
 
-    run_cli_flow(input_file=Path("test.zip"), output=output_dir, source="whatsapp")
+    run_cli_flow(
+        WriteCommandConfig(input_file=Path("test.zip"), output=output_dir, source="whatsapp")
+    )
 
     # Verify that scaffolding was called because the config was missing
     mock_scaffold_site.assert_called_once_with(output_dir, site_name=output_dir.name)

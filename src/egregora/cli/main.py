@@ -25,6 +25,7 @@ from egregora.cli.diagnostics import HealthStatus, run_diagnostics
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.config.exceptions import ApiKeyNotFoundError
+from egregora.config.write_options import WriteCommandConfig
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
@@ -181,7 +182,7 @@ def write(
     ] = None,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
-    run_cli_flow(
+    config = WriteCommandConfig(
         input_file=input_file,
         output=output,
         source=source,
@@ -202,6 +203,7 @@ def write(
         debug=debug,
         options=options,
     )
+    run_cli_flow(config)
 
 
 # TODO: [Taskmaster] Refactor site validation logic into a reusable utility function.
@@ -457,7 +459,7 @@ def demo(
             raise typer.Exit(1)
 
         try:
-            run_cli_flow(
+            config = WriteCommandConfig(
                 input_file=sample_input,
                 output=output_dir,
                 source=SourceType.WHATSAPP,
@@ -479,6 +481,7 @@ def demo(
                 options=None,
                 exit_on_error=False,
             )
+            run_cli_flow(config)
         except Exception as e:
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
