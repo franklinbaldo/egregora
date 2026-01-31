@@ -1,12 +1,14 @@
-from unittest.mock import MagicMock, patch
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-from egregora.orchestration.pipelines.write import process_item
-from egregora.orchestration.pipelines.etl.preparation import Conversation
+from egregora.data_primitives.document import Document, OutputSink
 from egregora.orchestration.context import PipelineContext
-from egregora.data_primitives.document import OutputSink, Document, DocumentType
+from egregora.orchestration.pipelines.etl.preparation import Conversation
+from egregora.orchestration.pipelines.write import process_item
+
 
 @pytest.fixture
 def mock_context():
@@ -18,6 +20,7 @@ def mock_context():
     ctx.site_root = Path("/tmp/site")
     ctx.cache = MagicMock()
     return ctx
+
 
 @pytest.fixture
 def mock_conversation(mock_context):
@@ -34,6 +37,7 @@ def mock_conversation(mock_context):
 
     conv.adapter_info = ("summary", "instructions")
     return conv
+
 
 @patch("egregora.orchestration.pipelines.write.build_conversation_xml")
 @patch("egregora.orchestration.pipelines.write.PromptManager")
@@ -56,7 +60,7 @@ def test_process_item_skips_processed_window(
     mock_gen_signature,
     mock_prompt_manager,
     mock_build_xml,
-    mock_conversation
+    mock_conversation,
 ):
     # Setup
     mock_build_xml.return_value = "<xml>"
@@ -80,6 +84,7 @@ def test_process_item_skips_processed_window(
     mock_create_journal.assert_not_called()
     mock_conversation.context.output_sink.persist.assert_not_called()
 
+
 @patch("egregora.orchestration.pipelines.write.build_conversation_xml")
 @patch("egregora.orchestration.pipelines.write.PromptManager")
 @patch("egregora.orchestration.pipelines.write.generate_window_signature")
@@ -101,7 +106,7 @@ def test_process_item_persists_journal_on_success(
     mock_gen_signature,
     mock_prompt_manager,
     mock_build_xml,
-    mock_conversation
+    mock_conversation,
 ):
     # Setup
     mock_build_xml.return_value = "<xml>"
@@ -112,7 +117,7 @@ def test_process_item_persists_journal_on_success(
     mock_window_processed.return_value = False
 
     # Mocks for execution
-    mock_extract.return_value = [] # No commands
+    mock_extract.return_value = []  # No commands
     mock_filter.return_value = [{"id": 1, "text": "hello"}]
     mock_write_posts.return_value = {"posts": ["post1"], "profiles": []}
     mock_gen_profiles.return_value = []
@@ -125,7 +130,7 @@ def test_process_item_persists_journal_on_success(
     result = process_item(mock_conversation)
 
     # Verify
-    assert "posts" in list(result.values())[0]
+    assert "posts" in next(iter(result.values()))
 
     # Check checks happened
     mock_window_processed.assert_called_once_with(mock_conversation.context.output_sink, "sig123")

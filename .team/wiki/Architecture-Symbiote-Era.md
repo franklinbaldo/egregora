@@ -36,7 +36,13 @@ The system manages state through a unified **`PipelineContext`** (`src/egregora/
 
 This allows the system to pass a single context object that provides access to everything needed for execution, ensuring consistency.
 
-### 4. Error Boundaries (Partial)
+### 4. Evaluation & Feedback (Elo)
+The system has moved beyond simple generation to self-evaluation.
+- **Elo Rating**: Posts are pitted against each other in pairwise comparisons.
+- **Feedback Loops**: The Reader agent provides structured feedback (star ratings, critique) which persists in the database.
+- **Darwinian Evolution**: Over time, higher quality content rises to the top of the "Top Posts" list.
+
+### 5. Error Boundaries (Partial)
 The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBoundary` protocol is not yet fully implemented, the system now employs broad exception handling at the item processing level to prevent one bad window from crashing the entire pipeline.
 
 ## 🧩 Key Components
@@ -50,6 +56,7 @@ The brain of the system. It delegates:
 ### The Agents (`agents/`)
 Specialized workers that perform discrete cognitive tasks.
 - **Writer**: Converts chat windows into narrative posts.
+- **Reader**: Evaluates and ranks posts using an Elo rating system (`agents/reader/`).
 - **Profile**: Updates author profiles based on new evidence.
 - **Banner**: Generates visual assets for posts.
 
@@ -59,7 +66,7 @@ Pluggable destinations for the generated content. Currently focused on MkDocs, b
 ## ⚠️ Known Technical Debt (Lore)
 
 ### The Ghost in the Shell (`write.py` vs `processor.py`)
-Despite the creation of `src/egregora/orchestration/pipelines/execution/processor.py` to encapsulate item processing logic, the `write.py` coordinator currently defines its own local `process_item` function that duplicates much of this logic.
+Despite the creation of `src/egregora/orchestration/pipelines/execution/processor.py` to encapsulate item processing logic, the `src/egregora/orchestration/pipelines/write.py` coordinator currently defines its own local `process_item` function (lines ~340-450) that duplicates much of this logic.
 - **Impact**: Logic changes must be manually synced between the two files.
 - **Status**: Identified for future refactoring.
 

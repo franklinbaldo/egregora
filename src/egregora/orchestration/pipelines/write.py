@@ -29,6 +29,7 @@ from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
 from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentWorker
+from egregora.agents.formatting import build_conversation_xml
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, WriterResources
@@ -42,7 +43,6 @@ from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.agents.formatting import build_conversation_xml
 from egregora.orchestration.exceptions import (
     CommandAnnouncementError,
     OutputSinkError,
@@ -454,7 +454,9 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     )
 
     if window_already_processed(output_sink, signature):
-        window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+        window_label = (
+            f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+        )
         logger.info("⏭️  Skipping window %s (Already Processed)", window_label)
         return {}
 

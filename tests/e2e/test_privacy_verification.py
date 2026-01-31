@@ -1,11 +1,13 @@
-import pytest
-import subprocess
-import shutil
-import time
-import requests
 import os
 import re
+import shutil
+import subprocess
+import time
+
+import pytest
+import requests
 from playwright.sync_api import Page, expect
+
 
 @pytest.fixture(scope="module")
 def demo_site():
@@ -25,21 +27,21 @@ def demo_site():
 
     site_dir = os.path.abspath("demo/.egregora/site")
     if not os.path.exists(site_dir):
-        raise RuntimeError(f"Site directory not found at {site_dir}")
+        msg = f"Site directory not found at {site_dir}"
+        raise RuntimeError(msg)
 
     yield site_dir
+
 
 @pytest.fixture(scope="module")
 def site_server(demo_site):
     """Starts a python http server serving the demo site."""
     port = 8086
-    print(f"Starting server in {demo_site}")
-    print(f"Directory contents: {os.listdir(demo_site)}")
     process = subprocess.Popen(
         ["python", "-m", "http.server", str(port)],
         cwd=demo_site,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
     )
 
     # Wait for server
@@ -52,12 +54,14 @@ def site_server(demo_site):
     else:
         process.terminate()
         stdout, stderr = process.communicate()
-        raise RuntimeError(f"Server failed to start at port {port}:\nStdout: {stdout}\nStderr: {stderr}")
+        msg = f"Server failed to start at port {port}:\nStdout: {stdout}\nStderr: {stderr}"
+        raise RuntimeError(msg)
 
     yield f"http://localhost:{port}"
 
     process.terminate()
     process.wait()
+
 
 def test_privacy_assets(page: Page, site_server):
     """Verifies no external requests are made and local fonts are loaded."""
@@ -107,11 +111,11 @@ def test_privacy_assets(page: Page, site_server):
     # print("Requests made:", requests_made)
 
     if not outfit_requests:
-         # Fallback verification: Check computed style
-         header = page.locator("h1").first
-         # The CSS says: font-family: 'Outfit', sans-serif !important;
-         # Computed style should start with Outfit or "Outfit"
-         expect(header).to_have_css("font-family", re.compile(r"Outfit"))
+        # Fallback verification: Check computed style
+        header = page.locator("h1").first
+        # The CSS says: font-family: 'Outfit', sans-serif !important;
+        # Computed style should start with Outfit or "Outfit"
+        expect(header).to_have_css("font-family", re.compile(r"Outfit"))
 
     # Also verify Inter is used for body
     body = page.locator("body")

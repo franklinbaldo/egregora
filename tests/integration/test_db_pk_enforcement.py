@@ -1,14 +1,15 @@
-
 import duckdb
 import pytest
+
 from egregora.database.init import initialize_database
-from egregora.database.schemas import TASKS_SCHEMA, GIT_COMMITS_SCHEMA
+
 
 @pytest.fixture
 def db_connection():
     conn = duckdb.connect(":memory:")
     initialize_database(conn)
     return conn
+
 
 def test_pk_enforcement_tasks(db_connection):
     """Verify primary key enforcement on tasks table."""
@@ -27,6 +28,7 @@ def test_pk_enforcement_tasks(db_connection):
             INSERT INTO tasks (task_id, task_type, status, payload, created_at)
             VALUES ('{uuid}', 'update_profile', 'pending', '{{}}', CURRENT_TIMESTAMP)
         """)
+
 
 def test_pk_enforcement_git_commits(db_connection):
     """Verify composite primary key enforcement on git_commits table."""
@@ -57,6 +59,7 @@ def test_pk_enforcement_git_commits(db_connection):
             VALUES ('src/main.py', 'sha123', CURRENT_TIMESTAMP, 'M')
         """)
 
+
 def test_pk_existence_all_tables(db_connection):
     """Verify primary keys exist for all expected tables."""
     conn = db_connection
@@ -68,7 +71,7 @@ def test_pk_existence_all_tables(db_connection):
         "git_refs",
         "elo_ratings",
         "comparison_history",
-        "asset_cache"
+        "asset_cache",
     ]
 
     for table in tables_with_pk:
@@ -81,6 +84,7 @@ def test_pk_existence_all_tables(db_connection):
         """).fetchall()
 
         assert len(result) > 0, f"Table {table} should have a Primary Key"
+
 
 def test_idempotent_initialization(db_connection):
     """Verify that calling initialize_database twice doesn't fail."""
