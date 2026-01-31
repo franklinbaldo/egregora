@@ -1,4 +1,4 @@
-# ADR-0004: URL Enrichment Path Convention
+# ADR-0007: URL Enrichment Path Convention
 
 ## Status
 Accepted

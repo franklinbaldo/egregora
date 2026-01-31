@@ -163,6 +163,7 @@ nav:
   - Quick Start: getting-started/quickstart.md
   - About: about.md
   - FAQ: faq.md
+  - Troubleshooting: troubleshooting.md
   - ADR:
       - Index: adr/README.md
   - Getting Started:

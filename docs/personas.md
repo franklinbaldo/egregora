@@ -161,7 +161,6 @@ Specific objective this persona achieves.
 {% endblock %}
 {% endraw %}
 ```
-{% endraw %}
 
 ### Step 4: Test Rendering
 
@@ -203,15 +202,13 @@ You can override any of these by redefining the block in your persona template.
 
 Reference these in your custom blocks:
 
-{% raw %}
 ```jinja
-{% raw %}
-{% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
-{% include "blocks/pr_format.md.j2" %}      # Standardized PR template
-{% include "partials/celebration.md.j2" %}  # Empty queue celebration
-{% endraw %}
+{{ "{% raw %}" }}
+{{ "{% include \"blocks/bdd_technique.md.j2\" %}" }}  # BDD testing guidance
+{{ "{% include \"blocks/pr_format.md.j2\" %}" }}      # Standardized PR template
+{{ "{% include \"partials/celebration.md.j2\" %}" }}  # Empty queue celebration
+{{ "{% endraw %}" }}
 ```
-{% endraw %}
 
 ## Persona Communication
 
@@ -266,33 +263,29 @@ Each persona should have **one clear purpose**. Don't create "jack-of-all-trades
 
 Personas must work **independently** without human input:
 
-{% raw %}
 ```jinja
-{% raw %}
-{% block constraints %}
+{{ "{% raw %}" }}
+{{ "{% block constraints %}" }}
 - Make decisions autonomously
 - Don't ask humans for approval
 - Document uncertainties in journal
-{% endblock %}
-{% endraw %}
+{{ "{% endblock %}" }}
+{{ "{% endraw %}" }}
 ```
-{% endraw %}
 
 ### 3. Clear Verification
 
 Always define **measurable success criteria**:
 
-{% raw %}
 ```jinja
-{% raw %}
-{% block verification %}
+{{ "{% raw %}" }}
+{{ "{% block verification %}" }}
 - All tests pass (run `uv run pytest`)
 - Linter shows 0 errors (run `uv run ruff check`)
 - Documentation updated in docs/
-{% endblock %}
-{% endraw %}
+{{ "{% endblock %}" }}
+{{ "{% endraw %}" }}
 ```
-{% endraw %}
 
 ### 4. Precise Context
 
@@ -317,18 +310,16 @@ Use the persona's emoji in all outputs:
 
 Use Jinja2 conditionals for flexible prompts:
 
-{% raw %}
 ```jinja
-{% raw %}
-{% if journal_entries %}
+{{ "{% raw %}" }}
+{{ "{% if journal_entries %}" }}
 ## Previous Work
-{{ journal_entries }}
-{% else %}
+{{ "{{ journal_entries }}" }}
+{{ "{% else %}" }}
 This is your first session!
-{% endif %}
-{% endraw %}
+{{ "{% endif %}" }}
+{{ "{% endraw %}" }}
 ```
-{% endraw %}
 
 ### Custom Password Generation
 
