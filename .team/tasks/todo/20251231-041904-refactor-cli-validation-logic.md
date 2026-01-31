@@ -4,7 +4,7 @@ status: todo
 title: "Refactor: Extract Validation Logic from run_cli_flow"
 created_at: "${ISO_TIMESTAMP}"
 target_module: "src/egregora/orchestration/pipelines/write.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## 📋 Refactor: Extract Validation Logic from run_cli_flow

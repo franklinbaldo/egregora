@@ -4,7 +4,7 @@ status: todo
 title: "Refactor Duplicated Rotation Logic in Providers"
 created_at: "2025-12-30T19:04:41Z"
 target_module: "src/egregora/llm/providers/model_cycler.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## Description

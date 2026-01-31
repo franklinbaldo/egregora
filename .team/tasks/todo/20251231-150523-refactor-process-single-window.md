@@ -4,7 +4,7 @@ status: todo
 title: "Refactor Complex _process_single_window Method"
 created_at: "2025-12-31T15:05:23Z"
 target_module: "src/egregora/orchestration/runner.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## 📋 Refactor Complex `_process_single_window` Method

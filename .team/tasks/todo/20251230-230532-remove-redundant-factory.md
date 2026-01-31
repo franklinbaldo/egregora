@@ -4,7 +4,7 @@ status: todo
 title: "Remove redundant `create_model_key_rotator` function"
 created_at: "2025-12-30T23:05:32Z"
 target_module: "src/egregora/llm/providers/model_key_rotator.py"
-assigned_persona: "refactor"
+assigned_persona: "absolutist"
 ---
 
 ## Description
