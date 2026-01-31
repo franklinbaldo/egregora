@@ -40,7 +40,6 @@ from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.exceptions import UnknownAdapterError
-from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
 from egregora.orchestration.exceptions import (

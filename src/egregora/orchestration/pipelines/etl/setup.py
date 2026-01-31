@@ -77,6 +77,7 @@ def validate_api_key(output_dir: Path) -> None:
     Raises:
         ApiKeyNotFoundError: If no API key is found.
         ApiKeyInvalidError: If no valid API key is found among candidates.
+
     """
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
         "1",
@@ -92,7 +93,8 @@ def validate_api_key(output_dir: Path) -> None:
         api_keys = get_google_api_keys()
 
     if not api_keys:
-        raise ApiKeyNotFoundError("GOOGLE_API_KEY")
+        msg = "GOOGLE_API_KEY"
+        raise ApiKeyNotFoundError(msg)
 
     if skip_validation:
         if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
@@ -111,9 +113,11 @@ def validate_api_key(output_dir: Path) -> None:
         except ValueError as e:
             validation_errors.append(str(e))
         except ImportError as e:
-            raise ApiKeyInvalidError(f"Import error validating key: {e}", validation_errors=[str(e)]) from e
+            msg = f"Import error validating key: {e}"
+            raise ApiKeyInvalidError(msg, validation_errors=[str(e)]) from e
 
-    raise ApiKeyInvalidError("No valid API key found", validation_errors=validation_errors)
+    msg = "No valid API key found"
+    raise ApiKeyInvalidError(msg, validation_errors=validation_errors)
 
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
