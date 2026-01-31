@@ -42,11 +42,13 @@ from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.agents.formatting import build_conversation_xml
 from egregora.orchestration.exceptions import (
     CommandAnnouncementError,
     OutputSinkError,
     ProfileGenerationError,
 )
+from egregora.orchestration.journal import create_journal_document, window_already_processed
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -60,6 +62,8 @@ from egregora.orchestration.pipelines.etl.setup import (
     pipeline_environment,
     validate_api_key,
 )
+from egregora.resources.prompts import PromptManager
+from egregora.transformations.windowing import generate_window_signature
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -439,6 +443,21 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 conversation.messages_table if isinstance(conversation.messages_table, list) else []
             )
 
+    # Journal / Deduplication Check
+    xml_content = build_conversation_xml(messages_list, None)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=ctx.site_root)
+    signature = generate_window_signature(
+        None,
+        ctx.config,
+        template_content,
+        xml_content=xml_content,
+    )
+
+    if window_already_processed(output_sink, signature):
+        window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+        logger.info("⏭️  Skipping window %s (Already Processed)", window_label)
+        return {}
+
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)
     announcements_generated = 0
@@ -551,6 +570,21 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         announcements_generated,
         window_label,
     )
+
+    # Persist Journal
+    try:
+        journal = create_journal_document(
+            signature=signature,
+            run_id=ctx.run_id,
+            window_start=conversation.window.start_time,
+            window_end=conversation.window.end_time,
+            model=ctx.config.models.writer,
+            posts_generated=len(posts),
+            profiles_updated=len(profiles),
+        )
+        output_sink.persist(journal)
+    except Exception as e:
+        logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 
     return {window_label: {"posts": posts, "profiles": profiles}}
 
