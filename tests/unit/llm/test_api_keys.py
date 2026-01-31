@@ -22,7 +22,7 @@ def test_get_google_api_key_missing():
     """Test that getting the API key raises an error if not set."""
     with pytest.raises(
         ApiKeyNotFoundError,
-        match="API key environment variable not set: GOOGLE_API_KEY \\(or GEMINI_API_KEY\\)",
+        match="API key environment variable not set: GOOGLE_API_KEY",
     ):
         get_google_api_key()
 
@@ -30,22 +30,6 @@ def test_get_google_api_key_missing():
 @patch.dict(os.environ, {"GOOGLE_API_KEY": "google_key"}, clear=True)
 def test_get_google_api_key_from_google():
     """Test that the API key is retrieved from GOOGLE_API_KEY."""
-    assert get_google_api_key() == "google_key"
-
-
-@patch.dict(os.environ, {"GEMINI_API_KEY": "gemini_key"}, clear=True)
-def test_get_google_api_key_from_gemini_fallback():
-    """Test that the API key is retrieved from GEMINI_API_KEY as a fallback."""
-    assert get_google_api_key() == "gemini_key"
-
-
-@patch.dict(
-    os.environ,
-    {"GOOGLE_API_KEY": "google_key", "GEMINI_API_KEY": "gemini_key"},
-    clear=True,
-)
-def test_get_google_api_key_precedence():
-    """Test that GOOGLE_API_KEY takes precedence over GEMINI_API_KEY."""
     assert get_google_api_key() == "google_key"
 
 
@@ -73,35 +57,15 @@ def test_get_google_api_keys_single_google_key():
     assert get_google_api_keys() == ["key1"]
 
 
-@patch.dict(os.environ, {"GEMINI_API_KEY": "key2"}, clear=True)
-def test_get_google_api_keys_single_gemini_key():
-    """Test retrieving a single key from GEMINI_API_KEY."""
-    assert get_google_api_keys() == ["key2"]
-
-
-@patch.dict(os.environ, {"GEMINI_API_KEYS": "key3, key4,key5 "}, clear=True)
+@patch.dict(os.environ, {"GOOGLE_API_KEYS": "key1, key2"}, clear=True)
 def test_get_google_api_keys_comma_separated():
-    """Test retrieving multiple keys from GEMINI_API_KEYS."""
-    assert get_google_api_keys() == ["key3", "key4", "key5"]
+    """Test retrieving multiple keys from GOOGLE_API_KEYS."""
+    assert get_google_api_keys() == ["key1", "key2"]
 
 
 @patch.dict(
     os.environ,
-    {
-        "GEMINI_API_KEYS": "key1, key2",
-        "GEMINI_API_KEY": "key3",
-        "GOOGLE_API_KEY": "key4",
-    },
-    clear=True,
-)
-def test_get_google_api_keys_all_sources():
-    """Test retrieving keys from all available environment variables."""
-    assert get_google_api_keys() == ["key1", "key2", "key3", "key4"]
-
-
-@patch.dict(
-    os.environ,
-    {"GEMINI_API_KEYS": "key1, key1, key2"},
+    {"GOOGLE_API_KEYS": "key1, key1, key2"},
     clear=True,
 )
 def test_get_google_api_keys_uniqueness():

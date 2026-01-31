@@ -25,7 +25,6 @@ def gemini_api_key(monkeypatch):
 def clean_env(monkeypatch):
     """Ensure environment is clean of API keys for specific tests."""
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
 
 @pytest.fixture

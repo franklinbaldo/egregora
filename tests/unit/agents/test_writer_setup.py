@@ -39,7 +39,7 @@ def test_create_writer_model_success_with_google_api_key(
     mock_context: MagicMock,
 ):
     """Test that create_writer_model succeeds when Google API key is present."""
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True):
+    with patch.dict(os.environ, {"GOOGLE_API_KEY": "test_key"}, clear=True):
         model_instance = MagicMock()
         mock_infer_model.return_value = model_instance
 

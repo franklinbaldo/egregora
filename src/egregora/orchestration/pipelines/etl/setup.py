@@ -97,7 +97,7 @@ def validate_api_key(output_dir: Path) -> None:
         raise ApiKeyNotFoundError(msg)
 
     if skip_validation:
-        if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+        if not os.environ.get("GOOGLE_API_KEY"):
             os.environ["GOOGLE_API_KEY"] = api_keys[0]
         return
 
@@ -106,7 +106,7 @@ def validate_api_key(output_dir: Path) -> None:
     for key in api_keys:
         try:
             validate_gemini_api_key(key)
-            if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+            if not os.environ.get("GOOGLE_API_KEY"):
                 os.environ["GOOGLE_API_KEY"] = key
             console.print("[green]✓ API key validated successfully[/green]")
             return

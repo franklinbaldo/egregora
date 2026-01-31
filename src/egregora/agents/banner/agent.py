@@ -21,6 +21,7 @@ from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.llm.api_keys import get_google_api_key, google_api_key_available
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.resources.prompts import render_prompt
 
@@ -144,7 +145,7 @@ def generate_banner(
         )
     # Client reads GOOGLE_API_KEY from environment automatically
     config = EgregoraConfig()
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    api_key = get_google_api_key()
     client = genai.Client(api_key=api_key)
 
     # Load configuration
@@ -191,4 +192,4 @@ def is_banner_generation_available() -> bool:
     if skip_validation:
         return True
 
-    return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+    return google_api_key_available()
