@@ -1,13 +1,16 @@
 import os
-import re
 import shutil
 import subprocess
 import time
-
+import re
+from urllib.parse import urlparse
 import pytest
-import requests
 from playwright.sync_api import Page, expect
+from pytest_bdd import scenario, given, when, then
 
+@scenario("../features/privacy.feature", "Verify no external requests on demo site")
+def test_privacy_compliance():
+    """Verify privacy compliance."""
 
 @pytest.fixture(scope="module")
 def demo_site():
@@ -31,12 +34,13 @@ def demo_site():
         raise RuntimeError(msg)
 
     yield site_dir
-
+    # Cleanup optional
+    # shutil.rmtree("demo", ignore_errors=True)
 
 @pytest.fixture(scope="module")
 def site_server(demo_site):
     """Starts a python http server serving the demo site."""
-    port = 8086
+    port = 8087 # Use a different port than original test to avoid conflict if run in parallel
     process = subprocess.Popen(
         ["python", "-m", "http.server", str(port)],
         cwd=demo_site,
@@ -45,6 +49,7 @@ def site_server(demo_site):
     )
 
     # Wait for server
+    import requests
     for _ in range(20):
         try:
             requests.get(f"http://localhost:{port}")
@@ -62,64 +67,51 @@ def site_server(demo_site):
     process.terminate()
     process.wait()
 
+@pytest.fixture
+def context_requests():
+    return []
 
-def test_privacy_assets(page: Page, site_server):
-    """Verifies no external requests are made and local fonts are loaded."""
+@given("a clean demo site is generated")
+def clean_demo_site(demo_site):
+    """Ensure site is generated."""
+    assert os.path.exists(demo_site)
 
+@when("I navigate to the home page")
+def navigate_home(page: Page, site_server, context_requests):
+    """Navigate to home page and record requests."""
+    def handle_request(request):
+        context_requests.append(request.url)
+
+    page.on("request", handle_request)
+
+    page.goto(site_server)
+    page.wait_for_load_state("networkidle")
+
+@then("no requests should be made to external domains")
+def verify_no_external_requests(context_requests):
+    """Check recorded requests for violations."""
     external_domains = [
         "fonts.googleapis.com",
         "fonts.gstatic.com",
         "unpkg.com",
         "cdn.jsdelivr.net",
     ]
-
-    requests_made = []
-
-    def handle_request(request):
-        requests_made.append(request.url)
-
-    page.on("request", handle_request)
-
-    page.goto(site_server)
-
-    # Wait for network idle to ensure assets are requested
-    page.wait_for_load_state("networkidle")
-
-    # Check for external requests
-    # We check if the request starts with the forbidden domains
-    # Or strict check of the host
-    from urllib.parse import urlparse
-
     violations = []
-    for url in requests_made:
+    for url in context_requests:
         parsed = urlparse(url)
         if any(domain in parsed.netloc for domain in external_domains):
             violations.append(url)
 
     assert not violations, f"Found external requests: {violations}"
 
-    # Check if Outfit was requested (it should be local)
-    outfit_requests = [url for url in requests_made if "outfit.woff2" in url]
+@then('the "Outfit" font should be loaded locally')
+def verify_outfit_local(page: Page):
+    """Verify Outfit font usage."""
+    header = page.locator("h1").first
+    expect(header).to_have_css("font-family", re.compile(r"Outfit"))
 
-    # Note: We rely on the font actually being used on the home page.
-    # The home page has H1, which uses Outfit.
-
-    # If checking requests is flaky (due to caching), we can also check computed styles.
-    # But a fresh browser context should request it.
-
-    # For debugging: print all requests
-    # print("Requests made:", requests_made)
-
-    if not outfit_requests:
-        # Fallback verification: Check computed style
-        header = page.locator("h1").first
-        # The CSS says: font-family: 'Outfit', sans-serif !important;
-        # Computed style should start with Outfit or "Outfit"
-        expect(header).to_have_css("font-family", re.compile(r"Outfit"))
-
-    # Also verify Inter is used for body
+@then('the "Inter" font should be loaded locally')
+def verify_inter_local(page: Page):
+    """Verify Inter font usage."""
     body = page.locator("body")
     expect(body).to_have_css("font-family", re.compile(r"Inter"))
-
-    # Take screenshot for visual verification
-    page.screenshot(path="privacy_verification.png")
