@@ -38,6 +38,7 @@ from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
+from egregora.database.utils import convert_ibis_table_to_list
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
@@ -407,21 +408,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # But filtering commands from input to writer is "prep".
 
     # Convert table to list
-    try:
-        executed = conversation.messages_table.execute()
-        if hasattr(executed, "to_pylist"):
-            messages_list = executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
-            messages_list = executed.to_dict(orient="records")
-        else:
-            messages_list = []
-    except (AttributeError, TypeError):
-        try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
+    messages_list = convert_ibis_table_to_list(conversation.messages_table)
 
     # Journal / Deduplication Check
     xml_content = build_conversation_xml(messages_list, None)
