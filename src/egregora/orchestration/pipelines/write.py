@@ -38,9 +38,15 @@ from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
 from egregora.input_adapters import ADAPTER_REGISTRY
+from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.exceptions import (
+    CommandAnnouncementError,
+    OutputSinkError,
+    ProfileGenerationError,
+)
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -443,7 +449,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
+                msg = f"Failed to generate announcement: {exc}"
+                raise CommandAnnouncementError(msg) from exc
 
     clean_messages_list = filter_commands(messages_list)
 
@@ -506,7 +513,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             try:
                 output_sink.persist(post)
             except Exception as exc:
-                logger.exception("Failed to persist post: %s", exc)
+                msg = f"Failed to persist post {post.document_id}: {exc}"
+                raise OutputSinkError(msg) from exc
 
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
@@ -520,9 +528,13 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
+                msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
+                raise OutputSinkError(msg) from exc
     except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
+        if isinstance(exc, OutputSinkError):
+            raise
+        msg = f"Failed to generate profile posts: {exc}"
+        raise ProfileGenerationError(msg) from exc
 
     # Process background tasks (Banner, etc)
     # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
@@ -589,8 +601,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     # Instead of using singleton from registry, instantiate with config
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
-        msg = f"Unknown source type: {run_params.source_type}"
-        raise ValueError(msg)
+        raise UnknownAdapterError(run_params.source_type)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
@@ -633,8 +644,5 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
             raise  # Re-raise to allow proper cleanup
-        except Exception:
-            # Broad catch is intentional: record failure for any exception, then re-raise
-            raise  # Re-raise original exception to preserve error context
 
         return results
