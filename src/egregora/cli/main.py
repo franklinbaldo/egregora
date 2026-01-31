@@ -27,6 +27,12 @@ from egregora.config import load_egregora_config
 from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.input_adapters.exceptions import UnknownAdapterError
+from egregora.orchestration.exceptions import (
+    ApiKeyInvalidError,
+    ApiKeyMissingError,
+    OrchestrationError,
+)
 from egregora.database.elo_store import EloStore
 from egregora.llm.api_keys import get_google_api_key
 from egregora.orchestration.pipelines.write import run_cli_flow
@@ -181,27 +187,39 @@ def write(
     ] = None,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
-    run_cli_flow(
-        input_file=input_file,
-        output=output,
-        source=source,
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap=overlap,
-        enable_enrichment=enable_enrichment,
-        from_date=from_date,
-        to_date=to_date,
-        timezone=timezone,
-        model=model,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-        max_windows=max_windows,
-        resume=resume,
-        refresh=refresh,
-        force=force,
-        debug=debug,
-        options=options,
-    )
+    try:
+        run_cli_flow(
+            input_file=input_file,
+            output=output,
+            source=source,
+            step_size=step_size,
+            step_unit=step_unit,
+            overlap=overlap,
+            enable_enrichment=enable_enrichment,
+            from_date=from_date,
+            to_date=to_date,
+            timezone=timezone,
+            model=model,
+            max_prompt_tokens=max_prompt_tokens,
+            use_full_context_window=use_full_context_window,
+            max_windows=max_windows,
+            resume=resume,
+            refresh=refresh,
+            force=force,
+            debug=debug,
+            options=options,
+        )
+    except UnknownAdapterError as e:
+        console.print(f"[red]Configuration Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except (ApiKeyMissingError, ApiKeyInvalidError) as e:
+        console.print(f"[red]Authentication Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except OrchestrationError as e:
+        console.print(f"[red]Pipeline Error: {e}[/red]")
+        if debug:
+            console.print_exception()
+        raise typer.Exit(1) from e
 
 
 # TODO: [Taskmaster] Refactor site validation logic into a reusable utility function.
@@ -488,7 +506,7 @@ def demo(
             scaffolder = MkDocsSiteScaffolder()
             scaffolder.scaffold_site(output_dir, site_name="Egregora Demo (Content Failed)")
 
-    except ApiKeyNotFoundError:
+    except (ApiKeyNotFoundError, ApiKeyMissingError, ApiKeyInvalidError):
         _run_offline_demo(output_dir)
 
     # Final success message

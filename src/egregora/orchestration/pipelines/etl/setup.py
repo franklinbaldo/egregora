@@ -35,6 +35,7 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.exceptions import ApiKeyInvalidError, ApiKeyMissingError
 from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
@@ -85,12 +86,11 @@ def validate_api_key(output_dir: Path) -> None:
         api_keys = get_google_api_keys()
 
     if not api_keys:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        # We raise a specific error so the CLI can handle the presentation
+        raise ApiKeyMissingError(
+            "GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set. "
+            "Please set it or create a .env file."
         )
-        console.print("You can also create a .env file in the output directory or current directory.")
-        raise SystemExit(1)
 
     if skip_validation:
         if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
@@ -109,12 +109,11 @@ def validate_api_key(output_dir: Path) -> None:
         except ValueError as e:
             validation_errors.append(str(e))
         except ImportError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise SystemExit(1) from e
+            # Re-raise as invalid key if validation fails due to import/runtime issues
+            raise ApiKeyInvalidError(f"Validation failed: {e}") from e
 
     joined = "\n\n".join(validation_errors)
-    console.print(f"[red]Error: {joined}[/red]")
-    raise SystemExit(1)
+    raise ApiKeyInvalidError("All provided API keys failed validation.", validation_errors=validation_errors)
 
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:

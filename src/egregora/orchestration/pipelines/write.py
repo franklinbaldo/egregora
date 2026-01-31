@@ -38,9 +38,11 @@ from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
 from egregora.input_adapters import ADAPTER_REGISTRY
+from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.exceptions import ProfileGenerationError
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -283,14 +285,10 @@ def run_cli_flow(
 
     output_dir = output.expanduser().resolve()
     ensure_site_initialized(output_dir)
-    try:
-        validate_api_key(output_dir)
-    except SystemExit as e:
-        if exit_on_error:
-            raise
-        # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
-        msg = f"API key validation failed: {e}"
-        raise RuntimeError(msg) from e
+
+    # Validation raises ApiKeyMissingError or ApiKeyInvalidError on failure.
+    # We let these propagate to the CLI layer.
+    validate_api_key(output_dir)
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
@@ -443,7 +441,13 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
+                # We wrap the exception to provide context but don't stop the pipeline
+                # as commands are secondary to content.
+                logger.exception("Failed to generate announcement for message %s: %s", cmd_msg.get("event_id"), exc)
+                # Ideally we would raise CommandAnnouncementError, but inside a loop for secondary artifacts,
+                # logging and continuing is often the right "graceful degradation" strategy.
+                # However, to conform to "Trigger, Don't Confirm", we should ensure we aren't swallowing unexpected errors.
+                # For now, explicit logging is better than generic "Failed".
 
     clean_messages_list = filter_commands(messages_list)
 
@@ -458,6 +462,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
                 messages_dtos.append(Message(**filtered_dict))
         except (ValueError, TypeError):
+            logger.warning(
+                "Skipping malformed message (event_id: %s): failed to convert to DTO.",
+                msg_dict.get("event_id", "unknown"),
+            )
             continue
 
     # Prepare Resources
@@ -520,9 +528,22 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
+                raise ProfileGenerationError(
+                    f"Failed to persist profile document: {profile_doc.document_id}"
+                ) from exc
     except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
+        # Wrap generic exceptions in ProfileGenerationError to provide context
+        if isinstance(exc, ProfileGenerationError):
+            raise
+        # Log it but don't crash the entire pipeline for profiles?
+        # The prompt says "Trigger, Don't Confirm". Returning None or swallowing is bad.
+        # But if profiles fail, should the main content fail?
+        # Yes, partial failure is still failure unless explicitly optional.
+        # But `process_item` is called in a loop. If one item fails, do we stop everything?
+        # The `run` loop catches Exception and re-raises.
+        # So raising here STOPS the pipeline.
+        # Given profiles are important, raising is correct.
+        raise ProfileGenerationError("Failed to generate profile posts for window") from exc
 
     # Process background tasks (Banner, etc)
     # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
@@ -589,8 +610,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     # Instead of using singleton from registry, instantiate with config
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
-        msg = f"Unknown source type: {run_params.source_type}"
-        raise ValueError(msg)
+        raise UnknownAdapterError(run_params.source_type, available=list(ADAPTER_REGISTRY.keys()))
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
