@@ -1,0 +1,372 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /app
+configfile: pyproject.toml
+plugins: hypothesis-6.151.4, socket-0.7.0, cov-7.0.0, mock-3.15.1, syrupy-5.1.0, asyncio-1.3.0, benchmark-5.2.3, respx-0.22.0, Faker-40.1.2, bdd-8.1.0, xdist-3.8.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1090 items
+
+tests/unit/agents/banner/test_agent.py .......                           [  0%]
+tests/unit/agents/banner/test_banner_image_generation.py ....            [  1%]
+tests/unit/agents/banner/test_batch_processor.py ..........              [  1%]
+tests/unit/agents/banner/test_gemini_provider.py ...                     [  2%]
+tests/unit/agents/banner/test_worker.py ..........                       [  3%]
+tests/unit/agents/profile/test_generator.py ....                         [  3%]
+tests/unit/agents/test_avatar.py ...                                     [  3%]
+tests/unit/agents/test_avatar_benchmark.py ..                            [  3%]
+tests/unit/agents/test_avatar_download.py .....                          [  4%]
+tests/unit/agents/test_cache.py ......                                   [  4%]
+tests/unit/agents/test_enricher.py .                                     [  5%]
+tests/unit/agents/test_enricher_exceptions.py ....                       [  5%]
+tests/unit/agents/test_enricher_execution_errors.py .                    [  5%]
+tests/unit/agents/test_enricher_logic.py ..................              [  7%]
+tests/unit/agents/test_enricher_media.py ..                              [  7%]
+tests/unit/agents/test_enricher_new_exceptions.py ....                   [  7%]
+tests/unit/agents/test_enricher_staging.py .                             [  7%]
+tests/unit/agents/test_enricher_worker.py ...                            [  8%]
+tests/unit/agents/test_enrichment_parsing.py ..                          [  8%]
+tests/unit/agents/test_formatting.py ......                              [  8%]
+tests/unit/agents/test_formatting_behavior.py .................          [ 10%]
+tests/unit/agents/test_profile_history.py ...........................    [ 12%]
+tests/unit/agents/test_profile_slug_generation.py ...........            [ 13%]
+tests/unit/agents/test_rag_exception_handling.py ...                     [ 14%]
+tests/unit/agents/test_tool_registry.py ..                               [ 14%]
+tests/unit/agents/test_types.py ...                                      [ 14%]
+tests/unit/agents/test_writer.py ..                                      [ 14%]
+tests/unit/agents/test_writer_error_handling.py ....                     [ 15%]
+tests/unit/agents/test_writer_helpers.py .                               [ 15%]
+tests/unit/agents/test_writer_logic.py ..........                        [ 16%]
+tests/unit/agents/test_writer_setup.py ...                               [ 16%]
+tests/unit/agents/test_writer_tool_branches.py ..                        [ 16%]
+tests/unit/agents/test_writer_tool_registration.py ..                    [ 16%]
+tests/unit/agents/test_writer_tools.py ............                      [ 17%]
+tests/unit/agents/tools/test_writer_tools.py .                           [ 17%]
+tests/unit/annotations/test_annotation_persistence.py ..                 [ 18%]
+tests/unit/cli/test_diagnostics.py .                                     [ 18%]
+tests/unit/config/test_enrichment_config.py ...                          [ 18%]
+tests/unit/config/test_exceptions.py ....................                [ 20%]
+tests/unit/config/test_security_behavior.py .....                        [ 20%]
+tests/unit/config/test_validation.py .................                   [ 22%]
+tests/unit/data_primitives/test_datetime_utils.py ............           [ 23%]
+tests/unit/data_primitives/test_datetime_utils_performance.py ......     [ 24%]
+tests/unit/data_primitives/test_document.py .....                        [ 24%]
+tests/unit/data_primitives/test_text.py ................................ [ 27%]
+......                                                                   [ 27%]
+tests/unit/database/test_backend_factory.py .....                        [ 28%]
+tests/unit/database/test_duckdb_execute_helpers.py .                     [ 28%]
+tests/unit/database/test_duckdb_manager.py ................              [ 30%]
+tests/unit/database/test_duckdb_manager_behavior.py .......              [ 30%]
+tests/unit/database/test_duckdb_upsert_helper.py .                       [ 30%]
+tests/unit/database/test_git_schema.py ...                               [ 31%]
+tests/unit/database/test_message_repository.py .....                     [ 31%]
+tests/unit/database/test_profile_cache.py ........                       [ 32%]
+tests/unit/database/test_repository.py ....                              [ 32%]
+tests/unit/database/test_schema_constraints.py ........                  [ 33%]
+tests/unit/database/test_schema_indexes.py .                             [ 33%]
+tests/unit/database/test_unified_schema_constraints.py ......            [ 33%]
+tests/unit/dev_tools/test_check_private_imports.py .......               [ 34%]
+tests/unit/dev_tools/test_check_root_structure.py ...                    [ 34%]
+tests/unit/input_adapters/test_registry.py .                             [ 34%]
+tests/unit/input_adapters/whatsapp/test_adapter.py .......               [ 35%]
+tests/unit/input_adapters/whatsapp/test_commands.py ..                   [ 35%]
+tests/unit/input_adapters/whatsapp/test_malformed_line.py .              [ 35%]
+tests/unit/input_adapters/whatsapp/test_parser_caching.py ....           [ 36%]
+tests/unit/input_adapters/whatsapp/test_parsing.py .........             [ 37%]
+tests/unit/input_adapters/whatsapp/test_parsing_behavior.py ............ [ 38%]
+.........                                                                [ 38%]
+tests/unit/input_adapters/whatsapp/test_parsing_perf.py ...........      [ 40%]
+tests/unit/input_adapters/whatsapp/test_parsing_privacy.py ......        [ 40%]
+tests/unit/input_adapters/whatsapp/test_utils.py .                       [ 40%]
+tests/unit/knowledge/test_avatar.py .                                    [ 40%]
+tests/unit/knowledge/test_profiles.py .                                  [ 40%]
+tests/unit/knowledge/test_profiles_authors.py .........................  [ 43%]
+tests/unit/knowledge/test_profiles_behavior.py ...........               [ 44%]
+tests/unit/knowledge/test_profiles_exceptions.py ..........              [ 45%]
+tests/unit/knowledge/test_profiles_index.py .                            [ 45%]
+tests/unit/llm/providers/test_google_batch.py ........                   [ 45%]
+tests/unit/llm/test_api_keys.py .......................                  [ 47%]
+tests/unit/llm/test_rate_limit.py ......                                 [ 48%]
+tests/unit/llm/test_retry.py .                                           [ 48%]
+tests/unit/llm/test_token_utils.py ....                                  [ 48%]
+tests/unit/llm/test_usage.py ....                                        [ 49%]
+tests/unit/ops/test_media.py ..............................              [ 52%]
+tests/unit/ops/test_media_extraction.py ..                               [ 52%]
+tests/unit/ops/test_media_optimization.py .............                  [ 53%]
+tests/unit/ops/test_taxonomy.py .....                                    [ 53%]
+tests/unit/orchestration/pipelines/execution/test_processor.py ..        [ 54%]
+tests/unit/orchestration/pipelines/test_etl_preparation.py ......        [ 54%]
+tests/unit/orchestration/pipelines/test_etl_setup.py .......             [ 55%]
+tests/unit/orchestration/pipelines/test_write_entrypoint.py .....        [ 55%]
+tests/unit/orchestration/pipelines/test_write_exceptions.py ....         [ 56%]
+tests/unit/orchestration/test_cache.py ........                          [ 56%]
+tests/unit/orchestration/test_context.py .....                           [ 57%]
+tests/unit/orchestration/test_journal.py ....                            [ 57%]
+tests/unit/orchestration/test_materializer.py .                          [ 57%]
+tests/unit/orchestration/test_runner.py ......                           [ 58%]
+tests/unit/orchestration/test_runner_exceptions.py .                     [ 58%]
+tests/unit/orchestration/test_runner_journal.py ..                       [ 58%]
+tests/unit/orchestration/test_runner_journal_integration.py ....         [ 58%]
+tests/unit/orchestration/test_runner_types.py .                          [ 59%]
+tests/unit/orchestration/test_setup.py .                                 [ 59%]
+tests/unit/orchestration/test_setup_validation.py ....                   [ 59%]
+tests/unit/orchestration/test_worker_base.py ...                         [ 59%]
+tests/unit/output_adapters/mkdocs/test_about_page_scaffolding.py ..      [ 60%]
+tests/unit/output_adapters/mkdocs/test_adapter_behavior.py ..........    [ 60%]
+tests/unit/output_adapters/mkdocs/test_adapter_exceptions.py .........   [ 61%]
+tests/unit/output_adapters/mkdocs/test_adapter_metadata.py ...           [ 62%]
+tests/unit/output_adapters/mkdocs/test_markdown.py .......               [ 62%]
+tests/unit/output_adapters/mkdocs/test_markdown_utils.py ............... [ 64%]
+                                                                         [ 64%]
+tests/unit/output_adapters/mkdocs/test_scaffolding.py .........          [ 64%]
+tests/unit/output_adapters/mkdocs/test_scaffolding_behavior.py .....     [ 65%]
+tests/unit/output_adapters/mkdocs/test_site_generator.py .........       [ 66%]
+tests/unit/output_adapters/mkdocs/test_site_generator_behavior.py ...    [ 66%]
+tests/unit/output_adapters/mkdocs/test_url_convention.py .               [ 66%]
+tests/unit/output_adapters/test_base.py ....                             [ 66%]
+tests/unit/output_adapters/test_conventions.py ..................        [ 68%]
+tests/unit/output_adapters/test_db_sink.py ..                            [ 68%]
+tests/unit/output_adapters/test_exceptions.py ......................     [ 70%]
+tests/unit/output_adapters/test_init.py ..                               [ 70%]
+tests/unit/output_adapters/test_media_specific_enrichment.py ........    [ 71%]
+tests/unit/output_sinks/mkdocs/test_adapter_behavior.py ................ [ 73%]
+....                                                                     [ 73%]
+tests/unit/rag/test_chunking.py .....                                    [ 73%]
+tests/unit/rag/test_datetime_serialization.py .....                      [ 74%]
+tests/unit/rag/test_embedding_router.py ..............                   [ 75%]
+tests/unit/rag/test_embeddings.py ................                       [ 77%]
+tests/unit/rag/test_exceptions.py .......................                [ 79%]
+tests/unit/rag/test_lancedb_backend.py .....                             [ 79%]
+tests/unit/rag/test_lancedb_behavior.py ....                             [ 80%]
+tests/unit/rag/test_rag_backend_factory.py .                             [ 80%]
+tests/unit/rag/test_rag_comprehensive.py ............................... [ 83%]
+                                                                         [ 83%]
+tests/unit/rag/test_rag_interface.py ..                                  [ 83%]
+tests/unit/rag/test_vectorized_rag.py .                                  [ 83%]
+tests/unit/security/test_fs.py .......                                   [ 83%]
+tests/unit/security/test_ssrf.py ........                                [ 84%]
+tests/unit/security/test_zip.py ...............                          [ 86%]
+tests/unit/team/test_client_refactor.py ........                         [ 86%]
+tests/unit/team/test_ephemeral_pool.py .........................         [ 89%]
+tests/unit/team/test_github_client.py .......                            [ 89%]
+tests/unit/team/test_mail.py ......                                      [ 90%]
+tests/unit/team/test_persona_loader.py ............                      [ 91%]
+tests/unit/team/test_polling.py .........                                [ 92%]
+tests/unit/team/test_scheduler.py ............................           [ 94%]
+tests/unit/test_assets.py ..                                             [ 94%]
+tests/unit/test_db_utils.py .....                                        [ 95%]
+tests/unit/test_mail_handler.py ..                                       [ 95%]
+tests/unit/test_media_slugs.py .                                         [ 95%]
+tests/unit/test_media_url_conventions.py ..                              [ 95%]
+tests/unit/test_model_guards.py ..                                       [ 96%]
+tests/unit/test_output_sink_protocol.py .                                [ 96%]
+tests/unit/test_profile_metadata_validation.py ..........                [ 97%]
+tests/unit/test_security_xss.py .....                                    [ 97%]
+tests/unit/transformations/test_enrichment.py .......                    [ 98%]
+tests/unit/transformations/test_windowing.py ....................        [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                                    Stmts   Miss Branch BrPart   Cover   Missing
+--------------------------------------------------------------------------------------------------------------------
+src/egregora/__init__.py                                                    3      0      0      0 100.00%
+src/egregora/agents/__init__.py                                             4      0      0      0 100.00%
+src/egregora/agents/avatar.py                                             245     76     68     17  64.54%   61-64, 69-71, 76, 108-110, 119-123, 145, 150-159, 161-162, 180-181, 202-207, 234-238, 264->273, 268-271, 280-282, 290-291, 313-314, 320-321, 352, 354, 364, 377, 403-407, 430-431, 435-436, 453-454, 466->460, 477-483, 504-506, 516-523
+src/egregora/agents/banner/__init__.py                                      3      0      0      0 100.00%
+src/egregora/agents/banner/agent.py                                        69      4     10      2  92.41%   103->106, 170-171, 173-174
+src/egregora/agents/banner/batch_processor.py                             113     19     30      9  76.22%   80->82, 96, 99, 119-160, 195, 230, 247->249, 249->251, 252, 253->255
+src/egregora/agents/banner/gemini_provider.py                              19      0      4      0 100.00%
+src/egregora/agents/banner/image_generation.py                             20      0      0      0 100.00%
+src/egregora/agents/banner/worker.py                                       73      0     22      1  98.95%   85->92
+src/egregora/agents/capabilities.py                                         8      8      0      0   0.00%   3-27
+src/egregora/agents/commands.py                                            61     48     16      0  16.88%   46-72, 117-181
+src/egregora/agents/enricher.py                                           783    423    206     26  42.87%   105, 168-169, 195-197, 201-202, 213, 219-223, 248-260, 265-281, 297-326, 338-387, 405-464, 468-470, 507->506, 512-513, 524-525, 531->exit, 534-535, 542, 551, 560-595, 598-604, 653, 657-682, 688, 693, 706-749, 755-770, 776-805, 815-924, 927-980, 983-988, 992, 995-999, 1018-1021, 1056-1058, 1084-1085, 1104, 1116, 1138-1139, 1166-1167, 1206-1326, 1336-1391, 1398, 1401-1402, 1406-1409, 1423, 1430-1432, 1471, 1472->1474, 1475-1478, 1511, 1512->1515, 1520, 1524->1554, 1537-1540, 1551-1552, 1557-1562
+src/egregora/agents/enrichment.py                                          58     45     10      0  19.12%   38-102
+src/egregora/agents/exceptions.py                                          20      0      0      0 100.00%
+src/egregora/agents/formatting.py                                         140     14     70      6  87.62%   39, 54-55, 59-60, 91, 93->89, 98, 130->128, 207-214
+src/egregora/agents/models.py                                              25      0      0      0 100.00%
+src/egregora/agents/profile/__init__.py                                     2      0      0      0 100.00%
+src/egregora/agents/profile/generator.py                                  132     32     32      8  70.73%   56-62, 143-158, 162-165, 230->237, 239->260, 246->249, 275, 294, 311-322, 355, 377, 384, 430
+src/egregora/agents/profile/history.py                                    122     25     28      1  78.67%   61-80, 155-166, 180-181, 234-236, 261-271
+src/egregora/agents/profile/worker.py                                      37     28     10      0  19.15%   19-64
+src/egregora/agents/reader/__init__.py                                      3      0      0      0 100.00%
+src/egregora/agents/reader/agent.py                                        41     18      4      0  51.11%   75-114
+src/egregora/agents/reader/elo.py                                          17     11      4      0  28.57%   14, 24-36
+src/egregora/agents/reader/models.py                                       64     10      4      0  79.41%   61, 66, 86, 91, 96-98, 103-105
+src/egregora/agents/reader/reader_runner.py                                83     65     28      0  16.22%   33-57, 66-177
+src/egregora/agents/registry.py                                           185    113     50      6  34.89%   56, 91-112, 120-133, 141-155, 166-167, 176-179, 224-243, 264, 273-275, 278-280, 282-283, 289-290, 309-327, 343-350, 366-379, 395-396
+src/egregora/agents/shared/__init__.py                                      2      0      0      0 100.00%
+src/egregora/agents/shared/annotations/__init__.py                         86     18     12      4  73.47%   300->306, 303-304, 323-329, 333-337, 341-342, 367-369, 393, 397-398, 400
+src/egregora/agents/taxonomy.py                                            18      6      0      0  66.67%   36-58
+src/egregora/agents/tools/__init__.py                                       3      0      0      0 100.00%
+src/egregora/agents/tools/skill_injection.py                               67     43     10      0  31.17%   89-144, 167-168, 197-210, 226-238
+src/egregora/agents/tools/skill_loader.py                                  89     62     32      0  22.31%   49, 53-63, 79-81, 94-109, 127-160, 174-182, 199-208, 218-220
+src/egregora/agents/tools/writer_tools.py                                 164     46     28      9  68.23%   150-155, 161->174, 164, 166, 169-171, 185-188, 192-194, 215, 266-287, 296-298, 324-325, 341-345, 389-408, 414-415
+src/egregora/agents/types.py                                              127      1      4      0  99.24%   260
+src/egregora/agents/writer.py                                             448    209    160     24  46.55%   133-137, 142-146, 170-171, 181-198, 203-223, 228-230, 256, 325-326, 332-333, 336-337, 343-344, 353-360, 365-379, 400-529, 537, 556-558, 568-569, 571->574, 586-588, 612, 614, 620, 622-633, 636->639, 640-642, 649-662, 717, 733-737, 768-777, 784-785, 789-790, 799, 830->836, 837-842, 847, 904-934, 939-950, 958-969
+src/egregora/agents/writer_context.py                                     116     53     22      0  45.65%   77, 129-166, 182-184, 202, 220-239, 262-271, 288-321
+src/egregora/agents/writer_helpers.py                                     194    136     62      6  26.56%   52-55, 57, 60, 99-163, 167-172, 176-181, 188-189, 199, 203-215, 242-257, 261-268, 272-281, 285-317, 321-327, 345, 357, 364, 385-403, 408-415
+src/egregora/agents/writer_setup.py                                        51     24     16      3  47.76%   44->54, 58->79, 60-76, 90-116
+src/egregora/assets/__init__.py                                             3      0      0      0 100.00%
+src/egregora/cli/__init__.py                                                4      1      0      0  75.00%   10
+src/egregora/cli/diagnostics.py                                           121     83     20      1  27.66%   63-70, 79-104, 116-127, 138-192, 201-230, 239-269, 283, 304-306, 315-334, 353-381
+src/egregora/cli/main.py                                                  188    142     42      0  20.00%   12-13, 90-124, 184, 232-280, 314-367, 378, 383-423, 446-495, 507-509, 513-558
+src/egregora/cli/read.py                                                   62     47     14      0  19.74%   70-147
+src/egregora/config/__init__.py                                             2      0      0      0 100.00%
+src/egregora/config/defaults.py                                            56      0      0      0 100.00%
+src/egregora/config/exceptions.py                                          48      6      0      0  87.50%   86-88, 95-97
+src/egregora/config/settings.py                                           379     10     84      8  96.11%   235, 782->790, 791, 856, 900->896, 947-948, 962-963, 1014, 1166, 1226
+src/egregora/constants.py                                                  49      0      0      0 100.00%
+src/egregora/data_primitives/__init__.py                                    2      0      0      0 100.00%
+src/egregora/data_primitives/datetime_utils.py                             52      3     14      0  95.45%   114-116
+src/egregora/data_primitives/document.py                                  128     16     16      1  84.03%   186, 193-196, 234, 237, 240-243, 246, 249, 257-259
+src/egregora/data_primitives/text.py                                       18      0      4      0 100.00%
+src/egregora/database/__init__.py                                           2      0      0      0 100.00%
+src/egregora/database/backend_factory.py                                   22      0      6      0 100.00%
+src/egregora/database/duckdb_manager.py                                   343     83     58     12  73.82%   85, 159-174, 199-200, 206-207, 220, 275, 375-384, 468-469, 518-520, 568-584, 589, 595, 600-601, 606->exit, 643, 653-657, 668-683, 714-722, 737-748, 771-772, 776, 819-830
+src/egregora/database/elo_record.py                                        15      0      0      0 100.00%
+src/egregora/database/elo_store.py                                         68     28      6      0  54.05%   68-86, 117-163, 199-217, 229-230, 251-263
+src/egregora/database/exceptions.py                                        56      5      4      1  90.00%   43-44, 103-104, 121
+src/egregora/database/init.py                                              49      5      4      2  86.79%   110-114, 166, 172-173
+src/egregora/database/message_repository.py                                85     10     28      9  83.19%   48, 81-83, 98-100, 136, 142->206, 157, 161, 165, 182->186, 185, 203->142
+src/egregora/database/migrations.py                                        56      8     14      3  78.57%   36-38, 54->57, 67-72, 110
+src/egregora/database/migrations_v4_constraints.py                         60     60     10      0   0.00%   3-163
+src/egregora/database/profile_cache.py                                    150     29     36      6  81.18%   47-49, 74, 93->102, 116-117, 168-170, 202-204, 229-231, 261-263, 289->296, 293-294, 324-325, 336, 390-392, 435-437
+src/egregora/database/protocols.py                                         28      0      0      0 100.00%
+src/egregora/database/repository.py                                        80     41     28      5  40.74%   59-92, 96-98, 102-109, 122->128, 126, 131-132, 147, 157-208
+src/egregora/database/run_store.py                                          1      1      0      0   0.00%   4
+src/egregora/database/schemas.py                                          129     44     46      7  62.86%   106-116, 156, 163-170, 185-194, 201-213, 240, 265-272, 292-293, 317, 333
+src/egregora/database/streaming/__init__.py                                 2      0      0      0 100.00%
+src/egregora/database/streaming/stream.py                                  36     14      6      3  59.52%   48-49, 91, 115-119, 140-144, 179
+src/egregora/database/task_store.py                                        55     33      6      1  37.70%   40->exit, 42-49, 62-81, 94-108, 117-130, 134-135, 139-140, 144-145
+src/egregora/database/utils.py                                             20      1     10      1  93.33%   42
+src/egregora/database/views.py                                             26     26      0      0   0.00%   8-121
+src/egregora/exceptions.py                                                  1      0      0      0 100.00%
+src/egregora/input_adapters/__init__.py                                    15      5      2      0  58.82%   61-63, 79-80
+src/egregora/input_adapters/base.py                                        48      5      0      0  89.58%   220, 225, 262, 292, 296
+src/egregora/input_adapters/exceptions.py                                  14      3      2      0  81.25%   24-26
+src/egregora/input_adapters/iperon_tjro.py                                154    111     42      0  21.94%   45, 53, 60, 77-96, 103-127, 134-138, 141-160, 167-187, 206-223, 226-240, 245-254, 257-262
+src/egregora/input_adapters/registry.py                                    68     33     16      4  48.81%   58-59, 78-82, 88-93, 99-103, 115-135, 157, 172, 179, 183, 187-189, 212-214
+src/egregora/input_adapters/self_reflection.py                            151    108     52      0  21.18%   34-58, 76, 83-84, 109-168, 171-172, 175-184, 187-199, 202-206, 209-214, 217-223, 228-231, 234-242
+src/egregora/input_adapters/whatsapp/__init__.py                            5      0      0      0 100.00%
+src/egregora/input_adapters/whatsapp/adapter.py                           109     29     18      4  72.44%   69, 73, 77, 84, 98-99, 101-102, 120-121, 123-125, 162-168, 182, 189, 191, 195, 198-203, 212
+src/egregora/input_adapters/whatsapp/commands.py                           82     48     26      2  37.04%   27-32, 36, 43, 62, 69->74, 79-81, 86-181, 186-198
+src/egregora/input_adapters/whatsapp/exceptions.py                         31      4      0      0  87.10%   43-46
+src/egregora/input_adapters/whatsapp/parsing.py                           230     46     64      7  75.17%   167-169, 196->201, 208, 210, 242->exit, 335-336, 361-379, 398-452
+src/egregora/input_adapters/whatsapp/utils.py                              69     44     26      2  30.53%   33-41, 46-48, 53-74, 83-93, 98-100, 106-110
+src/egregora/knowledge/__init__.py                                          1      0      0      0 100.00%
+src/egregora/knowledge/avatar.py                                           16      0      0      0 100.00%
+src/egregora/knowledge/exceptions.py                                       40      0      2      0 100.00%
+src/egregora/knowledge/profiles.py                                        587    231    208     41  57.74%   83-105, 186, 199, 201, 203, 205, 220-224, 261, 267, 269, 271, 275, 332-333, 347-353, 376-377, 379-380, 400-406, 474-478, 505-506, 510-514, 537-549, 569-571, 591-594, 616-631, 655-693, 712-749, 761-763, 779, 804-806, 818, 826, 841-842, 878, 880, 881->886, 900, 903-904, 928-939, 945-955, 965, 967, 969-972, 981, 994-1007, 1012, 1025-1084, 1133-1134, 1143-1144, 1204->1202, 1207->1202, 1211->1216, 1221, 1225
+src/egregora/llm/__init__.py                                                0      0      0      0 100.00%
+src/egregora/llm/api_keys.py                                               57      0     18      0 100.00%
+src/egregora/llm/exceptions.py                                             20      2      0      0  90.00%   14-15
+src/egregora/llm/model_fallback.py                                          3      3      0      0   0.00%   3-11
+src/egregora/llm/providers/__init__.py                                      2      0      0      0 100.00%
+src/egregora/llm/providers/google_batch.py                                185     81     66      8  47.81%   65->68, 78, 108-110, 131, 140, 155-163, 175-213, 218-239, 275, 284, 289-307, 315-324, 332, 335-337, 341-350
+src/egregora/llm/providers/model_cycler.py                                115    115     30      0   0.00%   6-316
+src/egregora/llm/providers/model_key_rotator.py                            63     63     16      0   0.00%   7-168
+src/egregora/llm/providers/rate_limited.py                                 33     33      2      0   0.00%   3-78
+src/egregora/llm/rate_limit.py                                             52      4      8      1  91.67%   60-64, 77->80
+src/egregora/llm/retry.py                                                   9      0      0      0 100.00%
+src/egregora/llm/token_utils.py                                             3      0      0      0 100.00%
+src/egregora/llm/usage.py                                                  14      0      2      0 100.00%
+src/egregora/ops/__init__.py                                                0      0      0      0 100.00%
+src/egregora/ops/media.py                                                 264    105    112     16  59.31%   106, 132, 145, 176, 194, 222->215, 235->227, 273-275, 281-288, 312-313, 320, 323->316, 340-344, 365-366, 383, 392, 398, 403, 420-422, 432-447, 458-505, 510-559, 582-601
+src/egregora/ops/taxonomy.py                                              114     12     40      9  86.36%   40-41, 45-50, 56-57, 68, 119->117, 123->114, 142->144, 180, 188->187, 192->177
+src/egregora/orchestration/__init__.py                                      0      0      0      0 100.00%
+src/egregora/orchestration/cache.py                                        84     29      4      0  64.77%   57, 60-63, 66, 69-70, 73, 76, 79, 82, 183-206, 210, 214-216
+src/egregora/orchestration/context.py                                     161     39      2      0  74.85%   83, 88, 93, 98, 103, 157, 161, 165, 169, 173, 177, 181, 185, 189, 193, 197, 202, 206, 210, 214, 218, 223, 228, 232, 236, 240, 244, 249, 253, 257, 261, 265, 277-278, 292-297
+src/egregora/orchestration/exceptions.py                                   45      4      0      0  91.11%   58-59, 90-91
+src/egregora/orchestration/journal.py                                      20      0      4      0 100.00%
+src/egregora/orchestration/materializer.py                                 18      2      4      0  90.91%   38-39
+src/egregora/orchestration/persistence.py                                  28      4      6      0  88.24%   52-56
+src/egregora/orchestration/pipelines/__init__.py                            0      0      0      0 100.00%
+src/egregora/orchestration/pipelines/coordination/__init__.py               0      0      0      0 100.00%
+src/egregora/orchestration/pipelines/coordination/background_tasks.py      39     28      8      0  23.40%   28-51, 61-71
+src/egregora/orchestration/pipelines/etl/__init__.py                        0      0      0      0 100.00%
+src/egregora/orchestration/pipelines/etl/config_resolution.py              51     51     22      0   0.00%   6-140
+src/egregora/orchestration/pipelines/etl/preparation.py                   254    140     62      4  39.24%   116-136, 156-166, 179-209, 226-248, 270-278, 309, 311, 357->375, 364-367, 395-420, 425-447, 452-461, 474-555
+src/egregora/orchestration/pipelines/etl/setup.py                         167     70     40      1  52.17%   48-49, 56-58, 74-117, 144, 195-203, 208, 330-342, 348-377
+src/egregora/orchestration/pipelines/execution/__init__.py                  0      0      0      0 100.00%
+src/egregora/orchestration/pipelines/execution/processor.py               130     61     40      5  48.24%   27-38, 43-55, 60-65, 72-88, 141-149, 161->158, 164-165, 196, 206->205, 209-210, 230->228, 233-236
+src/egregora/orchestration/pipelines/types.py                              45     45      0      0   0.00%   7-62
+src/egregora/orchestration/pipelines/write.py                             280    117     72     12  53.12%   123, 164-176, 205, 223-228, 285, 294-299, 344-352, 361-412, 430-438, 446->455, 449-450, 460-468, 496, 512->511, 526-532, 535, 543-555, 560-572, 577-585, 607-648
+src/egregora/orchestration/resources.py                                    18     18      4      0   0.00%   7-37
+src/egregora/orchestration/runner.py                                      296     83     96     17  67.86%   103, 123-130, 133-134, 146->149, 201, 217-218, 224-243, 259, 337, 349-353, 380-382, 392-394, 430->427, 432-434, 437, 450->452, 453, 457, 496-519, 525, 528->531, 532->535, 540-551, 556-574, 590-591
+src/egregora/orchestration/worker_base.py                                  14      0      2      0 100.00%
+src/egregora/output_sinks/__init__.py                                      21      3      2      0  86.96%   19-21
+src/egregora/output_sinks/base.py                                         157     80     44      5  41.79%   88-100, 118-138, 143, 148-174, 182-186, 193, 201, 207-224, 231, 257-258, 262-267, 272-274, 279, 284, 297-300
+src/egregora/output_sinks/conventions.py                                  167     18     56     13  86.10%   101, 164, 211, 226-227, 239-240, 247-248, 288, 304->306, 317, 328-329, 333->337, 335->337, 341-342, 371, 374, 376
+src/egregora/output_sinks/db_sink.py                                       59     26     20      3  45.57%   39, 43, 47, 54, 59-85, 108->exit, 109->108, 112, 117, 126
+src/egregora/output_sinks/exceptions.py                                   132     10      4      2  91.18%   53, 107-109, 151-153, 160-161, 203->205, 246
+src/egregora/output_sinks/mkdocs/__init__.py                                4      0      0      0 100.00%
+src/egregora/output_sinks/mkdocs/adapter.py                               607    220    226     49  59.06%   126, 187, 195-196, 201, 209, 222-224, 238, 246->250, 252-253, 265, 268, 271->263, 283, 307-353, 378-384, 386->400, 407, 411, 417, 421, 441, 458->475, 462->475, 469-470, 650->662, 662->exit, 687, 696, 698, 701, 705-706, 721-734, 783-784, 788, 790, 792, 794, 799-800, 804, 806, 808, 823-848, 863-885, 888-907, 938-958, 964, 973-974, 990-995, 998, 1004->1008, 1006->1008, 1011->1018, 1013-1014, 1030-1033, 1053, 1074, 1082-1099, 1105, 1138, 1142-1143, 1149, 1151, 1160, 1164-1165, 1187-1188, 1192, 1199-1200, 1203-1209, 1216, 1217->1219, 1225-1226, 1230-1231, 1237->1250, 1240->1250, 1245-1248, 1271-1277
+src/egregora/output_sinks/mkdocs/markdown.py                               50      4      8      0  93.10%   94-95, 104-105
+src/egregora/output_sinks/mkdocs/markdown_utils.py                         41      0     10      0 100.00%
+src/egregora/output_sinks/mkdocs/paths.py                                  50      8     10      2  76.67%   53->58, 56, 68-70, 80-82, 86
+src/egregora/output_sinks/mkdocs/scaffolding.py                           175     14     42      8  89.86%   60, 128, 140, 155-156, 252, 270, 282, 296-297, 311-313, 356
+src/egregora/output_sinks/mkdocs/site_generator.py                        264     39     84     19  82.76%   84-99, 113, 156->175, 171-173, 179, 205-206, 225->227, 246, 258, 293->291, 295->291, 328-330, 366-367, 381, 388, 403->414, 406-412, 417-419, 425->423, 427->423, 463-465, 470-472, 500
+src/egregora/rag/__init__.py                                               51     12     12      4  71.43%   51-58, 66, 71-74, 103, 143->151, 147-149
+src/egregora/rag/backend.py                                                14      0      0      0 100.00%
+src/egregora/rag/chunking.py                                               35      0     14      2  95.92%   39->46, 54->57
+src/egregora/rag/embedding_router.py                                      321     72     86     17  74.20%   66, 70-73, 184, 185->exit, 191-197, 201->exit, 209->exit, 245->271, 265-266, 279, 284-286, 291, 324->323, 346-347, 356-357, 387-388, 394-395, 398-413, 500, 513, 519-524, 543-550, 566-574, 580-583, 609-627
+src/egregora/rag/embeddings.py                                            118     15     26      4  85.42%   69-70, 109-110, 149, 260-278, 301
+src/egregora/rag/exceptions.py                                             14      0      0      0 100.00%
+src/egregora/rag/ingestion.py                                              42      1     16      1  96.55%   74
+src/egregora/rag/lancedb_backend.py                                       140     27     28      3  82.14%   133-142, 206-208, 234-236, 251-253, 268-270, 296, 308-311, 346
+src/egregora/rag/models.py                                                 16      0      0      0 100.00%
+src/egregora/rendering/templates/site/main.py.jinja                        29     24     14      0  11.63%   3, 19-52
+src/egregora/resources/__init__.py                                          0      0      0      0 100.00%
+src/egregora/resources/prompts.py                                          73     11     20      6  81.72%   53-54, 59, 78->76, 81-82, 152-153, 167-168, 192-193
+src/egregora/security/__init__.py                                           0      0      0      0 100.00%
+src/egregora/security/fs.py                                                15      0      4      0 100.00%
+src/egregora/security/pii.py                                               15      0      6      0 100.00%
+src/egregora/security/ssrf.py                                              49      5     16      1  90.77%   71-72, 79-81
+src/egregora/security/zip.py                                               76      0     20      0 100.00%
+src/egregora/testing/__init__.py                                            0      0      0      0 100.00%
+src/egregora/testing/mock_client.py                                        20     20      0      0   0.00%   3-46
+src/egregora/transformations/__init__.py                                    3      0      0      0 100.00%
+src/egregora/transformations/enrichment.py                                 21      0      6      0 100.00%
+src/egregora/transformations/exceptions.py                                 10      0      0      0 100.00%
+src/egregora/transformations/windowing.py                                 175     12     54     12  89.52%   129, 137, 204->224, 209-210, 270, 282, 429, 453, 466, 470, 561->548, 603-604
+--------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                   13259   4630   3344    466  61.24%
+Required test coverage of 60.0% reached. Total coverage: 61.24%
+
+------------------------------------------------------------------------------------------------------------- benchmark: 5 tests ------------------------------------------------------------------------------------------------------------
+Name (time in us)                                             Min                    Max                   Mean              StdDev                 Median                 IQR            Outliers          OPS            Rounds  Iterations
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+test_download_invalid_image_content_benchmark              9.5860 (1.0)         223.0400 (1.0)          10.7356 (1.0)        4.6256 (1.0)           9.9190 (1.0)        0.2003 (1.0)      820;2168  93,147.7886 (1.0)       20877           1
+test_scrub_pii_performance                             1,093.9050 (114.11)    1,751.1130 (7.85)      1,136.3486 (105.85)    35.8186 (7.74)      1,127.6920 (113.69)    37.1505 (185.52)      90;19     880.0116 (0.01)        875           1
+test_download_image_content_benchmark                  1,610.1830 (167.97)    2,677.5300 (12.00)     1,867.0472 (173.91)   277.4057 (59.97)     1,786.3650 (180.10)   250.0630 (>1000.0)       1;1     535.6051 (0.01)         13           1
+test_sync_authors_from_posts_benchmark_no_authors     14,078.2410 (>1000.0)  15,412.7800 (69.10)    14,424.2056 (>1000.0)  300.9837 (65.07)    14,315.0090 (>1000.0)  277.2402 (>1000.0)      14;7      69.3279 (0.00)         69           1
+test_sync_authors_from_posts_benchmark                35,568.9690 (>1000.0)  40,074.4020 (179.67)   36,161.5595 (>1000.0)  921.0476 (199.12)   35,923.3360 (>1000.0)  642.6562 (>1000.0)       2;2      27.6537 (0.00)         27           1
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------------------------- benchmark 'extract-clean-date': 5 tests ---------------------------------------------------------------------------------------------------------------
+Name (time in us)                                                                                      Min                 Max              Mean            StdDev            Median               IQR            Outliers  OPS (Kops/s)            Rounds  Iterations
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+test_extract_clean_date_benchmark[input_date2-2023-01-15]                                           1.4070 (1.0)       62.7160 (1.01)     1.5784 (1.0)      1.4018 (1.01)     1.4770 (1.0)      0.0300 (1.0)      768;3640      633.5544 (1.0)       70612           1
+test_extract_clean_date_benchmark[input_date1-2023-01-15]                                           1.5160 (1.08)      62.0270 (1.0)      1.7022 (1.08)     1.3926 (1.0)      1.5980 (1.08)     0.0360 (1.20)     799;3172      587.4896 (0.93)      70832           1
+test_extract_clean_date_benchmark[2023-01-15-2023-01-15]                                            6.3340 (4.50)     159.4510 (2.57)     7.1870 (4.55)     3.8287 (2.75)     6.6230 (4.48)     0.1220 (4.07)     814;2478      139.1406 (0.22)      25518           1
+test_extract_clean_date_benchmark[  2023-01-15T10:30:00Z  -2023-01-15]                              6.3580 (4.52)     113.7590 (1.83)     7.1703 (4.54)     3.3267 (2.39)     6.6670 (4.51)     0.1170 (3.90)     810;2107      139.4647 (0.22)      24533           1
+test_extract_clean_date_benchmark[Some text surrounding 2023-01-15 and other things-2023-01-15]     6.9860 (4.97)     197.0600 (3.18)     7.9623 (5.04)     4.7822 (3.43)     7.2940 (4.94)     0.1450 (4.83)      229;914      125.5916 (0.20)       8095           1
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------- benchmark 'parse-datetime': 6 tests -------------------------------------------------------------------------------------------------------
+Name (time in us)                                                             Min                 Max                Mean             StdDev              Median                IQR            Outliers  OPS (Kops/s)            Rounds  Iterations
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+test_parse_datetime_flexible_performance[2025-01-01]                       3.7550 (1.0)      166.4620 (1.02)       4.3000 (1.0)       3.2450 (1.00)       3.9630 (1.0)       0.0740 (1.0)      924;3443      232.5566 (1.0)       45174           1
+test_parse_datetime_flexible_performance[2025-01-01 12:00:00]              3.8460 (1.02)     163.9160 (1.0)        4.4086 (1.03)      3.2351 (1.0)        4.0100 (1.01)      0.0830 (1.12)    1112;4063      226.8268 (0.98)      45696           1
+test_parse_datetime_flexible_performance[2025-01-01T12:00:00]              3.8740 (1.03)     191.0210 (1.17)       4.4727 (1.04)      5.0098 (1.55)       4.0250 (1.02)      0.0790 (1.07)      183;976      223.5773 (0.96)      13484           1
+test_parse_datetime_flexible_performance[01/01/2025]                      82.0360 (21.85)    490.6800 (2.99)      93.6082 (21.77)    22.0903 (6.83)      84.8370 (21.41)     9.2390 (124.85)    618;808       10.6828 (0.05)       5212           1
+test_parse_datetime_flexible_performance[Jan 1, 2025]                    116.1250 (30.93)    446.9020 (2.73)     130.8843 (30.44)    25.2484 (7.80)     121.3810 (30.63)    12.7430 (172.20)    273;369        7.6403 (0.03)       2126           1
+test_parse_datetime_flexible_performance[Wednesday, January 1, 2025]     153.8140 (40.96)    527.5400 (3.22)     172.8739 (40.20)    29.0723 (8.99)     162.2570 (40.94)    22.4732 (303.69)    357;197        5.7846 (0.02)       3061           1
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+======================= 1090 passed in 146.73s (0:02:26) =======================
