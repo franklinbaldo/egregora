@@ -255,14 +255,12 @@ def run_cli_flow(
     debug: bool = False,
     options: str | None = None,
     smoke_test: bool = False,
-    exit_on_error: bool = True,
 ) -> None:
     """Execute the write flow from CLI arguments.
 
     Args:
         source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
                 If None, will use default_source from config, or run all sources if default is None.
-        exit_on_error: If True, raise SystemExit(1) on failure. If False, re-raise the exception.
 
     """
     cli_values = {
@@ -293,14 +291,7 @@ def run_cli_flow(
 
     output_dir = output.expanduser().resolve()
     ensure_site_initialized(output_dir)
-    try:
-        validate_api_key(output_dir)
-    except SystemExit as e:
-        if exit_on_error:
-            raise
-        # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
-        msg = f"API key validation failed: {e}"
-        raise RuntimeError(msg) from e
+    validate_api_key(output_dir)
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
@@ -326,34 +317,24 @@ def run_cli_flow(
             debug=parsed_options.debug,
         )
 
-        try:
-            console.print(
-                Panel(
-                    f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
-                    title="⚙️  Egregora Pipeline",
-                    border_style="cyan",
-                )
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
             )
-            run_params = PipelineRunParams(
-                output_dir=runtime.output_dir,
-                config=egregora_config,
-                source_type=source_type,
-                source_key=source_key,
-                input_path=runtime.input_file,
-                refresh="all" if parsed_options.force else parsed_options.refresh,
-                smoke_test=smoke_test,
-            )
-            run(run_params)
-            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except (AllModelsExhaustedError, RuntimeError) as e:
-            # Re-raise this specific error so the 'demo' command can catch it
-            raise e
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            if exit_on_error:
-                raise SystemExit(1) from e
-            raise e
+        )
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=source_type,
+            source_key=source_key,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+            smoke_test=smoke_test,
+        )
+        run(run_params)
+        console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
 
 
 def process_whatsapp_export(
