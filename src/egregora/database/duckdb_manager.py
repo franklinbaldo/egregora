@@ -565,7 +565,9 @@ class DuckDBStorageManager:
 
     def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
         """Ensure ``column`` uses ``sequence_name`` as its default value."""
-        desired_default = f"nextval('{sequence_name}')"
+        # Escape single quotes in sequence_name to prevent SQL injection
+        escaped_sequence_name = sequence_name.replace("'", "''")
+        desired_default = f"nextval('{escaped_sequence_name}')"
         column_default = self._conn.execute(
             """
             SELECT column_default
