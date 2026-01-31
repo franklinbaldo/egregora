@@ -1,8 +1,7 @@
 """CLI error handling utilities."""
 
-import sys
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 import typer
 from rich.console import Console

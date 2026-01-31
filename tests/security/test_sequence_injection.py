@@ -1,5 +1,5 @@
-import pytest
 from egregora.database.duckdb_manager import temp_storage
+
 
 def test_ensure_sequence_default_injection():
     """Verify that SQL injection is PREVENTED in ensure_sequence_default.
@@ -40,7 +40,10 @@ def test_ensure_sequence_default_injection():
 
         # This assertion should FAIL if the code is vulnerable (Table is gone)
         # This matches the BDD "Red" step.
-        assert "critical_data" in tables, "VULNERABILITY CONFIRMED: critical_data table was dropped via SQL injection!"
+        assert "critical_data" in tables, (
+            "VULNERABILITY CONFIRMED: critical_data table was dropped via SQL injection!"
+        )
+
 
 def test_ensure_sequence_default_happy_path_with_quotes():
     """Verify that valid sequence names with quotes are handled correctly (after fix)."""
@@ -62,4 +65,6 @@ def test_ensure_sequence_default_happy_path_with_quotes():
         # DuckDB might normalize the string, but it should contain the escaped quotes
         default_val = row[0]
         assert "nextval" in default_val
-        assert "seq''with''quotes" in default_val or 'seq"with"quotes' in default_val or weird_seq in default_val
+        assert (
+            "seq''with''quotes" in default_val or 'seq"with"quotes' in default_val or weird_seq in default_val
+        )
