@@ -12,8 +12,8 @@ from egregora.orchestration.exceptions import (
     CachePayloadTypeError,
 )
 
-
 # Scenarios
+
 
 @scenario("../features/caching.feature", "Enrichment cache persistence")
 def test_enrichment_cache_persistence():
@@ -47,6 +47,7 @@ def test_handling_invalid_payload_types():
 
 # Fixtures
 
+
 @pytest.fixture
 def temp_cache_dir():
     """Create a temporary directory for the cache."""
@@ -62,6 +63,7 @@ def context():
 
 
 # Given Steps
+
 
 @given("a clean cache directory", target_fixture="cache_dir")
 def clean_cache_directory(temp_cache_dir):
@@ -110,6 +112,7 @@ def invalid_payload_stored(cache, key):
 
 # When Steps
 
+
 @when(parsers.parse('I store an enrichment payload "{payload}" for key "{key}"'))
 def store_enrichment_payload(cache, payload, key):
     # We construct a full payload object as per the original test
@@ -140,7 +143,9 @@ def open_new_cache(cache_dir):
     return PipelineCache(cache_dir)
 
 
-@when(parsers.parse('I initialize a cache with refresh_tiers set to "{tier}"'), target_fixture="refresh_cache")
+@when(
+    parsers.parse('I initialize a cache with refresh_tiers set to "{tier}"'), target_fixture="refresh_cache"
+)
 def init_cache_refresh(cache_dir, tier):
     refresh_set = {tier} if tier != "all" else {"all"}
     return PipelineCache(cache_dir, refresh_tiers=refresh_set)
@@ -161,6 +166,7 @@ def attempt_load_key(cache, key, mocker):
 
 
 # Then Steps
+
 
 @then(parsers.parse('loading the key "{key}" should return the payload "{expected_payload}"'))
 def check_enrichment_payload(new_cache, key, expected_payload):

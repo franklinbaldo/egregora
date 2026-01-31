@@ -109,7 +109,9 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
     # 5. Git History Cache
-    create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA, primary_key=["commit_sha", "repo_path"])
+    create_table_if_not_exists(
+        conn, "git_commits", GIT_COMMITS_SCHEMA, primary_key=["commit_sha", "repo_path"]
+    )
     add_primary_key(conn, "git_commits", ["commit_sha", "repo_path"])
 
     # Manual Migration: Ensure new columns exist for existing tables (Schema Evolution)
@@ -139,9 +141,7 @@ def initialize_database(backend: BaseBackend) -> None:
     add_primary_key(conn, "elo_ratings", "post_slug")
     create_index(conn, "elo_ratings", "idx_elo_ratings_slug", "post_slug", index_type="Standard")
 
-    create_table_if_not_exists(
-        conn, "comparison_history", ELO_HISTORY_SCHEMA, primary_key="comparison_id"
-    )
+    create_table_if_not_exists(conn, "comparison_history", ELO_HISTORY_SCHEMA, primary_key="comparison_id")
     add_primary_key(conn, "comparison_history", "comparison_id")
     create_index(conn, "comparison_history", "idx_comparison_history_ts", "timestamp", index_type="Standard")
     create_index(
