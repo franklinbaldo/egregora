@@ -1,25 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+/* System font stack for accessibility and performance */
 
 :root,
 [data-md-color-primary="custom"] {
-  /* Official Palette */
-  --md-primary-fg-color:        #2c3e50;
-  --md-primary-fg-color--light: #34495e;
-  --md-primary-fg-color--dark:  #2c3e50;
-  --md-accent-fg-color:         #f9d423;
+  /* Minimal, content-focused color palette */
+  --md-primary-fg-color:        #955189;
+  --md-primary-fg-color--light: #a85a99;
+  --md-primary-fg-color--dark:  #7a3f6f;
+  --md-accent-fg-color:         #955189;
 
-  --md-text-font-size: 1.1rem;
-  --portal-bg: #0a0a0a;
+  --md-text-font-size: 1rem;
+  --portal-bg: #ffffff;
 
-  /* High Contrast Text for Dark Mode */
-  --md-typeset-color: #e0e0e0;
-  --md-default-fg-color: #e0e0e0;
-  --md-default-fg-color--light: #a0a0a0;
-  --md-default-fg-color--lighter: #707070;
-  --md-default-fg-color--lightest: #404040;
+  /* Light theme with good contrast */
+  --md-typeset-color: #2c3e50;
+  --md-default-fg-color: #2c3e50;
+  --md-default-fg-color--light: #666666;
+  --md-default-fg-color--lighter: #999999;
+  --md-default-fg-color--lightest: #d0d0d0;
 }
 
-/* Global Immersive Overrides */
+/* Global Light Theme Styling */
 body {
   background-color: var(--portal-bg);
   color: var(--md-typeset-color);
@@ -27,88 +27,87 @@ body {
 }
 
 .md-header {
-  backdrop-filter: blur(30px) saturate(200%);
-  background-color: rgba(10, 10, 10, 0.4) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e0e0e0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
 .md-header--shadow {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Typography Design System */
+/* System Font Stack for Accessibility */
 h1,
 h2,
 h3,
 .md-header__title,
 .md-nav__link {
-  font-family: 'Outfit', sans-serif !important;
-  letter-spacing: -0.02em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif !important;
+  font-weight: 600;
 }
 
 body,
 .md-typeset,
 .md-input {
-  font-family: 'Inter', sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif !important;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Blog Card Evolution - High Fidelity Glassmorphism */
+/* Clean, Minimal Blog Card Design */
 .md-post--card {
-  background: rgba(255, 255, 255, 0.02) !important;
-  backdrop-filter: blur(40px) saturate(250%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 28px !important;
-  padding: 36px !important;
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 8px !important;
+  padding: 24px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .md-post--card:hover {
-  transform: scale(1.03) translateY(-12px);
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: var(--md-primary-fg-color--light) !important;
-  box-shadow: 0 30px 60px rgba(0, 242, 254, 0.15);
+  transform: translateY(-2px);
+  background: #ffffff !important;
+  border-color: var(--md-primary-fg-color) !important;
+  box-shadow: 0 4px 12px rgba(149, 81, 137, 0.12);
 }
 
-/* Custom Scrollbar for Premium Feel */
+/* Clean Scrollbar Design */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: #f5f5f5;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 10px;
+  background: #d0d0d0;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--md-primary-fg-color);
 }
 
-/* Focus and Action States */
+/* Primary Button Styling */
 .md-button--primary {
   background-color: var(--md-accent-fg-color) !important;
-  color: #000 !important;
-  border-radius: 50px !important;
-  font-weight: 700 !important;
+  color: #ffffff !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
   border: none !important;
-  transition: all 0.3s ease !important;
+  transition: all 0.2s ease !important;
 }
 
 .md-button--primary:hover {
-  filter: brightness(1.2);
-  box-shadow: 0 0 20px rgba(249, 212, 35, 0.4);
-  transform: scale(1.05);
+  background-color: var(--md-primary-fg-color--dark) !important;
+  box-shadow: 0 2px 8px rgba(149, 81, 137, 0.2);
+  transform: translateY(-1px);
 }
 
-/* Hero Depth and Atmosphere */
+/* Clean Hero Section */
 .homepage-hero {
-  background: linear-gradient(rgba(10, 10, 10, 0.7), rgba(10, 10, 10, 0.7)), linear-gradient(135deg, #1a2a3a 0%, #000 100%) !important;
+  background: linear-gradient(135deg, #f8f6f9 0%, #ffffff 100%) !important;
   background-size: cover !important;
   background-position: center !important;
   height: 65vh !important;
@@ -118,27 +117,24 @@ body,
   align-items: center !important;
   text-align: center !important;
   padding: 0 20px !important;
-  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .homepage-hero h1 {
-  font-size: 5rem !important;
-  font-weight: 800 !important;
-  margin-bottom: 0.5rem !important;
-  background: linear-gradient(to bottom, #fff, #ccc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 30px rgba(0, 128, 128, 0.3));
+  font-size: 3.5rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 1rem !important;
+  color: #2c3e50 !important;
+  letter-spacing: -0.02em;
 }
 
 .homepage-hero p {
-  font-size: 1.4rem !important;
+  font-size: 1.2rem !important;
   max-width: 800px !important;
   margin-left: auto !important;
   margin-right: auto !important;
   line-height: 1.6 !important;
-  color: rgba(255, 255, 255, 0.9) !important;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  color: #666666 !important;
 }
 
 /* Scoped Homepage Overrides */
@@ -163,14 +159,13 @@ body,
 
 /* Empty State Card */
 .empty-state-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
   padding: 3rem;
   text-align: center;
   max-width: 600px;
   margin: 4rem auto;
-  backdrop-filter: blur(10px);
 }
 
 .empty-state-icon {
@@ -184,16 +179,16 @@ body,
 .command-block {
   margin: 2rem 0;
   text-align: left;
-  background: rgba(0, 0, 0, 0.3);
+  background: #f8f8f8;
   padding: 1rem 1.5rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e0e0e0;
 }
 
 .command-label {
   display: block;
   font-size: 0.85rem;
-  color: var(--md-default-fg-color--light);
+  color: #666666;
   margin-bottom: 0.5rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -208,22 +203,22 @@ body,
 .command-wrapper code {
   background: transparent !important;
   padding: 0 !important;
-  color: #fff !important;
+  color: #2c3e50 !important;
   font-family: var(--md-code-font) !important;
 }
 
-/* Glassmorphism Admonition */
+/* Clean Admonition Styling */
 .admonition.glass {
-  background: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  color: #fff;
+  background: #f8f8f8 !important;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  color: #2c3e50;
 }
 
 .admonition.glass .admonition-title {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent !important;
+  border-bottom: 1px solid #e0e0e0;
+  color: #2c3e50;
 }
 
 
@@ -431,8 +426,58 @@ body,
   margin: 0;
 }
 
-/* Restored Slate Mode Override */
+/* Dark Mode Support */
+[data-md-color-scheme="slate"] {
+  --portal-bg: #1a1a1a;
+  --md-typeset-color: #e0e0e0;
+  --md-default-fg-color: #e0e0e0;
+  --md-default-fg-color--light: #a0a0a0;
+  --md-default-fg-color--lighter: #707070;
+  --md-default-fg-color--lightest: #404040;
+}
+
+[data-md-color-scheme="slate"] body {
+  background-color: #1a1a1a;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #1a1a1a !important;
+  border-bottom-color: #333333;
+}
+
+[data-md-color-scheme="slate"] .md-post--card {
+  background: #242424 !important;
+  border-color: #333333 !important;
+}
+
+[data-md-color-scheme="slate"] .md-post--card:hover {
+  box-shadow: 0 4px 12px rgba(149, 81, 137, 0.2) !important;
+}
+
 [data-md-color-scheme="slate"] .admonition.glass {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #242424 !important;
+  border-color: #333333;
+}
+
+[data-md-color-scheme="slate"] .related-post-card {
+  background: #242424;
+  border-color: #333333;
+}
+
+[data-md-color-scheme="slate"] .media-card {
+  background: #242424;
+  border-color: #333333;
+}
+
+[data-md-color-scheme="slate"] .homepage-hero {
+  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%) !important;
+  border-bottom-color: #333333;
+}
+
+[data-md-color-scheme="slate"] .homepage-hero h1 {
+  color: #e0e0e0 !important;
+}
+
+[data-md-color-scheme="slate"] .homepage-hero p {
+  color: #a0a0a0 !important;
 }
