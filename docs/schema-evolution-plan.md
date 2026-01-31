@@ -1,8 +1,8 @@
 # Schema Evolution Plan
 
-**Status**: Draft
+**Status**: Active
 **Owner**: Builder
-**Last Updated**: 2026-01-26
+**Last Updated**: 2026-01-30
 
 ## Philosophy: Structure Before Scale
 
@@ -12,7 +12,7 @@
 
 ## Current State: V3 "Pure" Architecture
 
-The system is transitioning to a "Pure" architecture with a unified `documents` table.
+The system is transitioning to a "Pure" architecture with a unified `documents` table and specialized support tables.
 
 ### Core Tables
 
@@ -21,23 +21,28 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
     -   Discriminator: `doc_type` column.
     -   Schema: `UNIFIED_SCHEMA` (Union of all specialized schemas).
 
-2.  **`media`** (Deprecated/Removed)
-    -   Media metadata is now stored in `documents` with `doc_type='media'`.
-    -   Legacy table removed in Jan 2026.
+2.  **`messages`**
+    -   Ingestion staging buffer.
+    -   Tracks source lineage (`event_id`, `source`, `thread_id`).
 
 3.  **`annotations`**
     -   Stores annotations on other documents.
-    -   Separate table.
 
 4.  **`tasks`**
     -   Async background jobs.
 
-5.  **`messages`**
-    -   Ingestion staging buffer.
+### Specialized Support Tables
 
-6.  **Git Context Layer**
-    -   **`git_commits`**: Stores file modification history.
+1.  **Git Context Layer** (Implemented Jan 2026)
+    -   **`git_commits`**: Stores file modification history and stats.
     -   **`git_refs`**: Stores snapshot of git references (tags, branches).
+
+2.  **Ranking System** (Implemented Jan 2026)
+    -   **`elo_ratings`**: Current Elo ratings for items.
+    -   **`comparison_history`**: Log of pairwise comparisons.
+
+3.  **Caching** (Implemented Jan 2026)
+    -   **`asset_cache`**: Caching layer for external resources (images, fonts).
 
 ## 2. Planned Improvements
 
@@ -45,15 +50,12 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
 
 **Problem**: The `documents` table is sparse/wide. Columns like `title` or `filename` are nullable because they don't apply to all types. However, a "Post" *must* have a title. Currently, the database allows a "Post" with NULL title.
 
-**Solution**: Add conditional CHECK constraints to `documents` table.
+**Solution**: Add conditional CHECK constraints to `documents` table. (Completed)
 
 ```sql
 CHECK (
     (doc_type = 'post' AND title IS NOT NULL AND slug IS NOT NULL AND status IS NOT NULL) OR
-    (doc_type = 'profile' AND title IS NOT NULL AND subject_uuid IS NOT NULL) OR
-    (doc_type = 'journal' AND title IS NOT NULL AND window_start IS NOT NULL AND window_end IS NOT NULL) OR
-    (doc_type = 'media' AND filename IS NOT NULL) OR
-    (doc_type NOT IN ('post', 'profile', 'journal', 'media')) -- Fallback/Extensions
+    ...
 )
 ```
 
@@ -67,9 +69,14 @@ CHECK (
 -   Use "Create-Copy-Swap" for DuckDB table migrations.
 -   Ensure migrations are idempotent.
 
-## 3. Backlog
+## 3. Backlog & History
 
 -   [x] Add constraints to `documents` table (Completed Jan 2026).
 -   [x] Migrate `ContentRepository` to use `documents` table (Completed Jan 2026).
 -   [x] Verify `media` table usage and consolidate (Completed Jan 2026).
 -   [x] Add indexes to `documents` table (`doc_type`, `slug`, `created_at`, `status`) (Completed Jan 2026).
+-   [x] Implement `Git Context` schemas (`git_commits`, `git_refs`) (Completed Jan 2026).
+-   [x] Implement `Elo` ranking schemas (Completed Jan 2026).
+-   [x] Implement `Asset Cache` schema (Completed Jan 2026).
+-   [ ] Add index on `asset_cache.expires_at` for cleanup (Planned).
+-   [ ] Enforce strict types in `messages` table (Planned).

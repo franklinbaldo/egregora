@@ -90,7 +90,12 @@ def initialize_database(backend: BaseBackend) -> None:
     add_primary_key(conn, "tasks", "task_id")
 
     # 3. Ingestion Staging Table (Ingestion Buffer)
-    create_table_if_not_exists(conn, "messages", STAGING_MESSAGES_SCHEMA)
+    create_table_if_not_exists(
+        conn,
+        "messages",
+        STAGING_MESSAGES_SCHEMA,
+        check_constraints=get_table_check_constraints("messages"),
+    )
 
     # 4. Media and Annotations Tables
     # Media table is deprecated and consolidated into 'documents'.
@@ -164,6 +169,9 @@ def initialize_database(backend: BaseBackend) -> None:
     add_primary_key(conn, "asset_cache", "url")
     create_index(conn, "asset_cache", "idx_asset_cache_url", "url", index_type="Standard")
     create_index(conn, "asset_cache", "idx_asset_cache_hash", "content_hash", index_type="Standard")
+    create_index(
+        conn, "asset_cache", "idx_asset_cache_expires", "expires_at", index_type="Standard"
+    )
 
     logger.info("✓ Database tables initialized successfully")
 
