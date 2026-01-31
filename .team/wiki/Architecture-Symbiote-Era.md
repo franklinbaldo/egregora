@@ -56,6 +56,21 @@ Specialized workers that perform discrete cognitive tasks.
 ### The Sinks (`output_sinks/`)
 Pluggable destinations for the generated content. Currently focused on MkDocs, but architected to support Notion, SQL, or other CMSs in the future.
 
+## 🧠 The Cognitive Split: Agents vs. Workers
+
+A key development in the Symbiote Era is the architectural divergence between high-level cognitive processes and low-level execution tasks.
+
+| Feature | Agents (The Thinkers) | Workers (The Doers) |
+| :--- | :--- | :--- |
+| **Role** | Complex decision making, content generation | Discrete task execution, asset generation |
+| **Example** | `WriterAgent` (`src/egregora/agents/writer.py`) | `BannerWorker` (`src/egregora/agents/banner/worker.py`) |
+| **State** | **Stateful**: Deep context of window/conversation | **Stateless**: Consumes isolated JSON payloads |
+| **Execution** | **Synchronous/Managed**: Owns the event loop, blocking | **Asynchronous**: Task queue based, background |
+| **Protocol** | `pydantic-ai` integration | `BaseWorker` inheritance |
+| **Analogy** | The Brain / Architect | The Muscle / Builder |
+
+This separation allows the system to decouple "thinking time" (expensive, token-heavy) from "doing time" (I/O heavy, repetitive), improving overall throughput.
+
 ## ⚠️ Known Technical Debt (Lore)
 
 ### The Ghost in the Shell (`write.py` vs `processor.py`)
