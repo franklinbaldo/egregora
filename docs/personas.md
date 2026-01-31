@@ -104,6 +104,8 @@ Create `.team/personas/your-persona/prompt.md.j2`:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 ---
 description: One-line description of your persona
@@ -160,6 +162,8 @@ Specific objective this persona achieves.
 3. **STEP 3**: Final verification
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -205,11 +209,15 @@ Reference these in your custom blocks:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -268,6 +276,8 @@ Personas must work **independently** without human input:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% block constraints %}
 - Make decisions autonomously
@@ -275,6 +285,8 @@ Personas must work **independently** without human input:
 - Document uncertainties in journal
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -284,6 +296,8 @@ Always define **measurable success criteria**:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% block verification %}
 - All tests pass (run `uv run pytest`)
@@ -291,6 +305,8 @@ Always define **measurable success criteria**:
 - Documentation updated in docs/
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -319,6 +335,8 @@ Use Jinja2 conditionals for flexible prompts:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% if journal_entries %}
 ## Previous Work
@@ -327,6 +345,8 @@ Use Jinja2 conditionals for flexible prompts:
 This is your first session!
 {% endif %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 

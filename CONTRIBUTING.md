@@ -45,7 +45,7 @@ Egregora uses modern Python tooling for a consistent development experience.
     Use a descriptive branch name: `feature/new-agent`, `fix/db-locking`, `docs/update-readme`.
 
 2.  **Make Changes:**
-    Follow the [Code of the Weaver](CLAUDE.md) standards.
+    Follow the [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md) standards.
     - Write small, atomic commits.
     - Add tests for new features.
     - Ensure type annotations are present.
@@ -69,7 +69,7 @@ Egregora uses modern Python tooling for a consistent development experience.
 
 ## Coding Standards
 
-We follow strict coding standards to ensure maintainability and performance. Please read the **[Code of the Weaver (CLAUDE.md)](CLAUDE.md)** for detailed guidelines on:
+We follow strict coding standards to ensure maintainability and performance. Please read the **[Code of the Weaver (CLAUDE.md)](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)** for detailed guidelines on:
 
 - **Architecture**: Functional patterns, Ibis-first data processing.
 - **Style**: Google-style docstrings, Ruff formatting.
