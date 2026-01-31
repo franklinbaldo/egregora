@@ -825,11 +825,7 @@ class EnrichmentWorker(BaseWorker):
         from google import genai
         from google.genai import types
 
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for URL enrichment"
-            raise ValueError(msg)
-
+        api_key = get_google_api_key()
         client = genai.Client(api_key=api_key)
 
         # Extract URLs from tasks
@@ -867,7 +863,7 @@ class EnrichmentWorker(BaseWorker):
         else:
             # No rotation - use configured model and API key
             model_name = self.ctx.config.models.enricher
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            api_key = get_google_api_key()
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
@@ -1137,11 +1133,7 @@ class EnrichmentWorker(BaseWorker):
                 params,
             )
 
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                msg = "API key required for file upload"
-                raise ValueError(msg)
-
+            api_key = get_google_api_key()
             client = genai.Client(api_key=api_key)
 
             # Upload file
@@ -1165,10 +1157,7 @@ class EnrichmentWorker(BaseWorker):
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
         model_name = self.ctx.config.models.enricher_vision
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
-            raise ValueError(msg)
+        api_key = get_google_api_key()
 
         # Use strategy-based dispatch
         strategy = getattr(self.enrichment_config, "strategy", "individual")

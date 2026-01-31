@@ -43,7 +43,7 @@ class GeminiKeyRotator:
         """
         self.api_keys = api_keys or get_google_api_keys()
         if not self.api_keys:
-            msg = "No API keys found. Set GEMINI_API_KEYS or GEMINI_API_KEY."
+            msg = "No API keys found. Set GOOGLE_API_KEYS or GOOGLE_API_KEY."
             raise ValueError(msg)
         self.current_idx = 0
         self._exhausted_keys: set[str] = set()

@@ -413,7 +413,7 @@ To generate a full demo with content synthesized from a sample chat, please:
 1.  Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 2.  Set the environment variable:
     ```bash
-    export GEMINI_API_KEY="YOUR_API_KEY_HERE"
+    export GOOGLE_API_KEY="YOUR_API_KEY_HERE"
     ```
 3.  Run the demo command again:
     ```bash

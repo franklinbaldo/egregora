@@ -17,19 +17,18 @@ logger = logging.getLogger(__name__)
 def get_google_api_key() -> str:
     """Get Google API key from environment.
 
-    Checks GOOGLE_API_KEY first, then falls back to GEMINI_API_KEY
-    for backward compatibility.
+    Checks GOOGLE_API_KEY.
 
     Returns:
         The API key string
 
     Raises:
-        ApiKeyNotFoundError: If neither environment variable is set
+        ApiKeyNotFoundError: If environment variable is not set
 
     """
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        msg = "GOOGLE_API_KEY (or GEMINI_API_KEY)"
+        msg = "GOOGLE_API_KEY"
         raise ApiKeyNotFoundError(msg)
     return api_key
 
@@ -38,10 +37,10 @@ def google_api_key_available() -> bool:
     """Check if Google API key is available in environment.
 
     Returns:
-        True if GOOGLE_API_KEY or GEMINI_API_KEY is set, False otherwise
+        True if GOOGLE_API_KEY is set, False otherwise
 
     """
-    return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+    return bool(os.environ.get("GOOGLE_API_KEY"))
 
 
 def validate_gemini_api_key(api_key: str | None = None) -> None:
@@ -107,15 +106,14 @@ def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment.
 
     Supports multiple keys via:
-    - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key)
+    - GOOGLE_API_KEYS (comma-separated)
     - GOOGLE_API_KEY (single key)
 
     Returns:
         List of unique API keys, or empty list if none found.
 
     """
-    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+    return _get_api_keys_from_env("GOOGLE_API_KEYS", "GOOGLE_API_KEY")
 
 
 def get_openrouter_api_key() -> str:

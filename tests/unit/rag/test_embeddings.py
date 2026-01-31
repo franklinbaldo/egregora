@@ -33,17 +33,9 @@ class TestIsRagAvailable:
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
         assert is_rag_available() is True
 
-    def test_returns_true_when_gemini_api_key_available(self, monkeypatch):
-        """Should return True when GEMINI_API_KEY is set (fallback)."""
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-        assert is_rag_available() is True
-
     def test_returns_false_when_no_api_key(self, monkeypatch):
         """Should return False when no API key is available."""
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
         assert is_rag_available() is False
 
 
@@ -126,8 +118,6 @@ class TestEmbedText:
     def test_raises_value_error_when_no_api_key(self, monkeypatch):
         """Should raise ApiKeyNotFoundError when API key is not configured."""
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
 
         with pytest.raises(ApiKeyNotFoundError, match=r"not set.*GOOGLE_API_KEY"):
             embed_text("test", model="models/text-embedding-004")
