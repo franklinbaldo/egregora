@@ -1,17 +1,34 @@
 # About Egregora
 
-Egregora is an open-source engine designed to transform raw information streams into structured, intelligent knowledge feeds. It acts as a "Group Mind" synthesizer, reclaiming your digital history from walled gardens and turning it into a living, queryable knowledge base.
+Egregora helps you preserve the stories that matter. It transforms your chat history—from WhatsApp or other sources—into a beautiful, searchable website that tells the story of your conversations.
 
-## Mission
+Unlike simple backups, Egregora uses AI to "read" your chats, understand the context, and create narratives that feel like real memories. It highlights your best moments, creates profiles of your loved ones, and keeps everything safe on your own computer.
 
-Our digital lives are fragmented across proprietary platforms and ephemeral feeds. "Egregora" (derived from *egregore*) represents the distinct psychic entity that emerges from a collective group.
+## Our Mission
 
-This project aims to:
-1.  **Preserve** history in open, future-proof formats (Atom/RSS, Markdown, Parquet).
-2.  **Synthesize** signal from noise using composable AI agents.
-3.  **Empower** individuals to own their algorithms and data pipelines.
+Our digital lives are filled with precious moments that often get lost in endless scrolling. We built Egregora to:
 
-## Inspirations
+1.  **Preserve Memories:** Keep your history safe in open formats that will last forever.
+2.  **Tell Stories:** Turn raw data into meaningful narratives using AI.
+3.  **Protect Privacy:** Ensure you own your data. Everything runs locally on your machine.
+
+## The Name
+
+"Egregora" comes from *egregore*—a concept representing the distinct spirit or energy that emerges from a collective group. It's the unique "personality" of your family chat or friend group.
+
+---
+
+## Under the Hood (For Developers)
+
+For those interested in the technology, Egregora is an open-source engine designed to transform raw information streams into structured, intelligent knowledge feeds.
+
+### Technical Mission
+
+*   **Preserve** history in open, future-proof formats (Atom/RSS, Markdown, Parquet).
+*   **Synthesize** signal from noise using composable AI agents.
+*   **Empower** individuals to own their algorithms and data pipelines.
+
+### Inspirations
 
 Egregora is spiritually inspired by tools that empowered user-driven data composition:
 
@@ -19,11 +36,11 @@ Egregora is spiritually inspired by tools that empowered user-driven data compos
 *   **Google Reader:** For the ideal of a centralized, user-controlled consumption interface.
 *   **Atom Protocol:** For the robust, decentralized standard of information exchange.
 
-## The Team
+### The Team
 
 Egregora is built by [Franklin Baldo](https://github.com/franklinbaldo) and open-source contributors.
 
-## Credits & Stack
+### Credits & Stack
 
 Egregora stands on the shoulders of giants:
 
