@@ -1,0 +1,182 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /app
+configfile: pyproject.toml
+plugins: hypothesis-6.151.4, socket-0.7.0, cov-7.0.0, mock-3.15.1, syrupy-5.1.0, asyncio-1.3.0, benchmark-5.2.3, respx-0.22.0, Faker-40.1.2, bdd-8.1.0, xdist-3.8.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 7 items
+
+tests/unit/agents/test_writer_helpers_behavior.py .......
+ERROR: Coverage failure: total of 25.96 is less than fail-under=60.00
+                                                                         [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                                    Stmts   Miss   Cover   Missing
+------------------------------------------------------------------------------------------------------
+src/egregora/__init__.py                                                    3      0 100.00%
+src/egregora/agents/__init__.py                                             4      0 100.00%
+src/egregora/agents/avatar.py                                             245    183  25.31%   61-64, 69-71, 76, 96-98, 108-110, 119-123, 141-165, 179-181, 197-207, 229-238, 258-293, 309-323, 328-337, 342-364, 369-377, 403-407, 429-441, 449-484, 495-511, 516-523
+src/egregora/agents/banner/__init__.py                                      3      0 100.00%
+src/egregora/agents/banner/agent.py                                        69     39  43.48%   61, 66, 80-110, 140-174, 184-194
+src/egregora/agents/banner/batch_processor.py                             113     79  30.09%   41, 59-62, 67, 78-82, 94-101, 104-116, 119-160, 165-185, 190-195, 202-203, 216-220, 227-239, 246-255
+src/egregora/agents/banner/gemini_provider.py                              19     11  42.11%   24-25, 29-54
+src/egregora/agents/banner/image_generation.py                             20      1  95.00%   34
+src/egregora/agents/banner/worker.py                                       73     60  17.81%   28-29, 32-74, 77-111
+src/egregora/agents/capabilities.py                                         8      8   0.00%   3-27
+src/egregora/agents/commands.py                                            61     51  16.39%   25, 46-72, 87, 100, 117-181
+src/egregora/agents/enricher.py                                           783    680  13.15%   94-107, 124-133, 159-172, 195-197, 201-202, 212-223, 248-260, 265-281, 297-326, 338-387, 405-464, 468-470, 492-513, 521-538, 542, 551, 555-595, 598-604, 609-653, 657-682, 687-693, 706-749, 755-770, 776-805, 815-924, 927-980, 983-988, 991-999, 1004-1060, 1065-1116, 1121-1152, 1163-1192, 1206-1326, 1336-1391, 1394-1564, 1568-1617
+src/egregora/agents/enrichment.py                                          58     45  22.41%   38-102
+src/egregora/agents/exceptions.py                                          20      6  70.00%   18-19, 26-29
+src/egregora/agents/formatting.py                                         140    116  17.14%   27-42, 47-61, 75-100, 118-161, 172-197, 206-221
+src/egregora/agents/models.py                                              25      0 100.00%
+src/egregora/agents/profile/__init__.py                                     2      0 100.00%
+src/egregora/agents/profile/generator.py                                  132    105  20.45%   56-62, 90-102, 137-186, 229-275, 285-294, 311-322, 327-329, 349-414, 425-430
+src/egregora/agents/profile/history.py                                    122     87  28.69%   44-45, 61-80, 146-239, 261-271, 295-338
+src/egregora/agents/profile/worker.py                                      37     28  24.32%   19-64
+src/egregora/agents/reader/__init__.py                                      3      3   0.00%   26-34
+src/egregora/agents/reader/agent.py                                        41     41   0.00%   10-114
+src/egregora/agents/reader/elo.py                                          17     17   0.00%   3-36
+src/egregora/agents/reader/models.py                                       64     64   0.00%   9-125
+src/egregora/agents/reader/reader_runner.py                                83     83   0.00%   3-177
+src/egregora/agents/registry.py                                           185    145  21.62%   56, 91-112, 120-133, 141-155, 166-167, 176-179, 206-208, 220-250, 262-268, 271-284, 287-291, 294-327, 343-350, 366-379, 395-396
+src/egregora/agents/shared/__init__.py                                      2      0 100.00%
+src/egregora/agents/shared/annotations/__init__.py                         86     52  39.53%   142-162, 206-210, 229-237, 248-251, 265-306, 314-318, 323-329, 333-337, 341-342, 367-369, 391-403
+src/egregora/agents/taxonomy.py                                            18      6  66.67%   36-58
+src/egregora/agents/tools/__init__.py                                       3      0 100.00%
+src/egregora/agents/tools/skill_injection.py                               67     43  35.82%   89-144, 167-168, 197-210, 226-238
+src/egregora/agents/tools/skill_loader.py                                  89     62  30.34%   49, 53-63, 79-81, 94-109, 127-160, 174-182, 199-208, 218-220
+src/egregora/agents/tools/writer_tools.py                                 164    101  38.41%   149-197, 211-218, 234-243, 260-298, 319-345, 368-417
+src/egregora/agents/types.py                                              127     13  89.76%   201-215, 260
+src/egregora/agents/writer.py                                             448    338  24.55%   133-137, 142-146, 170-171, 181-198, 203-223, 228-230, 254-316, 323-346, 353-360, 365-379, 400-529, 537, 546-558, 563-580, 584-588, 592, 611-644, 649-662, 671-746, 768-777, 783-886, 900-934, 939-950, 958-969
+src/egregora/agents/writer_context.py                                     116     53  54.31%   77, 129-166, 182-184, 202, 220-239, 262-271, 288-321
+src/egregora/agents/writer_helpers.py                                     194     40  79.38%   100, 106-108, 126, 128, 147-149, 152-153, 167-172, 176-181, 188-189, 193-199, 203-215, 248, 277-280, 309, 311-313, 322, 326-327, 345, 411-412
+src/egregora/agents/writer_setup.py                                        51     40  21.57%   38-80, 90-116
+src/egregora/assets/__init__.py                                             3      3   0.00%   3-8
+src/egregora/cli/__init__.py                                                4      4   0.00%   3-10
+src/egregora/cli/diagnostics.py                                           121    121   0.00%   17-381
+src/egregora/cli/main.py                                                  188    188   0.00%   3-558
+src/egregora/cli/read.py                                                   62     62   0.00%   3-147
+src/egregora/config/__init__.py                                             2      0 100.00%
+src/egregora/config/defaults.py                                            56      0 100.00%
+src/egregora/config/exceptions.py                                          48     22  54.17%   20-21, 28-29, 36-38, 45-46, 53-54, 61-63, 70-71, 86-88, 95-97
+src/egregora/config/settings.py                                           379    171  54.88%   135-147, 153-162, 234-240, 452-459, 774-796, 807-860, 882-888, 893-903, 913-925, 944-965, 989-1034, 1048-1051, 1066-1093, 1115-1118, 1134-1137, 1166, 1216-1221, 1226
+src/egregora/constants.py                                                  49      0 100.00%
+src/egregora/data_primitives/__init__.py                                    2      0 100.00%
+src/egregora/data_primitives/datetime_utils.py                             52     37  28.85%   39-40, 45-74, 91-93, 112-116, 127-129, 136-138
+src/egregora/data_primitives/document.py                                  128     34  73.44%   147-149, 161-176, 181-189, 193-196, 210-213, 234, 237, 240-243, 246, 249, 257-259
+src/egregora/data_primitives/text.py                                       18     10  44.44%   30-46
+src/egregora/database/__init__.py                                           2      0 100.00%
+src/egregora/database/backend_factory.py                                   22     22   0.00%   7-71
+src/egregora/database/duckdb_manager.py                                   343    283  17.49%   83-85, 122-141, 159-174, 191-215, 219-222, 226-265, 275, 291-292, 296, 309-310, 331-348, 368-384, 407-450, 464-493, 502-520, 528-538, 547-559, 568-584, 588-607, 611-612, 621-685, 697-705, 714-722, 737-748, 755-756, 760, 764, 771-772, 775-779, 795-796, 819-830
+src/egregora/database/elo_record.py                                        15     15   0.00%   3-25
+src/egregora/database/elo_store.py                                         68     68   0.00%   9-263
+src/egregora/database/exceptions.py                                        56     27  51.79%   14-18, 25, 36, 43-44, 51-52, 67-68, 75-76, 83-84, 91-92, 103-104, 111-113, 120-122
+src/egregora/database/init.py                                              49     41  16.33%   55-153, 164-173
+src/egregora/database/message_repository.py                                85     64  24.71%   41, 47-118, 122-123, 127-129, 135-210
+src/egregora/database/migrations.py                                        56     56   0.00%   3-110
+src/egregora/database/migrations_v4_constraints.py                         60     60   0.00%   3-163
+src/egregora/database/profile_cache.py                                    150    125  16.67%   44-49, 54, 65-74, 93-173, 190-204, 219-231, 248-263, 280-296, 314-395, 412-437, 456-466
+src/egregora/database/protocols.py                                         28      0 100.00%
+src/egregora/database/repository.py                                        80     80   0.00%   6-208
+src/egregora/database/run_store.py                                          1      1   0.00%   4
+src/egregora/database/schemas.py                                          129     91  29.46%   75-116, 132-156, 161-170, 185-194, 201-213, 235-246, 265-272, 291-317, 331-333
+src/egregora/database/streaming/__init__.py                                 2      0 100.00%
+src/egregora/database/streaming/stream.py                                  36     29  19.44%   47-50, 84-93, 115-119, 140-144, 176-180
+src/egregora/database/task_store.py                                        55     38  30.91%   34-35, 39-49, 62-81, 94-108, 117-130, 134-135, 139-140, 144-145
+src/egregora/database/utils.py                                             20     15  25.00%   23-46, 63
+src/egregora/database/views.py                                             26     26   0.00%   8-121
+src/egregora/exceptions.py                                                  1      0 100.00%
+src/egregora/input_adapters/__init__.py                                    15      5  66.67%   61-63, 79-80
+src/egregora/input_adapters/base.py                                        48      5  89.58%   220, 225, 262, 292, 296
+src/egregora/input_adapters/exceptions.py                                  14      9  35.71%   12-17, 24-26
+src/egregora/input_adapters/iperon_tjro.py                                154    113  26.62%   45, 49, 53, 60, 67, 77-96, 103-127, 134-138, 141-160, 167-187, 206-223, 226-240, 245-254, 257-262
+src/egregora/input_adapters/registry.py                                    68     48  29.41%   54-59, 68-103, 115-135, 155-157, 172, 179, 183, 187-189, 212-214
+src/egregora/input_adapters/self_reflection.py                            151    111  26.49%   34-58, 68, 72, 76, 83-84, 92, 109-168, 171-172, 175-184, 187-199, 202-206, 209-214, 217-223, 228-231, 234-242
+src/egregora/input_adapters/whatsapp/__init__.py                            5      0 100.00%
+src/egregora/input_adapters/whatsapp/adapter.py                           109     70  35.78%   64-65, 69, 73, 77, 84, 87, 96-132, 136-138, 141-143, 146-154, 157-182, 187-192, 195, 198-203, 212
+src/egregora/input_adapters/whatsapp/commands.py                           82     56  31.71%   27-32, 36, 43, 61-63, 69-74, 79-81, 86-181, 186-198
+src/egregora/input_adapters/whatsapp/exceptions.py                         31     12  61.29%   34-36, 43-46, 57-58, 73-75
+src/egregora/input_adapters/whatsapp/parsing.py                           230    164  28.70%   46, 107-117, 127-139, 144, 149-169, 175-202, 207-211, 229-231, 242-244, 248-252, 256-274, 290, 297-298, 302-312, 321-356, 361-379, 391-452
+src/egregora/input_adapters/whatsapp/utils.py                              69     52  24.64%   26-48, 53-74, 83-93, 98-100, 106-110
+src/egregora/knowledge/__init__.py                                          1      0 100.00%
+src/egregora/knowledge/avatar.py                                           16      6  62.50%   123-143
+src/egregora/knowledge/exceptions.py                                       40     21  47.50%   14-16, 23-24, 31-32, 45-49, 56-57, 64-65, 72-73, 80-82
+src/egregora/knowledge/profiles.py                                        587    517  11.93%   83-105, 114-119, 131-133, 153-156, 175-229, 247-277, 293-311, 330-356, 366-381, 391-407, 412-419, 425-429, 453-483, 502-517, 537-549, 566-571, 591-594, 616-631, 655-693, 712-749, 754-763, 778-782, 797-842, 847-893, 897-920, 924-939, 943-955, 961-982, 994-1007, 1012, 1025-1084, 1101-1111, 1116-1120, 1125-1134, 1139-1144, 1149-1157, 1162-1170, 1188-1230, 1235-1253
+src/egregora/llm/__init__.py                                                0      0 100.00%
+src/egregora/llm/api_keys.py                                               57     44  22.81%   30-34, 44, 60-89, 94-103, 118, 131-135, 145
+src/egregora/llm/exceptions.py                                             20      8  60.00%   14-15, 22-23, 35-36, 47-48
+src/egregora/llm/model_fallback.py                                          3      3   0.00%   3-11
+src/egregora/llm/providers/__init__.py                                      2      0 100.00%
+src/egregora/llm/providers/google_batch.py                                185    144  22.16%   58-70, 74, 78, 86-110, 130-171, 175-213, 218-239, 244-275, 281-307, 313-325, 330-338, 341-350
+src/egregora/llm/providers/model_cycler.py                                115    115   0.00%   6-316
+src/egregora/llm/providers/model_key_rotator.py                            63     63   0.00%   7-168
+src/egregora/llm/providers/rate_limited.py                                 33     33   0.00%   3-78
+src/egregora/llm/rate_limit.py                                             52     34  34.62%   19-23, 28-51, 55, 60-64, 75-80, 86-90
+src/egregora/llm/retry.py                                                   9      0 100.00%
+src/egregora/llm/token_utils.py                                             3      3   0.00%   3-18
+src/egregora/llm/usage.py                                                  14      5  64.29%   20-25
+src/egregora/ops/__init__.py                                                0      0 100.00%
+src/egregora/ops/media.py                                                 264    226  14.39%   105-109, 116-126, 131-133, 144-157, 175-264, 269-326, 340-344, 356-375, 382-412, 420-422, 432-447, 458-505, 510-559, 582-601
+src/egregora/ops/taxonomy.py                                              114     99  13.16%   39-102, 106-109, 113-125, 129-144, 148-160, 169-196
+src/egregora/orchestration/__init__.py                                      0      0 100.00%
+src/egregora/orchestration/cache.py                                        84     46  45.24%   57, 60-63, 66, 69-70, 73, 76, 79, 82, 106-107, 120-135, 143-144, 148, 152, 183-206, 210, 214-216
+src/egregora/orchestration/context.py                                     161     40  75.16%   83, 88, 93, 98, 103, 153, 157, 161, 165, 169, 173, 177, 181, 185, 189, 193, 197, 202, 206, 210, 214, 218, 223, 228, 232, 236, 240, 244, 249, 253, 257, 261, 265, 277-278, 292-297
+src/egregora/orchestration/exceptions.py                                   45     15  66.67%   58-59, 90-91, 102-104, 111-114, 121-126
+src/egregora/orchestration/journal.py                                      20     20   0.00%   3-85
+src/egregora/orchestration/materializer.py                                 18     18   0.00%   7-48
+src/egregora/orchestration/persistence.py                                  28     21  25.00%   26-35, 52-56, 80-97
+src/egregora/orchestration/pipelines/__init__.py                            0      0 100.00%
+src/egregora/orchestration/pipelines/coordination/__init__.py               0      0 100.00%
+src/egregora/orchestration/pipelines/coordination/background_tasks.py      39     39   0.00%   7-71
+src/egregora/orchestration/pipelines/etl/__init__.py                        0      0 100.00%
+src/egregora/orchestration/pipelines/etl/config_resolution.py              51     51   0.00%   6-140
+src/egregora/orchestration/pipelines/etl/preparation.py                   254    197  22.44%   89-98, 103-109, 116-136, 156-166, 179-209, 226-248, 270-278, 297-378, 395-420, 425-447, 452-461, 474-555
+src/egregora/orchestration/pipelines/etl/setup.py                         167    122  26.95%   48-49, 56-58, 63-69, 74-117, 122-123, 128-144, 159-179, 190, 195-203, 208, 230, 241-304, 330-342, 348-377
+src/egregora/orchestration/pipelines/execution/__init__.py                  0      0 100.00%
+src/egregora/orchestration/pipelines/execution/processor.py               130    130   0.00%   7-236
+src/egregora/orchestration/pipelines/types.py                              45     45   0.00%   7-62
+src/egregora/orchestration/pipelines/write.py                             280    197  29.64%   120-130, 161-178, 196-228, 264-352, 361-412, 417-555, 560-572, 577-585, 598-648
+src/egregora/orchestration/resources.py                                    18     18   0.00%   7-37
+src/egregora/orchestration/runner.py                                      296    296   0.00%   6-593
+src/egregora/orchestration/worker_base.py                                  14      6  57.14%   20-25
+src/egregora/output_sinks/__init__.py                                      21     12  42.86%   19-21, 47-59
+src/egregora/output_sinks/base.py                                         157     94  40.13%   88-100, 118-138, 143, 148-174, 180-203, 207-224, 231, 248, 257-258, 262-267, 271-275, 279, 284, 294-300
+src/egregora/output_sinks/conventions.py                                  167    132  20.96%   77-101, 156, 160, 164, 167-172, 175-183, 187-211, 214-231, 234-252, 255-260, 268-273, 276-288, 292-309, 313-345, 356-357, 361-365, 370-377
+src/egregora/output_sinks/db_sink.py                                       59     59   0.00%   7-126
+src/egregora/output_sinks/exceptions.py                                   132     70  46.97%   23-25, 34-36, 43-45, 53, 60-61, 68, 75-77, 84-85, 92-93, 100, 107-109, 116-118, 127-129, 136, 143-144, 151-153, 160-161, 172-174, 181-184, 191-193, 200-205, 224-226, 233-236, 243-247, 254-255, 262-263
+src/egregora/output_sinks/mkdocs/__init__.py                                4      0 100.00%
+src/egregora/output_sinks/mkdocs/adapter.py                               607    536  11.70%   85-92, 109-166, 170-173, 184-196, 201, 205, 209, 222-224, 227-291, 307-353, 374-400, 407, 411, 417, 421, 438-446, 458-475, 509, 646-667, 686-690, 693-707, 721-734, 753-758, 773, 781-809, 823-848, 863-885, 888-907, 910-995, 998, 1002-1018, 1030-1033, 1040, 1049-1060, 1063-1079, 1082-1099, 1103-1143, 1146-1165, 1168-1200, 1203-1209, 1214-1221, 1224-1259, 1262-1277
+src/egregora/output_sinks/mkdocs/markdown.py                               50     35  30.00%   41-45, 68-77, 82-85, 90-95, 100-119
+src/egregora/output_sinks/mkdocs/markdown_utils.py                         41     29  29.27%   20-38, 43-53, 60-62, 72-77
+src/egregora/output_sinks/mkdocs/paths.py                                  50     32  36.00%   17-40, 52-58, 63, 68-70, 75, 80-82, 86
+src/egregora/output_sinks/mkdocs/scaffolding.py                           175    143  18.29%   51, 59-63, 67-134, 137-140, 144-162, 180-183, 186-197, 219-270, 273-275, 280-289, 292-334, 354-365
+src/egregora/output_sinks/mkdocs/site_generator.py                        264    235  10.98%   49-61, 71-99, 112-128, 132-139, 148-207, 211-237, 244-332, 347-474, 478-491, 496-512, 516-534, 538-541, 545-548
+src/egregora/rag/__init__.py                                               51     34  33.33%   50-83, 102-106, 119-120, 141-152
+src/egregora/rag/backend.py                                                14      0 100.00%
+src/egregora/rag/chunking.py                                               35     32   8.57%   13-57
+src/egregora/rag/embedding_router.py                                      321    238  25.86%   52-54, 59-76, 107-115, 119-122, 131-138, 147-150, 182-187, 191-197, 201-205, 209-216, 220-223, 227, 231-286, 290-325, 329-363, 367-417, 421, 444-459, 470-472, 476-478, 498-527, 543-550, 566-574, 580-583, 609-627
+src/egregora/rag/embeddings.py                                            118    118   0.00%   7-341
+src/egregora/rag/exceptions.py                                             14     14   0.00%   3-63
+src/egregora/rag/ingestion.py                                              42     26  38.10%   66-118, 139-149
+src/egregora/rag/lancedb_backend.py                                       140    110  21.43%   40-48, 111-142, 164-208, 229-283, 295-311, 318, 329-357
+src/egregora/rag/models.py                                                 16      0 100.00%
+src/egregora/resources/__init__.py                                          0      0 100.00%
+src/egregora/resources/prompts.py                                          73     40  45.21%   48-54, 59, 76-82, 118-119, 135-136, 151-173, 191-197
+src/egregora/security/__init__.py                                           0      0 100.00%
+src/egregora/security/fs.py                                                15     11  26.67%   32-48
+src/egregora/security/pii.py                                               15      9  40.00%   36-48
+src/egregora/security/ssrf.py                                              49     37  24.49%   46-60, 64-83, 99-116
+src/egregora/security/zip.py                                               76     48  36.84%   28-30, 37-40, 49-51, 58-61, 71-72, 94, 109-117, 137-156, 166-169, 176-184
+src/egregora/testing/__init__.py                                            0      0 100.00%
+src/egregora/testing/mock_client.py                                        20     20   0.00%   3-46
+src/egregora/transformations/__init__.py                                    3      0 100.00%
+src/egregora/transformations/enrichment.py                                 21     21   0.00%   7-68
+src/egregora/transformations/exceptions.py                                 10      4  60.00%   14-15, 22-23
+src/egregora/transformations/windowing.py                                 175    137  21.71%   128-167, 178-186, 198-224, 239-240, 266-292, 323-389, 419-523, 540-571, 595-615
+------------------------------------------------------------------------------------------------------
+TOTAL                                                                   13230   9796  25.96%
+FAIL Required test coverage of 60.0% not reached. Total coverage: 25.96%
+============================== 7 passed in 3.63s ===============================
