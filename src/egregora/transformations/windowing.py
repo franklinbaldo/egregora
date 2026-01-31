@@ -543,22 +543,54 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
 
     duration = window.end_time - window.start_time
     part_duration = duration / n
+    total_seconds = duration.total_seconds()
+    part_seconds = total_seconds / n
+
+    # Pre-calculate counts for all parts in one query (Vectorized)
+    if total_seconds > 0:
+        # Calculate split index: floor((ts - start) / part_duration)
+        # We clamp to n-1 to ensure the last message (at end_time) falls into the last bucket
+        t = window.table
+        start_ts = window.start_time.timestamp()
+
+        # Calculate offset in seconds (high precision)
+        # Note: window.table.ts must be a timestamp column. We extract epoch seconds and add fractional seconds.
+        # This mirrors DuckDB epoch_ms/us logic but stays generic with Ibis extract.
+        # t.ts.microsecond() returns 0-999999 integer.
+        ts_float = t.ts.epoch_seconds().cast("float64") + (t.ts.microsecond().cast("float64") / 1_000_000.0)
+        offset = ts_float - start_ts
+
+        # Note: We cast to int to ensure clean grouping keys
+        split_idx = (offset / part_seconds).floor().cast("int")
+        split_idx = ibis.least(split_idx, n - 1)
+
+        # Filter out potential negative indices (shouldn't happen if ts >= start_time)
+        split_idx = ibis.greatest(split_idx, 0)
+
+        counts_df = t.group_by(split_idx.name("idx")).aggregate(count=t.count()).execute()
+        counts_map = dict(zip(counts_df["idx"], counts_df["count"], strict=True))
+    else:
+        # Duration is 0 (start_time == end_time).
+        # All messages belong to the last part (n-1) because logic is:
+        # i < n-1: [start, end) -> [start, start) -> Empty
+        # i = n-1: [start, end] -> [start, start] -> All messages
+        total_count = window.table.count().execute()
+        counts_map = {n - 1: total_count} if total_count > 0 else {}
 
     windows = []
     for i in range(n):
-        part_start = window.start_time + (part_duration * i)
-        part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
+        part_size = counts_map.get(i, 0)
 
-        # For the LAST partition, use <= to include messages at window.end_time
-        # (critical for message/byte-based windows where end_time == last message timestamp)
-        # IR v1: use .ts column
-        if i == n - 1:
-            part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts <= part_end))
-        else:
-            part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts < part_end))
-
-        part_size = part_table.count().execute()
         if part_size > 0:
+            part_start = window.start_time + (part_duration * i)
+            part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
+
+            # For the LAST partition, use <= to include messages at window.end_time
+            if i == n - 1:
+                part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts <= part_end))
+            else:
+                part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts < part_end))
+
             part_window = Window(
                 window_index=window.window_index,
                 start_time=part_start,

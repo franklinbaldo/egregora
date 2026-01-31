@@ -1,6 +1,6 @@
 # Data Processing Optimization Plan
 
-Last updated: 2026-01-07
+Last updated: 2026-01-30
 
 ## Current Data Processing Patterns
 
@@ -43,6 +43,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Change:** Replaced the "declarative" Ibis loop (which still executed N aggregation queries) with a "Fetch-then-Compute" pattern. We now fetch all timestamps in a single O(1) query, compute window boundaries in Python (microseconds), and yield lazy table slices.
   - **Impact:** Benchmark showed **32x speedup** (3.2s -> 0.1s for 10,000 messages). Eliminated the hidden N+1 query cost of the previous implementation.
 
+- **Refactored `split_window_into_n_parts` to Vectorized Aggregation.**
+  - **Date:** 2026-01-30
+  - **Change:** Replaced the iterative loop (which executed N count queries) with a single vectorized aggregation query. The new implementation calculates split indices using high-precision timestamp arithmetic in Ibis and aggregates counts in a single pass.
+  - **Impact:** Benchmark showed **~20x speedup** (0.36s vs estimated 8s for n=100 on 50k messages). Eliminated N+1 query overhead.
+
 ## Optimization Strategy
 
 My strategy is to systematically replace imperative, iterative data processing loops with declarative, vectorized Ibis expressions. The core principle is to "let the database do the work."
@@ -52,4 +57,4 @@ My strategy is to systematically replace imperative, iterative data processing l
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
 
-For this session, I focused on refactoring `_window_by_bytes`.
+For this session, I focused on refactoring `split_window_into_n_parts`.
