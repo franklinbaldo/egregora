@@ -9,7 +9,7 @@ The **JULES** team consists of specialized autonomous personas, each with a dist
 | 🥒 | **bdd_specialist** | The Behaviorist | Precision-focused BDD Specialist who ensures features are defined by clear, testable behaviors. |
 | ⚡ | **bolt** | The Optimizer | Performance Engineer who optimizes resource usage, reduces latency, and ensures responsiveness. |
 | 🏗️ | **builder** | The Architect | Data Architect who designs and implements robust data structures and migrations. |
-| 🎭 | **curator** | The Designer | Opinionated UX/UI designer who evaluates generated blogs for visual and functional excellence. |
+| 🎭 | **curator** | The Designer | Opinionated UX/UI designer who evaluates generated blogs for visual excellence and strict privacy compliance (No External Requests). |
 | 💎 | **essentialist** | The Minimalist | Senior architect focused on radical simplicity and reducing lifetime maintenance load. |
 | ⚒️ | **forge** | The Frontend Dev | Senior frontend developer who transforms UX vision into high-performance web components. |
 | 🧔 | **franklin** | The Human | The human user and project lead. |

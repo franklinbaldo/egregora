@@ -24,6 +24,10 @@ Deep dive into the JULES engine, scheduler, and feature modules.
 
 Standard operating procedures for session management, BDD implementation, and multi-agent coordination.
 
+### 🛡️ [Privacy & Security](Privacy.md)
+
+The "Privacy-First" mandate, including asset localization and PII stripping policies.
+
 ### 📖 [Historical Context (ADR)](../adr/README.md)
 
 Link to the Architectural Decision Records that define our foundation.
