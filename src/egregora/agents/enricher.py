@@ -67,9 +67,9 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.input_adapters.base import MediaMapping
+    from egregora.llm.providers.model_key_rotator import ModelKeyRotator
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
-    from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
 logger = logging.getLogger(__name__)
 
@@ -853,6 +853,7 @@ class EnrichmentWorker(BaseWorker):
 
         # Use initialized rotator if available
         if self.rotator:
+
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
@@ -1252,6 +1253,7 @@ class EnrichmentWorker(BaseWorker):
 
         # Use initialized rotator if available
         if self.rotator:
+
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(

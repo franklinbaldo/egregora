@@ -169,9 +169,7 @@ def initialize_database(backend: BaseBackend) -> None:
     add_primary_key(conn, "asset_cache", "url")
     create_index(conn, "asset_cache", "idx_asset_cache_url", "url", index_type="Standard")
     create_index(conn, "asset_cache", "idx_asset_cache_hash", "content_hash", index_type="Standard")
-    create_index(
-        conn, "asset_cache", "idx_asset_cache_expires", "expires_at", index_type="Standard"
-    )
+    create_index(conn, "asset_cache", "idx_asset_cache_expires", "expires_at", index_type="Standard")
 
     logger.info("✓ Database tables initialized successfully")
 
