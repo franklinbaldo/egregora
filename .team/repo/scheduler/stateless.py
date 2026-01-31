@@ -741,13 +741,18 @@ def merge_completed_prs() -> int:
 
 
 def ensure_jules_branch() -> None:
-    """Ensure the jules branch exists on the remote and is up to date with main.
+    """Ensure the jules branch exists on the remote.
 
     The Jules API requires the branch to exist on the remote (GitHub) before
     a session can be created against it. This function:
     1. Checks the remote for the branch (not just locally)
     2. Creates and pushes it from main if missing on the remote
-    3. Updates it to match main if it already exists
+    3. If it already exists, leaves it as-is to preserve unmerged commits
+
+    IMPORTANT: This function must NOT reset the jules branch to main when it
+    already exists. The sync-main job handles the bidirectional sync (jules → main,
+    then main → jules) AFTER the scheduler. Resetting here would destroy any
+    jules commits that haven't been merged to main yet.
     """
     # Fetch latest main so we have the most recent ref
     subprocess.run(
@@ -785,21 +790,12 @@ def ensure_jules_branch() -> None:
         )
         print(f"  Created {JULES_BRANCH} branch from main and pushed to remote")
     else:
-        # Branch exists on remote — update local to match origin/main
-        subprocess.run(
-            ["git", "fetch", "origin", JULES_BRANCH],
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "branch", "-f", JULES_BRANCH, "origin/main"],
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "push", "--force-with-lease", "origin", JULES_BRANCH],
-            capture_output=True,
-        )
-        print(f"  Updated {JULES_BRANCH} branch to match main")
+        # Branch exists on remote — do NOT reset to main.
+        # The jules branch may have unmerged commits (from merged PRs or
+        # previous sessions). The sync-main job merges jules → main first,
+        # then aligns jules to main. Resetting here would destroy those
+        # commits before sync-main can preserve them.
+        print(f"  {JULES_BRANCH} branch exists on remote (preserved)")
 
 
 def check_ci_status_on_main() -> tuple[bool, str | None]:
