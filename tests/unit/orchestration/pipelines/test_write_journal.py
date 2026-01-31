@@ -52,7 +52,7 @@ def mock_conversation(mock_context):
 def test_process_item_skips_processed_window(
     mock_filter,
     mock_extract,
-    mock_bg_tasks,
+    _mock_bg_tasks,
     mock_gen_profiles,
     mock_write_posts,
     mock_create_journal,
@@ -98,7 +98,7 @@ def test_process_item_skips_processed_window(
 def test_process_item_persists_journal_on_success(
     mock_filter,
     mock_extract,
-    mock_bg_tasks,
+    _mock_bg_tasks,
     mock_gen_profiles,
     mock_write_posts,
     mock_create_journal,

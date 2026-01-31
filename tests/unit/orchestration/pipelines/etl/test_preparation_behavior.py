@@ -1,26 +1,25 @@
 from __future__ import annotations
 
-import pytest
 from datetime import date, datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import ibis
-from egregora.orchestration.pipelines.etl import preparation
+import pytest
+
+from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
+from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.pipelines.etl.preparation import (
+    PreparedPipelineData,
+    _apply_date_filters,
+    _setup_content_directories,
+    get_pending_conversations,
     validate_dates,
     validate_timezone_arg,
-    _setup_content_directories,
-    _apply_date_filters,
-    get_pending_conversations,
-    FilterOptions,
-    PreparedPipelineData,
 )
-from egregora.orchestration.context import PipelineContext
 from egregora.transformations import Window
-from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
 
 # --- Date Validation Tests ---
+
 
 def test_validate_dates_valid():
     """Verify that valid date strings are parsed correctly."""
@@ -30,6 +29,7 @@ def test_validate_dates_valid():
         assert from_d == date(2023, 1, 1)
         assert to_d == date(2023, 1, 31)
 
+
 def test_validate_dates_invalid():
     """Verify that invalid date strings cause a SystemExit."""
     with patch("egregora.orchestration.pipelines.etl.preparation.parse_date_arg") as mock_parse:
@@ -38,11 +38,13 @@ def test_validate_dates_invalid():
             validate_dates("invalid", None)
         assert exc.value.code == 1
 
+
 def test_validate_timezone_arg_valid():
     """Verify valid timezone passes."""
     with patch("egregora.orchestration.pipelines.etl.preparation.validate_timezone") as mock_val:
         validate_timezone_arg("UTC")
         mock_val.assert_called_with("UTC")
+
 
 def test_validate_timezone_arg_invalid():
     """Verify invalid timezone causes SystemExit."""
@@ -52,7 +54,9 @@ def test_validate_timezone_arg_invalid():
             validate_timezone_arg("Invalid/Zone")
         assert exc.value.code == 1
 
+
 # --- Directory Setup Tests ---
+
 
 def test_setup_content_directories_success(tmp_path):
     """Verify directories are created correctly inside docs_dir."""
@@ -71,6 +75,7 @@ def test_setup_content_directories_success(tmp_path):
     assert ctx.profiles_dir.exists()
     assert ctx.media_dir.exists()
 
+
 def test_setup_content_directories_traversal_error(tmp_path):
     """Verify ValueError is raised if directories are outside docs_dir."""
     docs_dir = tmp_path / "docs"
@@ -85,6 +90,7 @@ def test_setup_content_directories_traversal_error(tmp_path):
 
     with pytest.raises(ValueError, match="must reside inside the MkDocs docs_dir"):
         _setup_content_directories(ctx)
+
 
 def test_setup_content_directories_media_in_site_root(tmp_path):
     """Verify media directory can be in site_root if not in docs_dir."""
@@ -102,7 +108,9 @@ def test_setup_content_directories_media_in_site_root(tmp_path):
     _setup_content_directories(ctx)
     assert ctx.media_dir.exists()
 
+
 # --- Filtering Tests (using Ibis) ---
+
 
 @pytest.fixture
 def message_table():
@@ -115,48 +123,38 @@ def message_table():
     ]
     return con.create_table("messages", data)
 
+
 def test_apply_date_filters_range(message_table):
     """Verify filtering by date range."""
-    filtered = _apply_date_filters(
-        message_table,
-        from_date=date(2023, 1, 10),
-        to_date=date(2023, 1, 20)
-    )
+    filtered = _apply_date_filters(message_table, from_date=date(2023, 1, 10), to_date=date(2023, 1, 20))
     result = filtered.execute()
     assert len(result) == 1
     assert result.iloc[0]["ts"].day == 15
 
+
 def test_apply_date_filters_from_only(message_table):
     """Verify filtering from a date."""
-    filtered = _apply_date_filters(
-        message_table,
-        from_date=date(2023, 1, 15),
-        to_date=None
-    )
+    filtered = _apply_date_filters(message_table, from_date=date(2023, 1, 15), to_date=None)
     result = filtered.execute()
     assert len(result) == 2  # 15th and 31st
 
+
 def test_apply_date_filters_to_only(message_table):
     """Verify filtering up to a date."""
-    filtered = _apply_date_filters(
-        message_table,
-        from_date=None,
-        to_date=date(2023, 1, 15)
-    )
+    filtered = _apply_date_filters(message_table, from_date=None, to_date=date(2023, 1, 15))
     result = filtered.execute()
     assert len(result) == 2  # 1st and 15th
 
+
 def test_apply_date_filters_none(message_table):
     """Verify no filtering happens if dates are None."""
-    filtered = _apply_date_filters(
-        message_table,
-        from_date=None,
-        to_date=None
-    )
+    filtered = _apply_date_filters(message_table, from_date=None, to_date=None)
     result = filtered.execute()
     assert len(result) == 3
 
+
 # --- Splitting Tests ---
+
 
 @patch("egregora.orchestration.pipelines.etl.preparation.process_media_for_window")
 @patch("egregora.orchestration.pipelines.etl.preparation.split_window_into_n_parts")
@@ -200,11 +198,13 @@ def test_get_pending_conversations_splitting(
 
     dataset = MagicMock(spec=PreparedPipelineData)
     dataset.context = ctx
-    dataset.windows_iterator = iter([large_window, small_window]) # Order: Large first to test re-queueing logic
+    dataset.windows_iterator = iter(
+        [large_window, small_window]
+    )  # Order: Large first to test re-queueing logic
     dataset.enable_enrichment = False
 
     # Mock media processing
-    mock_process_media.return_value = (MagicMock(), {}) # table, media_mapping
+    mock_process_media.return_value = (MagicMock(), {})  # table, media_mapping
 
     # Execute
     conversations = list(get_pending_conversations(dataset))

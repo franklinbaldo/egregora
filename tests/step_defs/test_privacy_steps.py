@@ -1,8 +1,8 @@
-import os
 import re
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
@@ -31,8 +31,8 @@ def demo_site():
     # Note: egregora demo places mkdocs.yml in .egregora/mkdocs.yml
     subprocess.run(["uv", "run", "mkdocs", "build", "-f", ".egregora/mkdocs.yml"], cwd="demo", check=True)
 
-    site_dir = os.path.abspath("demo/.egregora/site")
-    if not os.path.exists(site_dir):
+    site_dir = Path("demo/.egregora/site").resolve()
+    if not site_dir.exists():
         msg = f"Site directory not found at {site_dir}"
         raise RuntimeError(msg)
 
@@ -57,7 +57,7 @@ def site_server(demo_site):
 
     for _ in range(20):
         try:
-            requests.get(f"http://localhost:{port}")
+            requests.get(f"http://localhost:{port}", timeout=1)
             break
         except requests.ConnectionError:
             time.sleep(0.5)
@@ -81,7 +81,7 @@ def context_requests():
 @given("a clean demo site is generated")
 def clean_demo_site(demo_site):
     """Ensure site is generated."""
-    assert os.path.exists(demo_site)
+    assert demo_site.exists()
 
 
 @when("I navigate to the home page")
