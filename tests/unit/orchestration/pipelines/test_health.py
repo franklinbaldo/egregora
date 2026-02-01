@@ -339,8 +339,6 @@ class TestGetConnectionHealthData:
         assert len(result) == 0
 
         # With min_messages=2, Dave should be included
-        result = get_connection_health_data(
-            pipeline_db_path=db_path, min_messages=2, now=now
-        )
+        result = get_connection_health_data(pipeline_db_path=db_path, min_messages=2, now=now)
         assert len(result) == 1
         assert result[0].author_uuid == "dave-uuid"

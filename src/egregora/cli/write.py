@@ -239,9 +239,7 @@ def run_cli_flow(
             egregora_config = egregora_config.model_copy(
                 deep=True,
                 update={
-                    "features": egregora_config.features.model_copy(
-                        update={"report_health_enabled": True}
-                    ),
+                    "features": egregora_config.features.model_copy(update={"report_health_enabled": True}),
                 },
             )
 
