@@ -81,22 +81,22 @@ def test_media_enrichment_fallback_on_api_error(mock_context_and_worker, monkeyp
     tasks = create_media_tasks(3)
 
     with patch(
-        "egregora.agents.enricher.EnrichmentWorker._prepare_media_content",
+        "egregora.agents.enricher.media.MediaEnrichmentHandler._prepare_media_content",
         return_value={"inlineData": {"mimeType": "image/jpeg", "data": "test"}},
     ):
-        requests, task_map = worker._prepare_media_requests(tasks)
+        requests, task_map = worker.media_handler._prepare_requests(tasks)
 
     assert requests, "Requests should have been prepared"
 
     with (
         patch.object(
-            worker,
-            "_execute_media_single_call",
+            worker.media_handler,
+            "_execute_single_call",
             side_effect=google_exceptions.GoogleAPICallError("API error"),
         ) as mock_single_call,
-        patch("egregora.agents.enricher.GoogleBatchModel.run_batch", return_value=[]) as mock_run_batch,
+        patch("egregora.agents.enricher.media.GoogleBatchModel.run_batch", return_value=[]) as mock_run_batch,
     ):
-        worker._execute_media_batch(requests, task_map)
+        worker.media_handler._execute_batch(requests, task_map)
 
         mock_single_call.assert_called_once()
         mock_run_batch.assert_called_once()
@@ -113,17 +113,17 @@ def test_media_enrichment_propagates_unexpected_errors(mock_context_and_worker, 
     tasks = create_media_tasks(3)
 
     with patch(
-        "egregora.agents.enricher.EnrichmentWorker._prepare_media_content",
+        "egregora.agents.enricher.media.MediaEnrichmentHandler._prepare_media_content",
         return_value={"inlineData": {"mimeType": "image/jpeg", "data": "test"}},
     ):
-        requests, task_map = worker._prepare_media_requests(tasks)
+        requests, task_map = worker.media_handler._prepare_requests(tasks)
 
     assert requests
 
     with patch.object(
-        worker, "_execute_media_single_call", side_effect=ValueError("Unexpected error")
+        worker.media_handler, "_execute_single_call", side_effect=ValueError("Unexpected error")
     ) as mock_single_call:
         with pytest.raises(ValueError, match="Unexpected error"):
-            worker._execute_media_batch(requests, task_map)
+            worker.media_handler._execute_batch(requests, task_map)
 
         mock_single_call.assert_called_once()

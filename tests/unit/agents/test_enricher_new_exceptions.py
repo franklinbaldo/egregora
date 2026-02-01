@@ -6,9 +6,9 @@ import pytest
 
 from egregora.agents.enricher import (
     EnrichmentWorker,
-    _normalize_slug,
     fetch_url_with_jina,
     load_file_as_binary_content,
+    normalize_slug,
 )
 from egregora.agents.exceptions import (
     EnrichmentFileError,
@@ -30,13 +30,13 @@ async def test_fetch_url_with_jina_raises_exception():
             await fetch_url_with_jina(ctx, "http://example.com")
 
 
-def test_normalize_slug_raises_exception():
+def testnormalize_slug_raises_exception():
     """Test that invalid slugs raise EnrichmentSlugError."""
     with pytest.raises(EnrichmentSlugError, match="LLM failed to generate slug"):
-        _normalize_slug(None, "id")
+        normalize_slug(None, "id")
 
     with pytest.raises(EnrichmentSlugError, match=r"LLM slug .* is invalid"):
-        _normalize_slug("!@#$", "id")
+        normalize_slug("!@#$", "id")
 
 
 def test_load_file_as_binary_content_raises_exception(tmp_path):
@@ -75,4 +75,4 @@ def test_parse_media_result_raises_exception():
     res.response = {"text": "{invalid json"}
 
     with pytest.raises(EnrichmentParsingError, match="Failed to parse media result"):
-        worker._parse_media_result(res, task)
+        worker.media_handler._parse_result(res, task)

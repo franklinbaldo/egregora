@@ -29,7 +29,7 @@ def test_enrich_single_url_raises_exception(mock_context):
     task_data = {"task": {"task_id": "test-task"}, "url": "https://example.com", "prompt": "Test prompt"}
 
     # Patch the Agent class to raise an exception when instantiated or run
-    with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
+    with patch("egregora.agents.enricher.url.Agent") as mock_agent_cls:
         mock_agent_instance = mock_agent_cls.return_value
         # Mock the run method to raise a generic exception
         # Note: _enrich_single_url creates an event loop and runs this async,
@@ -51,7 +51,7 @@ def test_enrich_single_url_raises_exception(mock_context):
 
         # This assertion expects the DESIRED behavior, so it should FAIL (RED)
         with pytest.raises(EnrichmentExecutionError):
-            worker._enrich_single_url(task_data)
+            worker.url_handler._enrich_single_url(task_data)
 
         # Verify the cause was preserved (if we were passing)
         # assert "Something went wrong inside the agent" in str(exc_info.value.__cause__)
