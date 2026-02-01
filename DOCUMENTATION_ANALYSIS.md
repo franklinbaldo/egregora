@@ -1273,7 +1273,7 @@ format = "markdown_table"
 | 1 | **CONTRIBUTING.md ausente** | Bloqueia contribuições | ✅ (Done) |
 | 2 | **ADR numbering duplicado** (dois 0004) | Confusão | ✅ (Done) |
 | 3 | **Seções stub incompletas** (Examples, Reference, Contributing) | Má experiência do usuário | 5-7 dias |
-| 4 | **API docs ausentes** | Desenvolvedores não sabem APIs | 3-4 dias |
+| 4 | **API docs ausentes** | Desenvolvedores não sabem APIs | ✅ (Partial - Stubs) |
 | 5 | **Architecture docs muito breves** | Difícil entender sistema | 4-5 dias |
 
 **Total Esforço Prioridade 1:** 14-18 dias
@@ -1491,11 +1491,11 @@ format = "markdown_table"
 ### Faltando ou Incompleto ❌
 
 **Critical Missing:**
-- [x] **CONTRIBUTING.md** (referenciado mas ausente)
-- [ ] **API Documentation** (stub apenas)
+- [x] **CONTRIBUTING.md** (Created)
+- [x] **API Documentation** (Stubs created, mkdocstrings configured)
 - [ ] **Examples Section** ("coming soon")
-- [x] **FAQ Section** (nenhuma)
-- [ ] **Comprehensive Troubleshooting** (mínimo)
+- [x] **FAQ Section** (Basic FAQ exists)
+- [ ] **Comprehensive Troubleshooting** (In progress)
 
 **Important Missing:**
 - [ ] **Complete Architecture Deep-Dive** (muito breve)
