@@ -112,3 +112,22 @@ def test_timeouts() -> TimeoutConfig:
 def window_configs() -> WindowConfig:
     """Provide windowing configuration constants."""
     return WindowConfig()
+
+
+@pytest.fixture(autouse=True)
+def mock_profile_agent(monkeypatch):
+    """Mock the profile agent's LLM call to prevent real API requests."""
+    try:
+        from egregora.agents.profile import generator
+        from egregora.agents.profile.generator import ProfileUpdateDecision
+    except ImportError:
+        # Graceful fallback if module path changes or missing deps
+        return
+
+    async def _mock_decision(*args, **kwargs):
+        return ProfileUpdateDecision(
+            significant=True,
+            content="# Profile Update\n\nThis is a mock profile update.",
+        )
+
+    monkeypatch.setattr(generator, "_call_llm_decision", _mock_decision, raising=False)
