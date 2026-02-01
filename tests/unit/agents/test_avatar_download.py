@@ -47,7 +47,7 @@ def test_download_avatar_success(_, mock_media_dir, mock_client):
         return_value=httpx.Response(200, content=VALID_PNG_CONTENT, headers={"Content-Type": "image/png"})
     )
 
-    avatar_uuid, avatar_path = _download_avatar_with_client(mock_client, url, mock_media_dir)
+    avatar_uuid, avatar_path = _download_avatar_with_client(mock_client, url, mock_media_dir, FAKE_UUID)
 
     assert avatar_uuid == FAKE_UUID
     assert avatar_path == mock_media_dir / "images" / f"{FAKE_UUID}.png"
@@ -61,7 +61,7 @@ def test_download_avatar_http_error(mock_media_dir, mock_client):
     respx.get(url).mock(return_value=httpx.Response(404))
 
     with pytest.raises(AvatarProcessingError) as exc:
-        _download_avatar_with_client(mock_client, url, mock_media_dir)
+        _download_avatar_with_client(mock_client, url, mock_media_dir, FAKE_UUID)
 
     assert "Failed to download avatar" in str(exc.value)
 
@@ -73,7 +73,7 @@ def test_download_avatar_too_many_redirects(mock_media_dir, mock_client):
     respx.get(url).mock(side_effect=httpx.TooManyRedirects("Too many redirects", request=None))
 
     with pytest.raises(AvatarProcessingError) as exc:
-        _download_avatar_with_client(mock_client, url, mock_media_dir)
+        _download_avatar_with_client(mock_client, url, mock_media_dir, FAKE_UUID)
 
     assert "Too many redirects" in str(exc.value)
 
@@ -87,7 +87,7 @@ def test_download_avatar_invalid_content_type(mock_media_dir, mock_client):
     )
 
     with pytest.raises(AvatarProcessingError) as exc:
-        _download_avatar_with_client(mock_client, url, mock_media_dir)
+        _download_avatar_with_client(mock_client, url, mock_media_dir, FAKE_UUID)
 
     assert "Invalid image MIME type" in str(exc.value)
 
@@ -105,7 +105,7 @@ def test_download_avatar_os_error(_, mock_save, mock_media_dir, mock_client):
     mock_save.side_effect = OSError("Disk full")
 
     with pytest.raises(AvatarProcessingError) as exc:
-        _download_avatar_with_client(mock_client, url, mock_media_dir)
+        _download_avatar_with_client(mock_client, url, mock_media_dir, FAKE_UUID)
 
     assert "Failed to save avatar" in str(exc.value)
 

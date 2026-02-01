@@ -20,7 +20,6 @@ from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.enricher import ensure_datetime
 from egregora.agents.enrichment import enrich_avatar
-from egregora.constants import AVATAR_NAMESPACE_UUID
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
@@ -87,14 +86,12 @@ def _get_avatar_directory(media_dir: Path) -> Path:
     return avatar_dir
 
 
-# TODO: [Taskmaster] Refactor: Move hardcoded UUID namespace to configuration
-def _generate_avatar_uuid(content: bytes | bytearray) -> uuid.UUID:
+def _generate_avatar_uuid(content: bytes | bytearray, namespace: uuid.UUID) -> uuid.UUID:
     """Generate deterministic UUID for avatar based on content only.
 
     Same content = same UUID, regardless of which group/chat uses it.
     This enables global deduplication across all groups.
     """
-    namespace = uuid.UUID(AVATAR_NAMESPACE_UUID)
     content_hash = hashlib.sha256(content).hexdigest()
     return uuid.uuid5(namespace, content_hash)
 
@@ -370,11 +367,6 @@ def _handle_download_error(e: Exception, url: str) -> None:
         raise AvatarProcessingError(msg) from e
 
     if isinstance(e, httpx.HTTPError):
-        # If the HTTP error was caused by our own validation, re-raise it directly
-        if isinstance(e.__cause__, AvatarProcessingError):
-            raise e.__cause__ from e
-        if isinstance(e.__context__, AvatarProcessingError):
-            raise e.__context__ from e
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
@@ -387,11 +379,16 @@ def _handle_download_error(e: Exception, url: str) -> None:
     raise e  # Re-raise unexpected exceptions
 
 
-def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
+def _download_avatar_with_client(
+    client: httpx.Client,
+    url: str,
+    media_dir: Path,
+    namespace: uuid.UUID,
+) -> tuple[uuid.UUID, Path]:
     """Internal function to download avatar using an existing client."""
     try:
         content, ext = _fetch_and_validate_image(client, url)
-        avatar_uuid = _generate_avatar_uuid(content)
+        avatar_uuid = _generate_avatar_uuid(content, namespace)
         avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
         return avatar_uuid, avatar_path
     except (AvatarProcessingError, httpx.HTTPError, OSError) as e:
@@ -405,6 +402,7 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
 def download_avatar_from_url(
     url: str,
     media_dir: Path,
+    namespace: uuid.UUID,
     timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
     client: httpx.Client | None = None,
 ) -> tuple[uuid.UUID, Path]:
@@ -413,6 +411,7 @@ def download_avatar_from_url(
     Args:
         url: URL of the avatar image
         media_dir: Root media directory (e.g., site_root/media)
+        namespace: UUID namespace for avatar generation
         timeout: HTTP timeout in seconds
         client: Optional httpx.Client to reuse
 
@@ -426,10 +425,10 @@ def download_avatar_from_url(
     try:
         with safe_dns_validation(url):
             if client:
-                return _download_avatar_with_client(client, url, media_dir)
+                return _download_avatar_with_client(client, url, media_dir, namespace)
 
             with _create_secure_client(timeout) as new_client:
-                return _download_avatar_with_client(new_client, url, media_dir)
+                return _download_avatar_with_client(new_client, url, media_dir, namespace)
     except SSRFValidationError as exc:
         raise AvatarProcessingError(str(exc)) from exc
 
@@ -442,6 +441,7 @@ class AvatarContext:
     media_dir: Path
     profiles_dir: Path
     vision_model: str
+    avatar_namespace: uuid.UUID
     cache: EnrichmentCache | None = None
 
 
@@ -463,7 +463,12 @@ def _download_avatar_from_command(
         raise AvatarProcessingError(msg)
 
     url = urls[0]
-    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, media_dir=context.media_dir, client=client)
+    _avatar_uuid, avatar_path = download_avatar_from_url(
+        url=url,
+        media_dir=context.media_dir,
+        namespace=context.avatar_namespace,
+        client=client,
+    )
     enrich_avatar(avatar_path, author_uuid, timestamp, context)
     return url
 
