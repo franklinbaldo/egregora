@@ -15,7 +15,7 @@ from egregora.cli.main import app
 from egregora.config.settings import load_egregora_config
 from egregora.output_sinks import create_default_output_registry, create_output_sink
 from egregora.output_sinks.mkdocs import MkDocsAdapter
-from egregora.output_sinks.mkdocs.scaffolding import ensure_mkdocs_project, safe_yaml_load
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 runner = CliRunner()
 
@@ -152,7 +152,8 @@ def test_config_toml_structure(tmp_path: Path):
 def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     """Test that mkdocs.yml doesn't have extra.egregora."""
     # Create site
-    ensure_mkdocs_project(tmp_path)
+    scaffolder = MkDocsSiteScaffolder()
+    scaffolder.scaffold_site(tmp_path, site_name="Egregora Archive")
 
     # Read mkdocs.yml from site root
     mkdocs_path = tmp_path / ".egregora" / "mkdocs.yml"

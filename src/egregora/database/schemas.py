@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "ANNOTATIONS_SCHEMA",
     "ASSET_CACHE_SCHEMA",
+    "DOCUMENT_RELATIONS_SCHEMA",
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
+    "ENTITY_ALIASES_SCHEMA",
     "GIT_COMMITS_SCHEMA",
     "GIT_REFS_SCHEMA",
     "STAGING_MESSAGES_SCHEMA",
@@ -140,6 +142,7 @@ def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
         "is_int64": "BIGINT",
         "is_int32": "INTEGER",
         "is_float64": "DOUBLE PRECISION",
+        "is_float32": "FLOAT",
         "is_boolean": "BOOLEAN",
         "is_binary": "BLOB",
         "is_uuid": "UUID",
@@ -327,6 +330,10 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
         valid_media_types = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
         return {"chk_messages_media_type": f"(media_type IS NULL) OR (media_type IN ({valid_media_types}))"}
 
+    if table_name == "document_relations":
+        valid_relation_types = ", ".join(f"'{t}'" for t in VALID_RELATION_TYPES)
+        return {"chk_doc_relations_type": f"relation_type IN ({valid_relation_types})"}
+
     return {}
 
 
@@ -343,6 +350,13 @@ def get_table_foreign_keys(table_name: str) -> list[str]:
     """
     if table_name == "annotations":
         return ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
+    if table_name == "document_relations":
+        return [
+            "FOREIGN KEY (source_id) REFERENCES documents(id)",
+            "FOREIGN KEY (target_id) REFERENCES documents(id)",
+        ]
+    if table_name == "entity_aliases":
+        return ["FOREIGN KEY (target_id) REFERENCES documents(id)"]
     return []
 
 
@@ -356,6 +370,7 @@ VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "supersed
 VALID_MEDIA_TYPES = ("image", "video", "audio")
 VALID_TASK_TYPES = ("generate_banner", "update_profile", "enrich_media", "enrich_url")
 VALID_ANNOTATION_PARENT_TYPES = ("message", "post", "annotation")
+VALID_RELATION_TYPES = ("mentions", "authored_by", "reply_to", "related_to")
 
 # Common columns for all types
 BASE_COLUMNS = {
@@ -558,5 +573,29 @@ GIT_REFS_SCHEMA = ibis.schema(
         "commit_sha": dt.string,  # SHA-1
         "is_tag": dt.boolean,
         "is_remote": dt.boolean,
+    }
+)
+
+# ----------------------------------------------------------------------------
+# Graph / Knowledge Base Schemas (RFC 042, RFC 043)
+# ----------------------------------------------------------------------------
+
+DOCUMENT_RELATIONS_SCHEMA = ibis.schema(
+    {
+        "source_id": dt.string,
+        "target_id": dt.string,
+        "relation_type": dt.string,  # 'mentions', 'authored_by', etc.
+        "weight": dt.float64,  # Connection strength
+        "created_at": dt.Timestamp(timezone="UTC"),
+        "metadata": dt.JSON(nullable=True),
+    }
+)
+
+ENTITY_ALIASES_SCHEMA = ibis.schema(
+    {
+        "alias": dt.string,
+        "target_id": dt.string,  # FK to documents.id
+        "is_canonical": dt.boolean,
+        "created_at": dt.Timestamp(timezone="UTC"),
     }
 )

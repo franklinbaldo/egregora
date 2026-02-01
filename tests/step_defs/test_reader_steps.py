@@ -117,7 +117,6 @@ def reader_config():
     return ReaderSettings(
         enabled=True,
         comparisons_per_post=3,
-        k_factor=32,
         database_path=".egregora/test_reader.duckdb",
     )
 
@@ -470,22 +469,10 @@ def set_comparisons_per_post(reader_config, count):
     reader_config.comparisons_per_post = count
 
 
-@given(parsers.parse("the K-factor is set to {k_factor:d}"))
-def set_k_factor(reader_config, k_factor):
-    """Set K-factor configuration."""
-    reader_config.k_factor = k_factor
-
-
 @given(parsers.parse("the reader is configured with enabled: {enabled}"))
 def set_reader_enabled(reader_config, enabled):
     """Set reader enabled/disabled."""
     reader_config.enabled = enabled.lower() == "true"
-
-
-@given(parsers.parse("the reader is configured with k_factor: {k_factor:d}"))
-def configure_k_factor(reader_config, k_factor):
-    """Configure K-factor."""
-    reader_config.k_factor = k_factor
 
 
 @given(parsers.parse("the reader is configured with comparisons_per_post: {count:d}"))
@@ -629,12 +616,6 @@ def simulate_comparison_win(elo_store, winner, loser):
         rating_b_new=new_b,
     )
     elo_store.update_ratings(params)
-
-
-@when(parsers.parse('"{underdog}" defeats "{favorite}" (upset victory)'))
-def simulate_upset(elo_store, reader_config, underdog, favorite):
-    """Simulate an upset victory."""
-    simulate_comparison_win(elo_store, underdog, favorite)
 
 
 @when("the comparison results in a tie")
@@ -921,28 +902,6 @@ def verify_zero_sum(elo_store):
     # This is inherently true in the implementation
 
 
-@then(parsers.parse('"{underdog}" should gain more points than if it defeated an equal opponent'))
-def verify_upset_bonus(elo_store, underdog):
-    """Verify upset victory gives more points."""
-    # In the scenario: weak (1400) defeats strong (1600)
-    # Expected gain from upset: ~24 points (1400 -> 1424)
-    # Expected gain from equal opponent: 16 points (K/2)
-    # So final rating should be > 1400 + 16 = 1416
-    rating = elo_store.get_rating(underdog).rating
-    assert rating > 1416.0, f"Expected {underdog} to gain >16 points, got rating {rating}"
-
-
-@then(parsers.parse('"{favorite}" should lose more points than if it lost to an equal opponent'))
-def verify_upset_penalty(elo_store, favorite):
-    """Verify upset loss loses more points."""
-    # In the scenario: strong (1600) loses to weak (1400)
-    # Expected loss from upset: ~24 points (1600 -> 1576)
-    # Expected loss from equal opponent: 16 points (K/2)
-    # So final rating should be < 1600 - 16 = 1584
-    rating = elo_store.get_rating(favorite).rating
-    assert rating < 1584.0, f"Expected {favorite} to lose >16 points, got rating {rating}"
-
-
 @then(parsers.parse('"{slug}" rating should remain {expected:g}'))
 def verify_rating_unchanged(elo_store, slug, expected):
     """Verify rating remains unchanged."""
@@ -1224,18 +1183,6 @@ def verify_evaluation_skipped(eval_result):
 def verify_disabled_message(eval_result):
     """Verify disabled message."""
     assert eval_result["status"] == "disabled"
-
-
-@then(parsers.parse("ELO rating changes should use K-factor of {k:d}"))
-def verify_k_factor_used(reader_config, k):
-    """Verify K-factor is used."""
-    assert reader_config.k_factor == k
-
-
-@then("larger rating swings should occur compared to K=32")
-def verify_larger_swings(reader_config):
-    """Verify larger rating swings with higher K."""
-    assert reader_config.k_factor > 32
 
 
 @then(parsers.parse('the database should be created at "{path}"'))

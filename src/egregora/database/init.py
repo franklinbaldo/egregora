@@ -19,8 +19,10 @@ from typing import TYPE_CHECKING, Any
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     ASSET_CACHE_SCHEMA,
+    DOCUMENT_RELATIONS_SCHEMA,
     ELO_HISTORY_SCHEMA,
     ELO_RATINGS_SCHEMA,
+    ENTITY_ALIASES_SCHEMA,
     GIT_COMMITS_SCHEMA,
     GIT_REFS_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
@@ -170,6 +172,36 @@ def initialize_database(backend: BaseBackend) -> None:
     create_index(conn, "asset_cache", "idx_asset_cache_url", "url", index_type="Standard")
     create_index(conn, "asset_cache", "idx_asset_cache_hash", "content_hash", index_type="Standard")
     create_index(conn, "asset_cache", "idx_asset_cache_expires", "expires_at", index_type="Standard")
+
+    # 9. Graph / Knowledge Base (RFC 042, RFC 043)
+    create_table_if_not_exists(
+        conn,
+        "document_relations",
+        DOCUMENT_RELATIONS_SCHEMA,
+        check_constraints=get_table_check_constraints("document_relations"),
+        foreign_keys=get_table_foreign_keys("document_relations"),
+    )
+    # Composite indexes for graph traversal
+    create_index(conn, "document_relations", "idx_doc_rels_source", "source_id", index_type="Standard")
+    create_index(conn, "document_relations", "idx_doc_rels_target", "target_id", index_type="Standard")
+    # Optimize looking up specific links
+    _execute_sql(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_doc_rels_source_target ON document_relations(source_id, target_id)",
+    )
+    _execute_sql(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_doc_rels_target_type ON document_relations(target_id, relation_type)",
+    )
+
+    create_table_if_not_exists(
+        conn,
+        "entity_aliases",
+        ENTITY_ALIASES_SCHEMA,
+        foreign_keys=get_table_foreign_keys("entity_aliases"),
+    )
+    create_index(conn, "entity_aliases", "idx_entity_aliases_alias", "alias", index_type="Standard")
+    create_index(conn, "entity_aliases", "idx_entity_aliases_target", "target_id", index_type="Standard")
 
     logger.info("✓ Database tables initialized successfully")
 

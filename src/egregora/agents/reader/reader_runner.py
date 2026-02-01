@@ -13,7 +13,7 @@ from egregora.agents.exceptions import (
     ReaderInputError,
 )
 from egregora.agents.reader.agent import compare_posts
-from egregora.agents.reader.elo import calculate_elo_update
+from egregora.agents.reader.elo import DEFAULT_K_FACTOR, calculate_elo_update
 from egregora.agents.reader.models import EvaluationRequest, RankingResult
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.text import slugify
@@ -127,7 +127,7 @@ def run_reader_evaluation(
                 rating_a.rating,
                 rating_b.rating,
                 comparison.winner,
-                k_factor=config.k_factor,
+                k_factor=DEFAULT_K_FACTOR,
             )
 
             feedback_payload = {

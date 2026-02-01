@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 from egregora.output_sinks.mkdocs.scaffolding import (
     MkDocsSiteScaffolder,
-    ensure_mkdocs_project,
     safe_yaml_load,
 )
 
@@ -32,21 +31,23 @@ def test_safe_yaml_load_ignores_unknown_tags():
     assert data["plugins"] == ["search"]
 
 
-def test_ensure_mkdocs_project_creates_site(tmp_path: Path):
-    """Test that ensure_mkdocs_project calls scaffolding and returns docs dir."""
+def test_scaffold_site_creates_site(tmp_path: Path):
+    """Test that MkDocsSiteScaffolder calls scaffolding and returns mkdocs path."""
+    scaffolder = MkDocsSiteScaffolder()
     site_root = tmp_path / "mysite"
     site_root.mkdir()
 
-    docs_dir, created = ensure_mkdocs_project(site_root, site_name="My Site")
+    mkdocs_path, created = scaffolder.scaffold_site(site_root, site_name="My Site")
 
     assert created is True
-    assert docs_dir == site_root / "docs"
-    assert (site_root / ".egregora" / "mkdocs.yml").exists()
+    assert mkdocs_path == site_root / ".egregora" / "mkdocs.yml"
+    assert mkdocs_path.exists()
+    assert (site_root / "docs").exists()
 
     # Verify idempotent
-    docs_dir_2, created_2 = ensure_mkdocs_project(site_root, site_name="My Site")
+    mkdocs_path_2, created_2 = scaffolder.scaffold_site(site_root, site_name="My Site")
     assert created_2 is False
-    assert docs_dir_2 == docs_dir
+    assert mkdocs_path_2 == mkdocs_path
 
 
 def test_scaffold_wrapper_method(tmp_path: Path):
