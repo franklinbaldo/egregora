@@ -1,4 +1,5 @@
 import socket
+import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -56,7 +57,7 @@ def test_dns_rebinding_protection(tmp_path):
         patch("socket.socket", mock_socket_cls),
     ):
         try:
-            download_avatar_from_url("http://evil.com/avatar.jpg", tmp_path)
+            download_avatar_from_url("http://evil.com/avatar.jpg", tmp_path, uuid.uuid4())
         except Exception:  # noqa: S110
             # Ignore exceptions unrelated to assertion logic
             pass
