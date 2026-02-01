@@ -37,7 +37,8 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* System Font Stack for Accessibility */
+/* System Font Stack for Accessibility - DISABLED to allow theme font (Inter) */
+/*
 h1,
 h2,
 h3,
@@ -53,6 +54,7 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif !important;
   -webkit-font-smoothing: antialiased;
 }
+*/
 
 /* Clean, Minimal Blog Card Design */
 .md-post--card {
@@ -221,6 +223,21 @@ body,
   color: #2c3e50;
 }
 
+/* About Page Container */
+.about-container {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: 2rem;
+}
+
+[data-md-color-scheme="slate"] .about-container {
+    background: #242424;
+    border-color: #333333;
+}
+
 
 /* --- From Layout Fixes (formerly overrides) --- */
 /* --- Core Readability Improvements --- */
@@ -231,10 +248,10 @@ body,
 
 .md-typeset {
   /*
-    Align blog post font with the main theme's font (Roboto), as defined in mkdocs.yml.
+    Use theme's default font (Inter) instead of forcing Roboto.
     This ensures a consistent reading experience across the entire site.
   */
-  font-family: "Roboto", sans-serif;
+  /* font-family: "Roboto", sans-serif; */
   font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
 }
 
