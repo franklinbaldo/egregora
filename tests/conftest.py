@@ -547,3 +547,21 @@ def mock_session_auth(monkeypatch, request):
         monkeypatch.setattr(SessionManager, "get_active_sequence", lambda self: "seq-123")
     except ImportError:
         pass
+
+
+@pytest.fixture(autouse=True)
+def stub_profile_agent(monkeypatch):
+    """Stub profile generator agent to avoid LLM calls."""
+    from egregora.agents.profile.generator import ProfileUpdateDecision
+
+    async def _mock_decision(prompt, ctx):
+        return ProfileUpdateDecision(
+            significant=True,
+            content=f"# {ctx.config.models.writer}: Profile Update\n\nMock profile content based on prompt.",
+        )
+
+    monkeypatch.setattr(
+        "egregora.agents.profile.generator._call_llm_decision",
+        _mock_decision,
+        raising=False,
+    )
