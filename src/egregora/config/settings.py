@@ -59,7 +59,7 @@ from egregora.config.exceptions import (
     InvalidTimezoneError,
     SiteNotFoundError,
 )
-from egregora.constants import SourceType, WindowUnit
+from egregora.constants import AVATAR_NAMESPACE_UUID, SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -663,6 +663,10 @@ class ProfileSettings(BaseModel):
         ge=0,
         le=50,
         description="Maximum number of previous profile posts to include in LLM context.",
+    )
+    avatar_namespace_uuid: str = Field(
+        default=AVATAR_NAMESPACE_UUID,
+        description="UUID namespace for generating deterministic avatar IDs.",
     )
 
 

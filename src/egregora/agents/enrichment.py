@@ -28,6 +28,85 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _load_and_detect_media(avatar_path: Path, docs_dir: Path) -> tuple[BinaryContent, str, str] | None:
+    """Load avatar file and detect its media type."""
+    try:
+        binary_content = load_file_as_binary_content(avatar_path)
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load avatar for enrichment: %s", exc)
+        return None
+
+    media_type = detect_media_type(avatar_path)
+    if not media_type:
+        logger.warning("Could not detect media type for avatar: %s", avatar_path.name)
+        return None
+
+    try:
+        media_path = str(avatar_path.relative_to(docs_dir))
+    except ValueError:
+        media_path = str(avatar_path)
+
+    return binary_content, media_type, media_path
+
+
+def _generate_enrichment_prompt(
+    media_type: str,
+    avatar_path: Path,
+    media_path: str,
+    author_uuid: str,
+    timestamp: datetime,
+) -> str:
+    """Generate the prompt for avatar enrichment."""
+    return render_prompt(
+        "enrichment.jinja",
+        mode="media",
+        prompts_dir=None,
+        media_type=media_type,
+        media_filename=avatar_path.name,
+        media_path=media_path,
+        original_message=f"Avatar set by {author_uuid}",
+        sender_uuid=author_uuid,
+        date=timestamp.strftime("%Y-%m-%d"),
+        time=timestamp.strftime("%H:%M"),
+    ).strip()
+
+
+def _create_enrichment_agent(model_name: str) -> Agent[None, EnrichmentOutput]:
+    """Create the enrichment agent with Google provider."""
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google import GoogleProvider
+
+    provider = GoogleProvider(api_key=get_google_api_key())
+    model = GoogleModel(
+        model_name.removeprefix("google-gla:"),
+        provider=provider,
+    )
+    return Agent(model=model, output_type=EnrichmentOutput)
+
+
+def _execute_enrichment(
+    agent: Agent[None, EnrichmentOutput],
+    prompt: str,
+    binary_content: BinaryContent,
+    avatar_path: Path,
+) -> str | None:
+    """Execute the enrichment agent and return markdown content."""
+    try:
+        message_content: list[str | BinaryContent] = [
+            prompt,
+            binary_content,
+        ]
+        result = agent.run_sync(message_content)
+        output = result.output
+        markdown_content = output.markdown.strip()
+        if not markdown_content:
+            return f"[No enrichment generated for avatar: {avatar_path.name}]"
+        return markdown_content
+    except (httpx.HTTPError, OSError, ValueError, RuntimeError) as exc:
+        logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, exc)
+        return None
+
+
 def enrich_avatar(
     avatar_path: Path,
     author_uuid: str,
@@ -46,57 +125,23 @@ def enrich_avatar(
                 return
         except CacheKeyNotFoundError:
             pass  # Not an error, just a cache miss
-    try:
-        binary_content = load_file_as_binary_content(avatar_path)
-    except (OSError, ValueError) as exc:
-        logger.warning("Failed to load avatar for enrichment: %s", exc)
+
+    media_info = _load_and_detect_media(avatar_path, context.docs_dir)
+    if not media_info:
         return
-    media_type = detect_media_type(avatar_path)
-    if not media_type:
-        logger.warning("Could not detect media type for avatar: %s", avatar_path.name)
-        return
-    try:
-        media_path = avatar_path.relative_to(context.docs_dir)
-    except ValueError:
-        media_path = avatar_path
+    binary_content, media_type, media_path = media_info
 
-    prompt = render_prompt(
-        "enrichment.jinja",
-        mode="media",
-        prompts_dir=None,
-        media_type=media_type,
-        media_filename=avatar_path.name,
-        media_path=str(media_path),
-        original_message=f"Avatar set by {author_uuid}",
-        sender_uuid=author_uuid,
-        date=timestamp.strftime("%Y-%m-%d"),
-        time=timestamp.strftime("%H:%M"),
-    ).strip()
-
-    from pydantic_ai.models.google import GoogleModel
-    from pydantic_ai.providers.google import GoogleProvider
+    prompt = _generate_enrichment_prompt(media_type, avatar_path, media_path, author_uuid, timestamp)
 
     try:
-        model_name = context.vision_model
-        provider = GoogleProvider(api_key=get_google_api_key())
-        model = GoogleModel(
-            model_name.removeprefix("google-gla:"),
-            provider=provider,
-        )
-        agent = Agent(model=model, output_type=EnrichmentOutput)
-        message_content: list[str | BinaryContent] = [
-            prompt,
-            binary_content,
-        ]
-        result = agent.run_sync(message_content)
-        output = result.output
-        markdown_content = output.markdown.strip()
-        if not markdown_content:
-            markdown_content = f"[No enrichment generated for avatar: {avatar_path.name}]"
-        enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-        enrichment_path.write_text(markdown_content, encoding="utf-8")
-        logger.info("Saved avatar enrichment to: %s", enrichment_path)
-        if context.cache:
-            context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-    except (httpx.HTTPError, OSError, ValueError, RuntimeError) as exc:
-        logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, exc)
+        agent = _create_enrichment_agent(context.vision_model)
+        markdown_content = _execute_enrichment(agent, prompt, binary_content, avatar_path)
+
+        if markdown_content:
+            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+            enrichment_path.write_text(markdown_content, encoding="utf-8")
+            logger.info("Saved avatar enrichment to: %s", enrichment_path)
+            if context.cache:
+                context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+    except Exception as exc:
+        logger.warning("Failed to initialize enrichment agent: %s", exc)

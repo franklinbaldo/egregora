@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,6 +29,7 @@ class AvatarProcessingTest(unittest.TestCase):
             media_dir=Path("/media"),
             profiles_dir=Path("/profiles"),
             vision_model="mock_model",
+            avatar_namespace=uuid.uuid4(),
         )
 
         avatar_url = _download_avatar_from_command(
@@ -51,6 +53,7 @@ class AvatarProcessingTest(unittest.TestCase):
             media_dir=Path("/media"),
             profiles_dir=Path("/profiles"),
             vision_model="mock_model",
+            avatar_namespace=uuid.uuid4(),
         )
 
         result = _process_set_avatar_command(
@@ -90,6 +93,7 @@ class AvatarProcessingTest(unittest.TestCase):
             media_dir=Path("/media"),
             profiles_dir=Path("/profiles"),
             vision_model="mock_model",
+            avatar_namespace=uuid.uuid4(),
         )
 
         process_avatar_commands(MagicMock(), context)

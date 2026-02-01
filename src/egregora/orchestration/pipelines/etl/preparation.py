@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
+import uuid
 from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -237,6 +238,7 @@ def _process_commands_and_avatars(
         media_dir=ctx.media_dir,
         profiles_dir=ctx.profiles_dir,
         vision_model=vision_model,
+        avatar_namespace=uuid.UUID(ctx.config.profile.avatar_namespace_uuid),
         cache=ctx.cache.enrichment,
     )
     avatar_results = process_avatar_commands(
