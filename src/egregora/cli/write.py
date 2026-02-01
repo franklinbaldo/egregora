@@ -72,9 +72,7 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(
-                update={"enabled": options.enable_enrichment}
-            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
@@ -108,9 +106,7 @@ def _resolve_write_options(
     return WriteCommandOptions(input_file=input_file, **defaults)
 
 
-def _resolve_sources_to_run(
-    source: str | None, config: EgregoraConfig
-) -> list[tuple[str, str]]:
+def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[tuple[str, str]]:
     """Resolve which sources to run based on CLI argument and config.
 
     Args:
@@ -154,9 +150,7 @@ def _resolve_sources_to_run(
     # Use default source
     default_key = config.site.default_source
     if default_key not in config.site.sources:
-        console.print(
-            f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]"
-        )
+        console.print(f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]")
         raise SystemExit(1)
 
     return [(default_key, config.site.sources[default_key].adapter)]
@@ -237,9 +231,7 @@ def run_cli_flow(
             cli_defaults={**cli_values, "source": source_type},
         )
 
-        egregora_config = _prepare_write_config(
-            parsed_options, from_date_obj, to_date_obj
-        )
+        egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
         runtime = RuntimeContext(
             output_dir=output_dir,
@@ -268,9 +260,7 @@ def run_cli_flow(
             smoke_test=smoke_test,
         )
         run(run_params)
-        console.print(
-            f"[green]Processing completed successfully for source '{source_key}'.[/green]"
-        )
+        console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
 
 
 def process_whatsapp_export(
@@ -314,9 +304,7 @@ def process_whatsapp_export(
                     "use_full_context_window": opts.use_full_context_window,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(
-                update={"enabled": opts.enable_enrichment}
-            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
             # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),

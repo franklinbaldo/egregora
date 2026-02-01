@@ -68,6 +68,10 @@ Early in the Symbiote Era, an attempt was made to move execution logic to a dedi
 - **Status:** Consolidated. The "Ghost in the Shell" has become the Shell.
 - **Lore:** The `[Taskmaster]` tag persists in comments as a reminder of the refactoring work that remains (e.g., validation logic, complexity reduction).
 
+### The Illusion of Concurrency (`enricher.py`)
+- **Status:** Identified (Risk).
+- **Lore:** The system attempts to scale enrichment concurrency based on the number of available API keys (`get_google_api_keys()`), effectively promising load balancing. However, the individual execution threads (`_enrich_single_url`) rely on the singular `get_google_api_key()`, causing all concurrent threads to hammer the primary key. Only the "Batch All" strategy currently utilizes true `ModelKeyRotator` resilience.
+
 ## 📈 Evolution from Batch Era
 
 | Feature | Batch Era (Sprint 1-2) | Symbiote Era (Sprint 3+) |
