@@ -8,10 +8,10 @@ This section serves as a deep dive into the internal mechanics, command-line int
 ## Core References
 
 ### 1. CLI Reference
-Detailed documentation of all command-line arguments, environment variables, and subcommands.
-*   `egregora init`: Site scaffolding internals.
-*   `egregora write`: Pipeline execution flags and caching strategies.
-*   `egregora read`: Ranking and evaluation commands.
+Run `egregora --help` (or `egregora <command> --help`) for detailed documentation of all command-line arguments and flags.
+*   `egregora init`: Initialize a new site.
+*   `egregora write`: Generate the blog from chat exports.
+*   `egregora read`: Read and analyze processed data.
 
 ### 2. [Architecture Overview](../v3/architecture/overview.md)
 A high-level view of the system's design, including:
@@ -26,7 +26,7 @@ Complete guide to `.egregora.toml` settings (with notes for migrating legacy `co
 *   Pipeline windowing rules.
 *   Prompt customization.
 
-### 4. Database Schema
+### 4. [Database Schema](api/database/schemas.md)
 Documentation of the internal Ibis/DuckDB schemas used for:
 *   Intermediate Representation (IR).
 *   Run tracking.
@@ -40,6 +40,6 @@ Documentation of the internal Ibis/DuckDB schemas used for:
 
 ## Developer Resources
 
-*   [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md): Coding standards and PR process.
+*   [Contributing Guide](../community/contributing.md): Coding standards and PR process.
 *   [Project Structure](../v3/architecture/layers.md): File organization and module responsibilities.
-*   [Testing Strategy](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md#testing): How to run and write tests.
+*   [Testing Strategy](../community/contributing.md#testing): How to run and write tests.
