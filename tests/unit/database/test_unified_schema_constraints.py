@@ -32,8 +32,8 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, title, slug)
-                VALUES ('1', 'post', 'content', 'published', NULL, 'slug')
+                INSERT INTO documents (id, doc_type, content, status, title, slug, created_at, source_checksum)
+                VALUES ('1', 'post', 'content', 'published', NULL, 'slug', CURRENT_TIMESTAMP, 'hash')
                 """
             )
 
@@ -45,8 +45,8 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, title, subject_uuid)
-                VALUES ('2', 'profile', 'content', 'published', NULL, 'uuid')
+                INSERT INTO documents (id, doc_type, content, status, title, subject_uuid, created_at, source_checksum)
+                VALUES ('2', 'profile', 'content', 'published', NULL, 'uuid', CURRENT_TIMESTAMP, 'hash')
                 """
             )
 
@@ -58,8 +58,8 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, title, window_start, window_end)
-                VALUES ('3', 'journal', 'content', 'published', 'Journal', NULL, CURRENT_TIMESTAMP)
+                INSERT INTO documents (id, doc_type, content, status, title, window_start, window_end, created_at, source_checksum)
+                VALUES ('3', 'journal', 'content', 'published', 'Journal', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'hash')
                 """
             )
 
@@ -72,16 +72,16 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, filename)
-                VALUES ('4', 'media', 'content', 'published', NULL)
+                INSERT INTO documents (id, doc_type, content, status, filename, created_at, source_checksum)
+                VALUES ('4', 'media', 'content', 'published', NULL, CURRENT_TIMESTAMP, 'hash')
                 """
             )
 
         # Valid Media
         duckdb_conn.execute(
             """
-            INSERT INTO documents (id, doc_type, content, status, filename, media_type)
-            VALUES ('5', 'media', 'content', 'published', 'file.jpg', 'image')
+            INSERT INTO documents (id, doc_type, content, status, filename, media_type, created_at, source_checksum)
+            VALUES ('5', 'media', 'content', 'published', 'file.jpg', 'image', CURRENT_TIMESTAMP, 'hash')
             """
         )
 
@@ -93,8 +93,8 @@ class TestDocumentsSchemaConstraints:
         # Verify no constraints initially (should succeed)
         duckdb_conn.execute(
             """
-            INSERT INTO documents (id, doc_type, content, status, title, slug)
-            VALUES ('old', 'post', 'content', 'published', NULL, 'slug')
+            INSERT INTO documents (id, doc_type, content, status, title, slug, created_at, source_checksum)
+            VALUES ('old', 'post', 'content', 'published', NULL, 'slug', CURRENT_TIMESTAMP, 'hash')
             """
         )
         # Delete the invalid row so migration can succeed?
@@ -117,8 +117,8 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, title, slug)
-                VALUES ('new', 'post', 'content', 'published', NULL, 'slug')
+                INSERT INTO documents (id, doc_type, content, status, title, slug, created_at, source_checksum)
+                VALUES ('new', 'post', 'content', 'published', NULL, 'slug', CURRENT_TIMESTAMP, 'hash')
                 """
             )
 
@@ -144,8 +144,8 @@ class TestDocumentsSchemaConstraints:
         # Insert a post without a title (should fail if 'chk_doc_post_req' existed, but succeeds now)
         duckdb_conn.execute(
             """
-            INSERT INTO documents (id, doc_type, content, status, title, slug)
-            VALUES ('1', 'post', 'valid content', 'published', NULL, 'slug')
+            INSERT INTO documents (id, doc_type, content, status, title, slug, created_at, source_checksum)
+            VALUES ('1', 'post', 'valid content', 'published', NULL, 'slug', CURRENT_TIMESTAMP, 'hash')
             """
         )
 
@@ -160,7 +160,7 @@ class TestDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, content, status, title, slug)
-                VALUES ('2', 'post', 'valid content', 'published', NULL, 'slug')
+                INSERT INTO documents (id, doc_type, content, status, title, slug, created_at, source_checksum)
+                VALUES ('2', 'post', 'valid content', 'published', NULL, 'slug', CURRENT_TIMESTAMP, 'hash')
                 """
             )

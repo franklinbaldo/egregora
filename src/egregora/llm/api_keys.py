@@ -144,11 +144,11 @@ def get_openrouter_api_keys() -> list[str]:
 
 
 __all__ = [
+    "find_valid_google_api_key",
     "get_google_api_key",
     "get_google_api_keys",
     "get_openrouter_api_key",
     "get_openrouter_api_keys",
-    "find_valid_google_api_key",
     "google_api_key_available",
     "validate_gemini_api_key",
 ]

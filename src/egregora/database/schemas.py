@@ -79,9 +79,13 @@ def create_table_if_not_exists(
         if overwrite:
             conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
-        columns_sql = ", ".join(
-            f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
-        )
+        columns = []
+        for name, dtype in schema.items():
+            col_def = f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}"
+            if not dtype.nullable:
+                col_def += " NOT NULL"
+            columns.append(col_def)
+        columns_sql = ", ".join(columns)
 
         all_clauses = [columns_sql]
 
@@ -376,8 +380,8 @@ VALID_RELATION_TYPES = ("mentions", "authored_by", "reply_to", "related_to")
 BASE_COLUMNS = {
     "id": dt.string,  # Deterministic UUID/Slug
     "content": dt.string,  # Markdown/Text content
-    "created_at": dt.timestamp,  # Insertion time
-    "source_checksum": dt.string,  # Hash for deduplication/change detection
+    "created_at": dt.Timestamp(timezone="UTC", nullable=False),  # Insertion time
+    "source_checksum": dt.String(nullable=False),  # Hash for deduplication/change detection
 }
 
 # 1. POSTS TABLE (Deprecated: Merged into documents)
