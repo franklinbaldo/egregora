@@ -50,7 +50,7 @@ from repo.scheduler.loader import PersonaLoader
 from repo.scheduler.models import PersonaConfig
 
 # Constants
-JULES_BRANCH = "jules"
+JULES_BRANCH = "main"
 ORACLE_TITLE_PREFIX = "🔮 oracle"
 
 # Jules bot login patterns for PR detection (fallback when URL detection not available)
@@ -740,64 +740,6 @@ def merge_completed_prs() -> int:
     return merged
 
 
-def ensure_jules_branch() -> None:
-    """Ensure the jules branch exists on the remote.
-
-    The Jules API requires the branch to exist on the remote (GitHub) before
-    a session can be created against it. This function:
-    1. Checks the remote for the branch (not just locally)
-    2. Creates and pushes it from main if missing on the remote
-    3. If it already exists, leaves it as-is to preserve unmerged commits
-
-    IMPORTANT: This function must NOT reset the jules branch to main when it
-    already exists. The sync-main job handles the bidirectional sync (jules → main,
-    then main → jules) AFTER the scheduler. Resetting here would destroy any
-    jules commits that haven't been merged to main yet.
-    """
-    # Fetch latest main so we have the most recent ref
-    subprocess.run(
-        ["git", "fetch", "origin", "main"],
-        capture_output=True,
-    )
-
-    # Check if the branch exists on the REMOTE — this is what the Jules API needs
-    remote_check = subprocess.run(
-        ["git", "ls-remote", "--heads", "origin", JULES_BRANCH],
-        capture_output=True,
-        text=True,
-    )
-
-    branch_exists_on_remote = (
-        remote_check.returncode == 0 and bool(remote_check.stdout.strip())
-    )
-
-    if not branch_exists_on_remote:
-        # Branch missing on remote — create locally and push
-        # Delete stale local branch if it exists
-        subprocess.run(
-            ["git", "branch", "-D", JULES_BRANCH],
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "branch", JULES_BRANCH, "origin/main"],
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "push", "-u", "origin", JULES_BRANCH],
-            check=True,
-            capture_output=True,
-        )
-        print(f"  Created {JULES_BRANCH} branch from main and pushed to remote")
-    else:
-        # Branch exists on remote — do NOT reset to main.
-        # The jules branch may have unmerged commits (from merged PRs or
-        # previous sessions). The sync-main job merges jules → main first,
-        # then aligns jules to main. Resetting here would destroy those
-        # commits before sync-main can preserve them.
-        print(f"  {JULES_BRANCH} branch exists on remote (preserved)")
-
-
 def check_ci_status_on_main() -> tuple[bool, str | None]:
     """Check if CI is passing on main branch.
 
@@ -839,8 +781,6 @@ def create_session(
 ) -> SchedulerResult:
     """Create a Jules session for a persona."""
     try:
-        ensure_jules_branch()
-
         result = client.create_session(
             prompt=persona.prompt_body,
             owner=repo_info["owner"],

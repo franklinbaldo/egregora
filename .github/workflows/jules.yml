@@ -7,7 +7,6 @@ name: Jules
 # This workflow manages the complete Jules AI agent lifecycle:
 # - Session orchestration (scheduler)
 # - PR automation (auto-merge, auto-fix)
-# - Branch synchronization
 #
 # COMPLETE FLOW (Ralph Wiggum Style):
 # ===================================
@@ -22,13 +21,13 @@ name: Jules
 #   │      ↓                                                                  │
 #   │   4. Create Jules session via API                                       │
 #   │      ↓                                                                  │
-#   │   5. Jules works asynchronously, creates PR when done                   │
+#   │   5. Jules works asynchronously, creates PR targeting main               │
 #   │      ↓                                                                  │
 #   │   6. AUTO-MERGE enables auto-merge on the PR                            │
 #   │      ↓                                                                  │
 #   │   7. CI runs on the PR                                                  │
 #   │      ↓                                                                  │
-#   │   7a. If CI passes → PR auto-merges → ON-MERGE triggers scheduler       │
+#   │   7a. If CI passes → PR auto-merges to main → ON-MERGE triggers next    │
 #   │   7b. If CI fails → AUTO-FIXER analyzes and sends fix to Jules          │
 #   │      ↓                                                                  │
 #   │   8. Cycle repeats (stateless iteration)                                │
@@ -40,7 +39,6 @@ name: Jules
 #
 #   on-merge:    Detects Jules PR merge → triggers scheduler
 #   scheduler:   Queries API, picks next persona, creates session
-#   sync-main:   Merges jules branch into main
 #   auto-merge:  Enables auto-merge for Jules PRs
 #   auto-fixer:  Analyzes CI failures, triggers fixes
 #
@@ -84,15 +82,11 @@ on:
   # On-merge trigger
   pull_request:
     types: [closed]
-    branches: [main, jules]
+    branches: [main]
 
   # Auto-merge trigger (SECURITY: has write access even on forks)
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
-
-  # Sync-main trigger
-  push:
-    branches: [jules]
 
   # Chain from CI completion (success → scheduler, failure → auto-fixer)
   workflow_run:
@@ -175,8 +169,8 @@ jobs:
           BRANCH="$HEAD_BRANCH"
           echo "Branch: $BRANCH"
 
-          # Always allow main and jules branches
-          if [[ "$BRANCH" == "main" || "$BRANCH" == "jules" || "$BRANCH" == jules-sched-* ]]; then
+          # Always allow main branch
+          if [[ "$BRANCH" == "main" || "$BRANCH" == jules-sched-* ]]; then
             echo "is_jules=true" >> $GITHUB_OUTPUT
             echo "✅ Core branch ($BRANCH) - running scheduler"
             exit 0
@@ -228,35 +222,6 @@ jobs:
             args="--dry-run"
           fi
           uv run python -m repo.cli schedule tick $args
-
-  # ==========================================================================
-  # SYNC-MAIN: Merge jules branch into main
-  # ==========================================================================
-  sync-main:
-    name: Sync → Main
-    needs: [scheduler]
-    if: |
-      always() &&
-      (needs.scheduler.result == 'success' || needs.scheduler.result == 'skipped') &&
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number == '') ||
-       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-python-uv
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--extra jules"
-
-      - name: Sync jules → main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .team
-        run: uv run python .github/scripts/jules/sync-main.py
 
   # ==========================================================================
   # AUTO-MERGE: Enable auto-merge for Jules PRs

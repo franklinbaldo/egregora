@@ -278,7 +278,7 @@ The scheduler uses **stateless round-robin** mode (implemented in `stateless.py`
 1. Each tick, the scheduler queries the Jules API for the last persona that ran
 2. Picks the next persona alphabetically (wrapping around)
 3. Only one session runs at a time — if an active session exists, the tick is skipped
-4. PRs target the `jules` branch
+4. PRs target `main` directly (no intermediate branch)
 5. Completed PRs are auto-merged before creating new sessions
 
 ```
@@ -366,14 +366,6 @@ uv run jules feedback loop
 
 # Dry run (no API calls)
 uv run jules feedback loop --dry-run
-
-# ===== Branch Sync =====
-
-# Sync jules -> main (no PR, direct merge)
-uv run jules sync merge-main
-
-# Rotate drifted jules branch
-uv run jules sync rotate-branch
 ```
 
 #### Mail Commands
@@ -910,7 +902,7 @@ class S3MailBackend(MailBackend):
 
 ```bash
 # Check PR status
-gh pr list --head jules
+gh pr list --state open
 
 # Check CI status
 gh pr checks <pr-number>
@@ -952,38 +944,7 @@ uv run jules feedback send-nudge <session-id>
 # (Manual via Jules UI)
 ```
 
-#### 3. Branch Conflicts
-
-**Symptom:** `jules` branch has conflicts with `main`
-
-**Causes:**
-
-- Drift between branches
-- Manual commits to `main`
-- Failed merge attempts
-
-**Solutions:**
-
-```bash
-# Check drift
-git log main..team --oneline
-
-# Option 1: Rotate branch (preserves history)
-uv run jules sync rotate-branch
-
-# Option 2: Sync branch (rebases on main)
-uv run jules sync merge-main
-
-# Option 3: Manual resolution
-git checkout jules
-git pull origin main
-# Resolve conflicts
-git add .
-git commit
-git push
-```
-
-#### 4. Failed CI
+#### 3. Failed CI
 
 **Symptom:** PR created but CI fails
 
@@ -1014,7 +975,7 @@ gh pr close <pr-number>
 uv run jules schedule tick  # Moves to next persona
 ```
 
-#### 5. Mail System Issues
+#### 4. Mail System Issues
 
 **Symptom:** Personas not receiving messages
 
@@ -1052,7 +1013,7 @@ PYTHON_EOF
 # NOT: <persona-id> or <persona-id>@domain
 ```
 
-#### 6. Template Rendering Errors
+#### 5. Template Rendering Errors
 
 **Symptom:** "Template not found" or Jinja2 errors
 
@@ -1112,7 +1073,7 @@ tail -f scheduler.log
 uv run jules schedule status
 
 # Check all open PRs
-gh pr list --head jules
+gh pr list --state open
 
 # Check recent workflow runs
 gh run list --workflow=jules_scheduler.yml --limit 5
