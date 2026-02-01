@@ -10,6 +10,7 @@ from egregora.agents.banner.batch_processor import (
     BannerGenerationResult,
     BannerTaskEntry,
 )
+from egregora.agents.banner.exceptions import BannerGenerationError
 from egregora.agents.banner.image_generation import (
     ImageGenerationRequest,
     ImageGenerationResult,
@@ -37,8 +38,6 @@ def mock_image_provider():
         image_bytes=b"fake-image-data",
         mime_type="image/png",
         debug_text=None,
-        error=None,
-        error_code=None,
     )
     return provider
 
@@ -105,15 +104,9 @@ class TestBannerBatchProcessor:
         assert "Amazing AI Blog Post" in call_args.prompt
 
     def test_process_tasks_with_error(self, sample_task_entry: BannerTaskEntry):
-        """Provider returns an error payload."""
+        """Provider raises BannerGenerationError."""
         mock_provider = Mock()
-        mock_provider.generate.return_value = ImageGenerationResult(
-            image_bytes=None,
-            mime_type=None,
-            debug_text=None,
-            error="API error",
-            error_code="API_ERROR",
-        )
+        mock_provider.generate.side_effect = BannerGenerationError("API error")
 
         processor = BannerBatchProcessor(provider=mock_provider)
         results = processor.process_tasks([sample_task_entry])
@@ -121,6 +114,7 @@ class TestBannerBatchProcessor:
         assert len(results) == 1
         assert results[0].success is False
         assert results[0].error == "API error"
+        assert results[0].error_code == "BannerGenerationError"
 
     def test_process_tasks_with_exception(self, sample_task_entry: BannerTaskEntry):
         """Provider raises runtime error."""
@@ -132,7 +126,8 @@ class TestBannerBatchProcessor:
 
         assert len(results) == 1
         assert results[0].success is False
-        assert results[0].error_code == "GENERATION_EXCEPTION"
+        assert results[0].error == "Provider crashed"
+        assert results[0].error_code == "UNEXPECTED_ERROR"
 
     def test_generate_multiple_entries(self, mock_image_provider):
         """Process multiple banner tasks sequentially."""
@@ -160,8 +155,6 @@ class TestBannerBatchProcessor:
             image_bytes=b"fake-image",
             mime_type="image/png",
             debug_text=None,
-            error=None,
-            error_code=None,
         )
 
         processor = BannerBatchProcessor(provider=mock_provider)

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Thread-local storage for pinned DNS entries
+# Thread-local storage for pinned DNS entries and blocked ranges
 _thread_local = threading.local()
 
 
@@ -32,6 +32,16 @@ def _get_pinned_hosts() -> dict[str, AbstractSet[ipaddress.IPv4Address | ipaddre
     if not hasattr(_thread_local, "pinned_hosts"):
         _thread_local.pinned_hosts = {}
     return _thread_local.pinned_hosts
+
+
+def _get_blocked_ranges() -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] | None:
+    """Get the thread-local blocked IP ranges."""
+    return getattr(_thread_local, "blocked_ranges", None)
+
+
+def _set_blocked_ranges(ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] | None) -> None:
+    """Set the thread-local blocked IP ranges."""
+    _thread_local.blocked_ranges = ranges
 
 
 # Save original getaddrinfo before any patching
@@ -46,7 +56,7 @@ def _pinned_getaddrinfo(
     proto: int = 0,
     flags: int = 0,
 ) -> list[tuple[int, int, int, str, tuple]]:
-    """Replacement getaddrinfo that checks thread-local pins."""
+    """Replacement getaddrinfo that checks thread-local pins and blocked ranges."""
     # socket.getaddrinfo host can be None or bytes, handle gracefully
     hostname: str | None = None
     if isinstance(host, str):
@@ -58,6 +68,7 @@ def _pinned_getaddrinfo(
             pass
 
     if hostname:
+        # 1. Check Pinned Hosts
         pinned_hosts = _get_pinned_hosts()
         if hostname in pinned_hosts:
             ips = pinned_hosts[hostname]
@@ -86,7 +97,28 @@ def _pinned_getaddrinfo(
             # to prevent falling back to DNS (which might return unsafe IPs)
             return results
 
-    return _original_getaddrinfo(host, port, family, type, proto, flags)
+    # 2. Fallback to original resolution
+    results = _original_getaddrinfo(host, port, family, type, proto, flags)
+
+    # 3. Validate against Blocked Ranges (if active context)
+    blocked_ranges = _get_blocked_ranges()
+    if blocked_ranges and hostname:
+        for res in results:
+            # res structure: (family, type, proto, canonname, sockaddr)
+            # sockaddr for AF_INET is (ip, port)
+            # sockaddr for AF_INET6 is (ip, port, flowinfo, scopeid)
+            sockaddr = res[4]
+            ip_str = sockaddr[0]
+            try:
+                ip_addr = ipaddress.ip_address(ip_str)
+            except ValueError:
+                # Should not happen with IPs from getaddrinfo, but safe to ignore invalid IPs here
+                continue
+
+            # We use the hostname as the 'url' context for logging/error
+            check_ip_is_public(ip_addr, f"dns://{hostname}", blocked_ranges)
+
+    return results
 
 
 # Global patch state
@@ -115,6 +147,8 @@ def safe_dns_validation(
 
     Resolves the URL's hostname once, validates the IPs, and then forces
     subsequent socket connections in this thread to use those specific IPs.
+    Also enforces IP blocking on any other DNS resolutions (e.g. redirects)
+    within the context.
 
     Args:
         url: The URL to validate and pin
@@ -153,17 +187,24 @@ def safe_dns_validation(
 
     # 2. Pin IPs for this thread
     pinned_map = _get_pinned_hosts()
-    previous_entry = pinned_map.get(hostname)
+    previous_pinned_entry = pinned_map.get(hostname)
     pinned_map[hostname] = resolved_ips
+
+    # 3. Set Blocked Ranges for this thread
+    previous_blocked_ranges = _get_blocked_ranges()
+    _set_blocked_ranges(blocked_ranges)
 
     logger.debug("Pinned DNS for %s: %s", hostname, resolved_ips)
 
     try:
         yield
     finally:
-        # Restore previous state
-        if previous_entry is None:
+        # Restore pinned hosts
+        if previous_pinned_entry is None:
             if hostname in pinned_map:
                 del pinned_map[hostname]
         else:
-            pinned_map[hostname] = previous_entry
+            pinned_map[hostname] = previous_pinned_entry
+
+        # Restore blocked ranges
+        _set_blocked_ranges(previous_blocked_ranges)

@@ -21,6 +21,7 @@ from google.genai import errors as google_exceptions  # noqa: E402
 
 from egregora.agents.banner import agent  # noqa: E402
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image  # noqa: E402
+from egregora.agents.banner.exceptions import BannerGenerationError  # noqa: E402
 from egregora.agents.banner.image_generation import (  # noqa: E402
     ImageGenerationRequest,
     ImageGenerationResult,
@@ -79,7 +80,6 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
     assert request.prompt == "custom prompt"
     assert fake_provider.seen_request is request
     assert fake_provider.seen_request.prompt == "custom prompt"
-    assert output.success
     assert output.document is not None
     assert output.document.metadata["slug"] == "sluggy"
     assert output.document.metadata["language"] == "en"
@@ -88,7 +88,7 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
 
 
 def test_generate_banner_image_handles_api_error(monkeypatch):
-    """Test that API errors from the provider are caught and handled."""
+    """Test that API errors from the provider are propagated for retry handling."""
     # 1. Arrange
     from google.genai import errors as google_exceptions
 
@@ -105,19 +105,14 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
     request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1")
     input_data = BannerInput(post_title="Title", post_summary="Summary")
 
-    # 2. Act
-    output = _generate_banner_image(
-        client=object(),
-        input_data=input_data,
-        image_model="model-id",
-        generation_request=request,
-    )
-
-    # 3. Assert
-    assert not output.success
-    assert output.document is None
-    assert output.error == "APIError"
-    assert output.error_code == "GENERATION_EXCEPTION"
+    # 2. Act & Assert
+    with pytest.raises(google_exceptions.APIError, match="Rate limit exceeded"):
+        _generate_banner_image(
+            client=object(),
+            input_data=input_data,
+            image_model="model-id",
+            generation_request=request,
+        )
 
 
 def test_generate_banner_reraises_unexpected_errors(monkeypatch):
