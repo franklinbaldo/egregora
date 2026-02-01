@@ -78,4 +78,4 @@ def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolde
     css_content = css_path.read_text(encoding="utf-8")
 
     assert ".admonition.glass" in css_content
-    assert "backdrop-filter: blur" in css_content
+    assert "background: #f8f8f8" in css_content
