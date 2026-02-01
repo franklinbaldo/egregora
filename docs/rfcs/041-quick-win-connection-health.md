@@ -1,9 +1,10 @@
-# 🔭 RFC 041: Connection Health Report (The Ghost Report)
+# 🔭 RFC 041: Connection Keepers (formerly The Ghost Report)
 
 **Status**: Proposed
 **Type**: Quick Win ⚡
 **Driver**: Visionary
 **Date**: 2026-02-02
+**Reviewer**: Maya (User Advocate)
 
 ---
 
@@ -11,35 +12,38 @@
 
 The **Moonshot (Egregora Keeper)** envisions an active agent that prompts you to reconnect. This **Quick Win** builds the foundational *metrics* for that vision. Before we can "Nudge", we must first "Measure".
 
-This RFC proposes a simple analytical report that visualizes the state of your relationships.
+This RFC proposes a simple report that visualizes the state of your relationships in a supportive, non-guilt-inducing way.
 
 ---
 
 ## 2. Problem Statement
 
-**The Assumption**: "Users know who they are losing touch with."
+**The Assumption**: "Users lose touch with friends but don't know who to reach out to."
 
 **The Friction**:
--   **Invisible Decay**: We don't notice a relationship is fading until it's gone.
--   **Recency Bias**: We overvalue the people we spoke to *today*, ignoring the best friend we haven't spoken to in a year.
--   **Data Opacity**: We have the data (timestamps), but no view that sorts by "Time Since Last Contact".
+-   **Drifting Apart**: We often don't notice a relationship is fading until it's been years.
+-   **Recency Bias**: We focus on the people we spoke to today, forgetting the best friend we haven't spoken to in a year.
+-   **Hidden Treasures**: Our chat history contains data on who we used to be close with, but it's hidden in the archives.
 
 **The Opportunity**:
-We can query the existing DuckDB database to generate a "Social Health Dashboard" in milliseconds.
+We can generate a "Connection Keepers" page that highlights opportunities to reconnect.
 
 ---
 
 ## 3. Proposed Solution
 
-**Goal**: Add a `Connection Health` section to the generated site (or a CLI command `egregora health`).
+**Goal**: Add a `Connection Keepers` section to the generated site.
 
 **Features**:
-1.  **The "Ghost" List**: A table of authors sorted by `Days Since Last Message` (Descending).
-2.  **Interaction Velocity**: A sparkline or metric showing "Messages per Year" for top contacts.
-3.  **Eras**: Identify "Golden Ages" of interaction (e.g., "Peak: 2021").
+1.  **Reconnect Opportunities** (formerly "Ghost List"): A list of close friends you haven't spoken to recently, framed as an opportunity.
+2.  **Relationship Rhythms** (formerly "Interaction Velocity"): Visual sparklines showing the "heartbeat" of a conversation over time.
+3.  **Golden Eras**: Identifying peak years of interaction (e.g., "The 2021 Era").
+
+**UX Reference**:
+See `docs/rfcs/041-mock-maya.md` for the desired visual tone.
 
 **Output**:
-A static Markdown page `connection_health.md` generated during the build process, accessible via the site navigation.
+A static Markdown page `connections.md` generated during the build process.
 
 ---
 
@@ -47,9 +51,9 @@ A static Markdown page `connection_health.md` generated during the build process
 
 | Metric | Improvement |
 | :--- | :--- |
-| **Awareness** | Instantly visualize which relationships are "Cold". |
-| **Nostalgia** | Surprising rediscovery of forgotten friends ("Oh, I haven't talked to Mike in 4 years!"). |
-| **Actionability** | A simple list of people to reach out to. |
+| **Awareness** | Gently reminds you of friends you might miss. |
+| **Nostalgia** | Rediscover "Golden Eras" of friendship. |
+| **Actionability** | Easy links to send a "Thinking of you" message. |
 
 ---
 
@@ -57,17 +61,17 @@ A static Markdown page `connection_health.md` generated during the build process
 
 ### Feature: Connection Health Calculation
 ```gherkin
-Feature: Connection Health Report
+Feature: Connection Keepers Report
   As a user
   I want to see who I haven't spoken to in a long time
-  So that I can prioritize who to reach out to
+  So that I can prioritize who to reach out to without feeling guilty
 
-  Scenario: Identifying "Cold" Connections
+  Scenario: Identifying Reconnect Opportunities
     Given the chat database contains messages from "Alice" (Last: 2023-01-01) and "Bob" (Last: 2025-01-01)
     And the current date is 2026-01-01
-    When the Health Report is generated
-    Then "Alice" should appear higher on the "Ghost List" than "Bob"
-    And "Alice" should show "Silence: 3 Years"
+    When the Connection Report is generated
+    Then "Alice" should appear as a "Reconnect Opportunity"
+    And "Alice" should show "Last spoken: 3 Years ago"
 
   Scenario: Filtering "One-Offs"
     Given "Charlie" sent only 1 message in 2010
