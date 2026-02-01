@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -273,6 +274,28 @@ def stub_enrichment_agents(monkeypatch):
     monkeypatch.setattr(
         "egregora.agents.enricher.EnrichmentWorker._execute_url_single_call",
         _stub_execute_url_single_call,
+        raising=False,
+    )
+
+
+@pytest.fixture(autouse=True)
+def stub_profile_agent(monkeypatch):
+    """Stub profile generator to prevent API calls."""
+    try:
+        from egregora.agents.profile.generator import ProfileUpdateDecision
+    except ImportError:
+        # If imports fail (e.g. missing deps in some envs), skip patching
+        return
+
+    async def _stub_call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
+        return ProfileUpdateDecision(
+            significant=True,
+            content="# Stub Profile\n\nThis is a stub profile update.",
+        )
+
+    monkeypatch.setattr(
+        "egregora.agents.profile.generator._call_llm_decision",
+        _stub_call_llm_decision,
         raising=False,
     )
 
