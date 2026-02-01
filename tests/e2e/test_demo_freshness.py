@@ -8,7 +8,7 @@ from egregora.config import load_egregora_config
 from egregora.constants import SourceType
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.write import run as run_write_pipeline
-from egregora.output_sinks.mkdocs.scaffolding import ensure_mkdocs_project
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 # Determine the project root to reliably find the 'demo' directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
@@ -76,7 +76,7 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
     temp_demo_path.mkdir()
 
     # Initialize a new mkdocs project in the temporary directory
-    ensure_mkdocs_project(temp_demo_path)
+    MkDocsSiteScaffolder().scaffold_site(temp_demo_path, site_name="Egregora Archive")
 
     # We need a minimal config. Since the demo command doesn't rely on a config
     # from the output directory, we load from the project root's default.
