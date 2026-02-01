@@ -112,6 +112,56 @@ def _validate_image_format(filename: str) -> str:
     return ext
 
 
+def _detect_mime_type(content: bytes | bytearray) -> str | None:
+    """Detect MIME type from content magic bytes.
+
+    Args:
+        content: The image file content (or start of it)
+
+    Returns:
+        Detected MIME type string, or None if no match found.
+
+    Raises:
+        AvatarProcessingError: If content appears to be a supported format but is invalid (e.g. malformed WEBP).
+
+    """
+    for magic, mime_type in MAGIC_BYTES.items():
+        if content.startswith(magic):
+            if magic == b"RIFF":
+                if len(content) < WEBP_HEADER_SIZE:
+                    msg = "File too small to be valid WEBP"
+                    raise AvatarProcessingError(msg)
+                if content[8:12] == b"WEBP":
+                    return "image/webp"
+                msg = "RIFF file is not WEBP format"
+                raise AvatarProcessingError(msg)
+            return mime_type
+    return None
+
+
+def _validate_mime_match(detected_mime: str | None, expected_mime: str) -> None:
+    """Validate that detected MIME type matches expected type.
+
+    Args:
+        detected_mime: The MIME type detected from content
+        expected_mime: The MIME type declared in headers
+
+    Raises:
+        AvatarProcessingError: If types don't match or detected type is None
+
+    """
+    if detected_mime is None:
+        msg = "Unable to verify image format. Content does not match any supported image type."
+        raise AvatarProcessingError(msg)
+
+    if detected_mime != expected_mime:
+        if detected_mime == "image/webp":
+            msg = f"Image content is WEBP but declared as {expected_mime}"
+        else:
+            msg = f"Image content type mismatch: content appears to be {detected_mime} but declared as {expected_mime}"
+        raise AvatarProcessingError(msg)
+
+
 def _validate_image_content(content: bytes | bytearray, expected_mime: str) -> None:
     """Validate that image content matches expected MIME type using magic bytes.
 
@@ -126,32 +176,16 @@ def _validate_image_content(content: bytes | bytearray, expected_mime: str) -> N
         AvatarProcessingError: If content doesn't match expected type
 
     """
-    # Ensure we have enough bytes for the largest check
-    if len(content) < WEBP_HEADER_SIZE:
-        # If content is smaller than header size but it's the full file, we will fail anyway.
-        # But if it's a chunk, we might need more.
-        # However, DOWNLOAD_CHUNK_SIZE is 8192, which is > 12. So we assume chunks are large enough.
-        pass
+    try:
+        detected_mime = _detect_mime_type(content)
+    except AvatarProcessingError as e:
+        # Restore context for specific RIFF error
+        if "RIFF file is not WEBP format" in str(e):
+            msg = f"{e} (expected {expected_mime})"
+            raise AvatarProcessingError(msg) from e
+        raise e
 
-    for magic, mime_type in MAGIC_BYTES.items():
-        if content.startswith(magic):
-            if magic == b"RIFF":
-                if len(content) < WEBP_HEADER_SIZE:
-                    msg = "File too small to be valid WEBP"
-                    raise AvatarProcessingError(msg)
-                if content[8:12] == b"WEBP":
-                    if expected_mime != "image/webp":
-                        msg = f"Image content is WEBP but declared as {expected_mime}"
-                        raise AvatarProcessingError(msg)
-                    return
-                msg = f"RIFF file is not WEBP format (expected {expected_mime})"
-                raise AvatarProcessingError(msg)
-            if mime_type != expected_mime:
-                msg = f"Image content type mismatch: content appears to be {mime_type} but declared as {expected_mime}"
-                raise AvatarProcessingError(msg)
-            return
-    msg = "Unable to verify image format. Content does not match any supported image type."
-    raise AvatarProcessingError(msg)
+    _validate_mime_match(detected_mime, expected_mime)
 
 
 def _check_dimensions(width: int, height: int) -> None:
