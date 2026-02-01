@@ -1114,7 +1114,7 @@ def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
 
     Args:
         date_str: Date string in YYYY-MM-DD format
-        arg_name: Name of the argument (for error messages)
+        _arg_name: Name of the argument (for error messages)
 
     Returns:
         date object in UTC

@@ -135,5 +135,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Next Steps
 
-*   [Customize your site](../configuration.md)
+*   [Customize your site](configuration.md)
 *   [Learn about the Magic Features](../index.md#what-makes-egregora-magical)
