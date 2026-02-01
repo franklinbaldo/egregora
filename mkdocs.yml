@@ -171,6 +171,9 @@ nav:
       - Installation: getting-started/installation.md
       - Configuration: getting-started/configuration.md
       - Deployment: getting-started/deployment.md
+  - Examples:
+      - Overview: examples/index.md
+      - WhatsApp to Blog: examples/whatsapp-to-blog.md
   - Reference:
       - Technical Reference: reference/index.md
       - API:
