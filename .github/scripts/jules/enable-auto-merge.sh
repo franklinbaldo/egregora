@@ -49,4 +49,7 @@ fi
 
 # Enable auto-merge (merge commit)
 echo "🔀 Enabling auto-merge for PR #$PR_NUMBER"
-gh pr merge "$PR_NUMBER" --auto --merge --delete-branch
+if ! gh pr merge "$PR_NUMBER" --auto --merge --delete-branch; then
+  echo "⚠️ Failed to enable auto-merge. This usually happens if branch protection rules are not configured."
+  echo "Continuing execution to avoid failing the CI workflow."
+fi
