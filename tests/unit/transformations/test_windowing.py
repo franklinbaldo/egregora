@@ -61,10 +61,7 @@ def test_window_by_time_duration():
     """Test splitting by time duration."""
     start_time = datetime(2023, 1, 1, 0, 0, 0)
     # 300 minutes of data (5 hours)
-    data = [
-        {"ts": start_time + timedelta(minutes=i), "text": f"msg {i}", "sender": "A"}
-        for i in range(300)
-    ]
+    data = [{"ts": start_time + timedelta(minutes=i), "text": f"msg {i}", "sender": "A"} for i in range(300)]
     table = ibis.memtable(data)
 
     # Split by 2 hours
@@ -82,20 +79,12 @@ def test_window_by_time_with_max_window_constraint():
     """Test max_window_time constraint logic."""
     start_time = datetime(2023, 1, 1, 0, 0, 0)
     # 72 hours of data
-    data = [
-        {"ts": start_time + timedelta(hours=i), "text": f"msg {i}", "sender": "A"}
-        for i in range(72)
-    ]
+    data = [{"ts": start_time + timedelta(hours=i), "text": f"msg {i}", "sender": "A"} for i in range(72)]
     table = ibis.memtable(data)
 
     # Request 2 days windows but cap at 24 hours
     max_window = timedelta(hours=24)
-    config = WindowConfig(
-        step_size=2,
-        step_unit="days",
-        max_window_time=max_window,
-        overlap_ratio=0.0
-    )
+    config = WindowConfig(step_size=2, step_unit="days", max_window_time=max_window, overlap_ratio=0.0)
 
     # Should reduce to 1 day (24 hours) windows
     windows = list(create_windows(table, config=config))
@@ -103,7 +92,7 @@ def test_window_by_time_with_max_window_constraint():
     # 72 hours / 24 hours = 3 windows
     assert len(windows) == 3
     for w in windows:
-        duration = w.end_time - w.start_time
+        w.end_time - w.start_time
         # Check duration is roughly 24 hours (inclusive/exclusive handling implies < 24h + 1h)
         # Actually logic is strictly time based.
         # But data is one msg per hour.
@@ -115,10 +104,7 @@ def test_window_by_bytes():
     start_time = datetime(2023, 1, 1, 10, 0, 0)
     # Messages of 10 bytes each
     text = "x" * 10
-    data = [
-        {"ts": start_time + timedelta(minutes=i), "text": text, "sender": "Alice"}
-        for i in range(100)
-    ]
+    data = [{"ts": start_time + timedelta(minutes=i), "text": text, "sender": "Alice"} for i in range(100)]
     table = ibis.memtable(data)
 
     # Split by 100 bytes (should be ~10 messages)

@@ -1,6 +1,6 @@
 # Data Processing Optimization Plan
 
-Last updated: 2026-01-07
+Last updated: 2026-03-02
 
 ## Current Data Processing Patterns
 
@@ -57,6 +57,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Date:** 2026-03-01
   - **Change:** Implemented `enqueue_batch` in `TaskStore` and updated `EnrichmentWorker` to collect tasks and insert them in a single batch operation, replacing the N+1 insertion loop.
   - **Impact:** Benchmark showed **835x speedup** (27,951ms -> 33ms for 1000 tasks).
+
+- **Refactored `EnrichmentWorker` Media Updates to Nested Replace.**
+  - **Date:** 2026-03-02
+  - **Change:** Replaced the N+1 `UPDATE` loop for media reference replacements with a single batched `UPDATE` query using nested `replace()` calls and a `regexp_matches` filter.
+  - **Impact:** Benchmark showed **6.8x speedup** (1.3s -> 0.19s for 50 updates on 100k rows).
 
 ## Optimization Strategy
 
