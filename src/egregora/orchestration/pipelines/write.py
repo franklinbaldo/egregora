@@ -589,9 +589,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     process_background_tasks(ctx)
 
     # Logging
-    window_label = (
-        f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-    )
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
     logger.info(
         "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
         len(posts),

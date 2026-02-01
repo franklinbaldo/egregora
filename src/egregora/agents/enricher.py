@@ -12,7 +12,6 @@ import base64
 import json
 import logging
 import mimetypes
-import os
 import re
 import shutil
 import tempfile
