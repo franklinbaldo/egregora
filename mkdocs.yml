@@ -163,6 +163,8 @@ nav:
   - Quick Start: getting-started/quickstart.md
   - About: about.md
   - FAQ: faq.md
+  - Troubleshooting: troubleshooting.md
+  - Glossary: glossary.md
   - ADR:
       - Index: adr/README.md
   - Getting Started:
@@ -171,6 +173,22 @@ nav:
       - Deployment: getting-started/deployment.md
   - Reference:
       - Technical Reference: reference/index.md
+      - API:
+          - Overview: reference/api/index.md
+          - Agents:
+              - Overview: reference/api/agents/index.md
+              - Writer: reference/api/agents/writer.md
+              - Reader: reference/api/agents/reader.md
+              - Enricher: reference/api/agents/enricher.md
+              - Avatar: reference/api/agents/avatar.md
+              - Profile: reference/api/agents/profile.md
+          - Database:
+              - Overview: reference/api/database/index.md
+              - Repository: reference/api/database/repository.md
+              - Schemas: reference/api/database/schemas.md
+          - Configuration:
+              - Overview: reference/api/config/index.md
+              - Settings: reference/api/config/settings.md
   - Community:
       - Contributing: community/contributing.md
       - Personas: personas.md

@@ -34,13 +34,19 @@ The system manages state through a unified **`PipelineContext`** (`src/egregora/
 
 This allows the system to pass a single context object that provides access to everything needed for execution, ensuring consistency.
 
-### 4. Evaluation & Feedback (Elo)
+### 4. The Persistent Queue (TaskStore)
+To ensure resilience against crashes and interruptions, the Symbiote employs a **[Persistent Task Store](Patterns-TaskStore.md)** pattern.
+- **Mechanism**: A DuckDB-backed transactional queue (`tasks` table) that persists intent before execution.
+- **Benefit**: If the pipeline fails, tasks remain pending. The system resumes exactly where it left off upon restart.
+- **Observability**: Queue depth and failure rates are queryable via standard SQL.
+
+### 5. Evaluation & Feedback (Elo)
 The system has moved beyond simple generation to self-evaluation.
 - **Elo Rating**: Posts are pitted against each other in pairwise comparisons.
 - **Feedback Loops**: The Reader agent provides structured feedback (star ratings, critique) which persists in the database.
 - **Darwinian Evolution**: Over time, higher quality content rises to the top of the "Top Posts" list.
 
-### 5. Error Boundaries (Partial)
+### 6. Error Boundaries (Partial)
 The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBoundary` protocol is not yet fully implemented, the system now employs broad exception handling at the item processing level to prevent one bad window from crashing the entire pipeline.
 
 ## 🧩 Key Components
@@ -67,6 +73,10 @@ Pluggable destinations for the generated content. Currently focused on MkDocs, b
 Early in the Symbiote Era, an attempt was made to move execution logic to a dedicated `processor.py`. However, the complexity of distributed state management proved premature. The logic was consolidated back into `write.py`'s `process_item` function.
 - **Status:** Consolidated. The "Ghost in the Shell" has become the Shell.
 - **Lore:** The `[Taskmaster]` tag persists in comments as a reminder of the refactoring work that remains (e.g., validation logic, complexity reduction).
+
+### The Illusion of Concurrency (`enricher.py`)
+- **Status:** Identified (Risk).
+- **Lore:** The system attempts to scale enrichment concurrency based on the number of available API keys (`get_google_api_keys()`), effectively promising load balancing. However, the individual execution threads (`_enrich_single_url`) rely on the singular `get_google_api_key()`, causing all concurrent threads to hammer the primary key. Only the "Batch All" strategy currently utilizes true `ModelKeyRotator` resilience.
 
 ## 📈 Evolution from Batch Era
 

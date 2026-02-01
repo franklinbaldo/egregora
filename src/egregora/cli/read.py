@@ -10,6 +10,7 @@ from rich.table import Table
 
 from egregora.agents.reader.models import RankingResult
 from egregora.agents.reader.reader_runner import run_reader_evaluation
+from egregora.cli.errorhandler import handle_cli_errors
 from egregora.config import load_egregora_config
 from egregora.output_sinks.mkdocs import MkDocsPaths
 
@@ -77,46 +78,37 @@ def main(
 
     site_root = site_root.expanduser().resolve()
 
-    # Verify .egregora directory exists
-    egregora_dir = site_root / ".egregora"
-    if not egregora_dir.exists():
-        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
-        console.print("Run 'egregora init' or 'egregora write' first to create a site")
-        raise typer.Exit(1)
+    with handle_cli_errors():
+        # Verify .egregora directory exists
+        egregora_dir = site_root / ".egregora"
+        if not egregora_dir.exists():
+            console.print(f"[red]No .egregora directory found in {site_root}[/red]")
+            console.print("Run 'egregora init' or 'egregora write' first to create a site")
+            raise typer.Exit(1)
 
-    # Load configuration
-    config = load_egregora_config(site_root, site=site)
+        # Load configuration
+        config = load_egregora_config(site_root, site=site)
 
-    if not config.reader.enabled:
-        console.print("[yellow]Reader agent is disabled in config[/yellow]")
-        console.print("Set reader.enabled = true in .egregora.toml to enable")
-        raise typer.Exit(0)
+        if not config.reader.enabled:
+            console.print("[yellow]Reader agent is disabled in config[/yellow]")
+            console.print("Set reader.enabled = true in .egregora.toml to enable")
+            raise typer.Exit(0)
 
-    # Get posts directory from config using standard resolution logic
-    paths = MkDocsPaths(site_root, config=config)
-    posts_dir = paths.posts_dir
+        # Get posts directory from config using standard resolution logic
+        paths = MkDocsPaths(site_root, config=config)
+        posts_dir = paths.posts_dir
 
-    if not posts_dir.exists():
-        console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
-        console.print(f"Expected posts in: {config.paths.posts_dir}")
-        raise typer.Exit(1)
+        console.print(f"[bold]Site root:[/bold] {site_root}")
+        console.print(f"[bold]Evaluating posts in:[/bold] {posts_dir}")
+        console.print(f"[bold]Comparisons per post:[/bold] {config.reader.comparisons_per_post}")
+        console.print(f"[bold]ELO K-factor:[/bold] {config.reader.k_factor}\n")
 
-    console.print(f"[bold]Site root:[/bold] {site_root}")
-    console.print(f"[bold]Evaluating posts in:[/bold] {posts_dir}")
-    console.print(f"[bold]Comparisons per post:[/bold] {config.reader.comparisons_per_post}")
-    console.print(f"[bold]ELO K-factor:[/bold] {config.reader.k_factor}\n")
-
-    # Run evaluation
-    try:
+        # Run evaluation
         rankings: list[RankingResult] = run_reader_evaluation(
             posts_dir=posts_dir,
             config=config.reader,
             model=model,
         )
-    except Exception as e:
-        console.print(f"[red]Error during evaluation: {e}[/red]")
-        logger.exception("Reader evaluation failed")
-        raise typer.Exit(1) from e
 
     if not rankings:
         console.print("[yellow]No rankings generated[/yellow]")

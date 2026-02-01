@@ -31,6 +31,12 @@ class PipelineDefaults:
     OVERLAP_RATIO: float = 0.2
     """Overlap ratio between consecutive windows."""
 
+    AVG_TOKENS_PER_MESSAGE: int = 5
+    """Average tokens per message for window size estimation."""
+
+    BUFFER_RATIO: float = 0.8
+    """Buffer ratio for window size estimation."""
+
     DEFAULT_FROM_DATE: str | None = None
     DEFAULT_TO_DATE: str | None = None
     DEFAULT_TIMEZONE: str | None = None

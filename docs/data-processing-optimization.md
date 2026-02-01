@@ -53,6 +53,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Change:** Replaced the imperative N+1 loop which iterated over row batches with a single declarative Ibis query using `regexp_extract_all` and `unnest`.
   - **Impact:** Benchmark showed **3x speedup** (1.13s -> 0.39s for 50k messages) and eliminated row-by-row Python processing.
 
+- **Refactored `TaskStore.enqueue` to use Batching.**
+  - **Date:** 2026-03-01
+  - **Change:** Implemented `enqueue_batch` in `TaskStore` and updated `EnrichmentWorker` to collect tasks and insert them in a single batch operation, replacing the N+1 insertion loop.
+  - **Impact:** Benchmark showed **835x speedup** (27,951ms -> 33ms for 1000 tasks).
+
 ## Optimization Strategy
 
 My strategy is to systematically replace imperative, iterative data processing loops with declarative, vectorized Ibis expressions. The core principle is to "let the database do the work."

@@ -38,7 +38,6 @@ class TestStatelessScheduler(unittest.TestCase):
         )
 
         # Verify we DO NOT force reset the branch
-        # We need to check that 'git branch -f' was NOT called
         for call in mock_run.call_args_list:
             args = call[0][0]
             if args[:3] == ["git", "branch", "-f"] and args[3] == stateless.JULES_BRANCH:

@@ -337,6 +337,17 @@ class PipelineSettings(BaseModel):
         le=0.5,
         description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
     )
+    avg_tokens_per_message: int = Field(
+        default=PipelineDefaults.AVG_TOKENS_PER_MESSAGE,
+        ge=1,
+        description="Average tokens per message for window size estimation",
+    )
+    buffer_ratio: float = Field(
+        default=PipelineDefaults.BUFFER_RATIO,
+        ge=0.1,
+        le=1.0,
+        description="Buffer ratio for window size estimation",
+    )
     max_window_time: int | None = Field(
         default=None,
         ge=1,

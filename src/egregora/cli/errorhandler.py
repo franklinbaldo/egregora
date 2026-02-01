@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import typer
 from rich.console import Console
 
-from egregora.agents.exceptions import EnrichmentError
+from egregora.agents.exceptions import EnrichmentError, ReaderError
 from egregora.config.exceptions import (
     ApiKeyNotFoundError,
     ConfigError,
@@ -79,6 +79,11 @@ def handle_cli_errors(*, debug: bool = False) -> Generator[None, None, None]:
         if debug:
             raise
         console.print(f"[bold red]✨ Enrichment Failed:[/bold red] {e}")
+        raise typer.Exit(1) from e
+    except ReaderError as e:
+        if debug:
+            raise
+        console.print(f"[bold red]📖 Reader Error:[/bold red] {e}")
         raise typer.Exit(1) from e
     except ConfigError as e:
         if debug:

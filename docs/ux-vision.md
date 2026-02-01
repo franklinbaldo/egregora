@@ -46,10 +46,10 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Details:** Aggressive global overrides have been scoped. The homepage uses `:has(.homepage-hero)` to apply immersive styles only where appropriate, ensuring standard documentation pages remain readable with visible TOCs.
 
 ### Typography
--   **Status:** Verified (with Privacy Caveat).
+-   **Status:** Verified (Compliant).
 -   **Fonts:** `Outfit` for headings and `Inter` for body text.
--   **Implementation:** Currently imported via Google Fonts CDN in `extra.css`.
--   **Privacy Warning:** This implementation violates the "Privacy-First" principle by making external requests. See "Privacy Audit" below.
+-   **Implementation:** `Outfit` is locally bundled in `assets/fonts/`. `Inter` is handled by the `privacy` plugin, which automatically downloads and bundles it.
+-   **Privacy:** Fully compliant (No external requests).
 
 ### Navigation
 -   **Status:** Verified.
@@ -63,13 +63,25 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Status:** Verified (Removed).
 -   **Details:** Analytics placeholders have been removed from the default configuration.
 
-## Privacy Audit
+## Privacy & Compliance
 
-**Current Violation:** The site makes default external requests to third-party CDNs, which leaks user IP addresses.
+**Status:** Compliant
 
-1.  **Google Fonts:** `extra.css` contains `@import url('https://fonts.googleapis.com/css2?...')`.
-2.  **MathJax:** `mkdocs.yml` loads `https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js`.
+The site adheres to the "Privacy-First" principle by ensuring no requests are made to external third parties (Google Fonts, CDNs, Analytics) during normal operation.
 
-**Action Plan:**
--   **Task:** `20260130-ux-localize-assets` (Assigned to Forge).
--   **Goal:** Localize these assets or configure `mkdocs-material` to handle them privacy-compliantly (bundling).
+### Compliance Measures
+
+1.  **Google Fonts (Resolved):**
+    -   `Outfit` font is manually bundled in `assets/fonts/` and served locally.
+    -   `Inter` and `Roboto Mono` are handled by the `mkdocs-material` `privacy` plugin, which automatically downloads and bundles them at build time.
+
+2.  **MathJax (Resolved):**
+    -   MathJax libraries are vendored in `javascripts/mathjax.js` and `javascripts/tex-mml-chtml.js` and served locally.
+    -   External CDN references have been removed from `mkdocs.yml`.
+
+3.  **Analytics:**
+    -   No analytics scripts are included by default.
+
+### Verification
+-   **Automated:** `tests/step_defs/test_privacy_steps.py` intercepts network requests during site navigation and asserts that no connections are made to known external domains.
+-   **Manual:** Generating a demo site (`uv run egregora demo`) and inspecting `mkdocs.yml` and `extra.css` confirms local asset references.

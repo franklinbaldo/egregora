@@ -455,9 +455,8 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
 
     max_tokens = full_context_window_size if use_full_window else config.pipeline.max_prompt_tokens
 
-    # TODO: [Taskmaster] Externalize hardcoded configuration values.
-    avg_tokens_per_message = 5
-    buffer_ratio = 0.8
+    avg_tokens_per_message = config.pipeline.avg_tokens_per_message
+    buffer_ratio = config.pipeline.buffer_ratio
     return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
 
 

@@ -80,6 +80,44 @@ class TaskStore:
         logger.debug("Enqueued task %s (%s)", task_id, task_type)
         return str(task_id)
 
+    def enqueue_batch(self, tasks: list[tuple[str, dict[str, Any]]]) -> list[str]:
+        """Add multiple tasks to the queue in a single batch operation.
+
+        Args:
+            tasks: List of (task_type, payload) tuples
+
+        Returns:
+            List of generated task_ids
+
+        """
+        if not tasks:
+            return []
+
+        self._ensure_table()
+
+        now = datetime.now(UTC)
+        rows = []
+        task_ids = []
+
+        for task_type, payload in tasks:
+            task_id = str(uuid.uuid4())
+            task_ids.append(task_id)
+            rows.append(
+                {
+                    "task_id": task_id,
+                    "task_type": task_type,
+                    "status": "pending",
+                    "payload": json.dumps(payload),
+                    "created_at": now,
+                    "processed_at": None,
+                    "error": None,
+                }
+            )
+
+        self.storage.ibis_conn.insert("tasks", rows)
+        logger.debug("Enqueued batch of %d tasks", len(tasks))
+        return task_ids
+
     def fetch_pending(self, task_type: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         """Fetch pending tasks, optionally filtered by type.
 
