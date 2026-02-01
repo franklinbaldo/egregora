@@ -31,7 +31,7 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
+from egregora.llm.api_keys import find_valid_google_api_key, get_google_api_keys
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
@@ -103,22 +103,21 @@ def validate_api_key(output_dir: Path) -> None:
         return
 
     console.print("[cyan]Validating Gemini API key...[/cyan]")
-    validation_errors: list[str] = []
-    for key in api_keys:
-        try:
-            validate_gemini_api_key(key)
-            if not os.environ.get("GOOGLE_API_KEY"):
-                os.environ["GOOGLE_API_KEY"] = key
-            console.print("[green]✓ API key validated successfully[/green]")
-            return
-        except ValueError as e:
-            validation_errors.append(str(e))
-        except ImportError as e:
-            msg = f"Import error validating key: {e}"
-            raise ApiKeyInvalidError(msg, validation_errors=[str(e)]) from e
+
+    try:
+        valid_key, errors = find_valid_google_api_key(api_keys)
+    except ImportError as e:
+        msg = f"Import error validating key: {e}"
+        raise ApiKeyInvalidError(msg, validation_errors=[str(e)]) from e
+
+    if valid_key:
+        if not os.environ.get("GOOGLE_API_KEY"):
+            os.environ["GOOGLE_API_KEY"] = valid_key
+        console.print("[green]✓ API key validated successfully[/green]")
+        return
 
     msg = "No valid API key found"
-    raise ApiKeyInvalidError(msg, validation_errors=validation_errors)
+    raise ApiKeyInvalidError(msg, validation_errors=errors)
 
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
