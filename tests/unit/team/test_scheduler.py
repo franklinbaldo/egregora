@@ -18,7 +18,7 @@ from repo.scheduler.models import PersonaConfig  # noqa: E402
 class TestStatelessScheduler(unittest.TestCase):
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_exists_and_updates(self, mock_run: MagicMock) -> None:
-        """Test ensure_jules_branch updates existing branch to match main."""
+        """Test ensure_jules_branch preserves existing branch (no force update)."""
 
         def side_effect(cmd, **kwargs):
             result = MagicMock(returncode=0)
@@ -36,11 +36,13 @@ class TestStatelessScheduler(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        mock_run.assert_any_call(
-            ["git", "branch", "-f", stateless.JULES_BRANCH, "origin/main"],
-            check=True,
-            capture_output=True,
-        )
+
+        # Verify force update is NOT called
+        for call_args in mock_run.call_args_list:
+            args, _ = call_args
+            cmd = args[0]
+            if cmd[:3] == ["git", "branch", "-f"] and cmd[3] == stateless.JULES_BRANCH:
+                self.fail("Should not force update existing branch")
 
     @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
