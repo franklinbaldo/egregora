@@ -1,5 +1,6 @@
 """Unit tests for the enrichment agent."""
 
+import os
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -34,7 +35,10 @@ def test_stage_file_raises_error_when_file_not_in_zip(mock_context, mock_zip_fil
     """
     Verify that _stage_file raises MediaStagingError if the file is not in the zip.
     """
-    with patch("zipfile.ZipFile", return_value=mock_zip_file):
+    with (
+        patch("zipfile.ZipFile", return_value=mock_zip_file),
+        patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"}),
+    ):
         worker = EnrichmentWorker(ctx=mock_context)
         worker.zip_handle = mock_zip_file
         worker.media_index = {}  # Ensure media index is empty
