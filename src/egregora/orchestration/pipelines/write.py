@@ -28,6 +28,7 @@ from egregora.database.utils import convert_ibis_table_to_list
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.error_boundary import DefaultErrorBoundary
 from egregora.orchestration.exceptions import (
     CommandAnnouncementError,
     OutputSinkError,
@@ -216,6 +217,8 @@ def _persist_journal_entry(
 def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     """Execute the agent on an isolated conversation item."""
     ctx = conversation.context
+    error_boundary = ctx.error_boundary or DefaultErrorBoundary()
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
 
     # Convert table to list
     messages_list = convert_ibis_table_to_list(conversation.messages_table)
@@ -228,24 +231,38 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         return {}
 
     # Handle commands
-    announcements_generated = _process_commands(messages_list, ctx.output_sink)
+    announcements_generated = 0
+    try:
+        announcements_generated = _process_commands(messages_list, ctx.output_sink)
+    except Exception as e:
+        error_boundary.handle_command_error(e, window_label)
 
     # Prepare messages
     clean_messages_list, messages_dtos = _prepare_messages(messages_list)
 
     # Execute Writer
-    posts, profiles = _run_writer_agent(ctx, conversation, messages_dtos, clean_messages_list)
+    posts: list[Any] = []
+    profiles: list[str] = []
+    try:
+        posts, profiles = _run_writer_agent(ctx, conversation, messages_dtos, clean_messages_list)
+    except Exception as e:
+        error_boundary.handle_writer_error(e, window_label)
 
     # Execute Profile Generator
-    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
-    new_profiles = _run_profile_agent(ctx, clean_messages_list, window_date)
-    profiles.extend(new_profiles)
+    try:
+        window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+        new_profiles = _run_profile_agent(ctx, clean_messages_list, window_date)
+        profiles.extend(new_profiles)
+    except Exception as e:
+        error_boundary.handle_profile_error(e, window_label)
 
     # Process background tasks
-    process_background_tasks(ctx)
+    try:
+        process_background_tasks(ctx)
+    except Exception as e:
+        error_boundary.handle_enrichment_error(e, window_label)
 
     # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
     logger.info(
         "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
         len(posts),
@@ -255,7 +272,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     )
 
     # Persist Journal
-    _persist_journal_entry(ctx, signature, conversation, len(posts), len(profiles))
+    try:
+        _persist_journal_entry(ctx, signature, conversation, len(posts), len(profiles))
+    except Exception as e:
+        error_boundary.handle_journal_error(e, window_label)
 
     return {window_label: {"posts": posts, "profiles": profiles}}
 
