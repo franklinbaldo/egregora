@@ -1,5 +1,6 @@
+import os
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +20,8 @@ def mock_context():
 
 @pytest.fixture
 def worker(mock_context):
-    return EnrichmentWorker(ctx=mock_context)
+    with patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"}):
+        return EnrichmentWorker(ctx=mock_context)
 
 
 def test_parse_media_result_constructs_markdown_with_slug_filename(worker):

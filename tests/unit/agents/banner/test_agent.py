@@ -58,6 +58,7 @@ def test_generate_banner_success_with_debug_text():
     """Test successful banner generation including debug text path."""
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
+        patch.dict("os.environ", {"GOOGLE_API_KEY": "dummy-key"}),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
         patch("egregora.agents.banner.agent.genai.Client"),
     ):
@@ -83,6 +84,7 @@ def test_generate_banner_failure_no_image_data():
     """Test banner generation failure when provider returns no image."""
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
+        patch.dict("os.environ", {"GOOGLE_API_KEY": "dummy-key"}),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
         patch("egregora.agents.banner.agent.genai.Client"),
     ):
@@ -110,6 +112,7 @@ def test_generate_banner_handles_google_api_call_error():
     """Test that GoogleAPICallError during generation is handled gracefully."""
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
+        patch.dict("os.environ", {"GOOGLE_API_KEY": "dummy-key"}),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
         patch("egregora.agents.banner.agent.genai.Client"),
     ):
