@@ -1493,9 +1493,9 @@ format = "markdown_table"
 **Critical Missing:**
 - [x] **CONTRIBUTING.md** (Created)
 - [x] **API Documentation** (Stubs created, mkdocstrings configured)
-- [ ] **Examples Section** ("coming soon")
+- [x] **Examples Section** (WhatsApp tutorial created, others pending)
 - [x] **FAQ Section** (Basic FAQ exists)
-- [ ] **Comprehensive Troubleshooting** (In progress)
+- [x] **Comprehensive Troubleshooting** (Basic guide created)
 
 **Important Missing:**
 - [ ] **Complete Architecture Deep-Dive** (muito breve)
@@ -1529,7 +1529,7 @@ format = "markdown_table"
 | **Getting Started Coverage** | 80% | 95% | ⚠️ Aumentar |
 | **API Docs Coverage** | 10% | 90% | ❌ Crítico |
 | **Architecture Docs Depth** | 20% | 90% | ❌ Crítico |
-| **Examples Count** | 0 | 5+ | ❌ Criar |
+| **Examples Count** | 1 | 5+ | ⚠️ Expandir |
 | **FAQ Questions** | 0 | 20+ | ❌ Criar |
 | **Troubleshooting Issues** | 4 | 20+ | ⚠️ Expandir |
 | **Docstring Coverage (estimate)** | 50% | 80% | ⚠️ Aumentar |
