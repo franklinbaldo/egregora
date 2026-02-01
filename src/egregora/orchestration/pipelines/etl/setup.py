@@ -36,6 +36,7 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.error_boundary import DefaultErrorBoundary
 from egregora.orchestration.exceptions import ApiKeyInvalidError
 from egregora.output_sinks import (
     OutputSinkRegistry,
@@ -301,6 +302,9 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     # Inject TaskStore into state/context
     state.task_store = task_store
+
+    # Inject ErrorBoundary
+    state.error_boundary = DefaultErrorBoundary()
 
     ctx = PipelineContext(config_obj, state)
 

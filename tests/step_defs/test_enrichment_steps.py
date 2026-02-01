@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from pytest_bdd import given, scenarios, then, when, parsers
+from pytest_bdd import given, parsers, scenarios, then, when
 
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.agents.exceptions import MediaStagingError
