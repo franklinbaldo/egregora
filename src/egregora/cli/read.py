@@ -100,8 +100,7 @@ def main(
 
         console.print(f"[bold]Site root:[/bold] {site_root}")
         console.print(f"[bold]Evaluating posts in:[/bold] {posts_dir}")
-        console.print(f"[bold]Comparisons per post:[/bold] {config.reader.comparisons_per_post}")
-        console.print(f"[bold]ELO K-factor:[/bold] {config.reader.k_factor}\n")
+        console.print(f"[bold]Comparisons per post:[/bold] {config.reader.comparisons_per_post}\n")
 
         # Run evaluation
         rankings: list[RankingResult] = run_reader_evaluation(

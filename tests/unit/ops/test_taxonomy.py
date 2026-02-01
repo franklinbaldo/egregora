@@ -43,8 +43,6 @@ def mock_config():
     config = MagicMock()
     config.models.writer = "mock-model"
     # Set default values to avoid TypeErrors when comparing with ints
-    config.taxonomy.min_docs = 5
-    config.taxonomy.cluster_exponent = 0.5
     config.taxonomy.num_clusters = None
     return config
 

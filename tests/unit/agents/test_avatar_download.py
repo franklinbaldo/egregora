@@ -120,7 +120,7 @@ def test_detect_mime_type_valid():
 
 
 def test_detect_mime_type_invalid_riff():
-    from egregora.agents.avatar import _detect_mime_type, AvatarProcessingError
+    from egregora.agents.avatar import AvatarProcessingError, _detect_mime_type
 
     # Too short for RIFF check
     assert _detect_mime_type(b"RIF") is None

@@ -2,22 +2,24 @@
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
-import pytest
-from pytest_bdd import scenarios, given, when, then, parsers
-import ibis
 
+import ibis
+import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
+
+from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 from egregora.transformations.windowing import (
     WindowConfig,
     create_windows,
-    split_window_into_n_parts,
     generate_window_signature,
+    split_window_into_n_parts,
 )
-from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 
 scenarios("../features/windowing.feature")
 
 
 # --- Fixtures ---
+
 
 @pytest.fixture
 def context():
@@ -27,6 +29,7 @@ def context():
 
 # --- Given Steps ---
 
+
 @given(parsers.parse("a message stream with {num_messages:d} messages"))
 def given_message_stream_count(context, num_messages):
     start_time = datetime(2023, 1, 1, 10, 0, 0)
@@ -35,14 +38,14 @@ def given_message_stream_count(context, num_messages):
         for i in range(num_messages)
     ]
     if not data:
-         schema = ibis.schema(
+        schema = ibis.schema(
             [
                 ("ts", "timestamp"),
                 ("text", "string"),
                 ("sender", "string"),
             ]
         )
-         context["table"] = ibis.memtable([], schema=schema)
+        context["table"] = ibis.memtable([], schema=schema)
     else:
         context["table"] = ibis.memtable(data)
 
@@ -128,7 +131,10 @@ def given_valid_config(context):
 
 # --- When Steps ---
 
-@when(parsers.parse("I split the stream by message count with size {step_size:d} and overlap {overlap_ratio:f}"))
+
+@when(
+    parsers.parse("I split the stream by message count with size {step_size:d} and overlap {overlap_ratio:f}")
+)
 def when_split_by_count(context, step_size, overlap_ratio):
     config = WindowConfig(step_size=step_size, step_unit="messages", overlap_ratio=overlap_ratio)
     context["windows"] = list(create_windows(context["table"], config=config))
@@ -151,7 +157,7 @@ def when_split_window(context, n):
     context["sub_windows"] = split_window_into_n_parts(context["window"], n)
 
 
-@when(parsers.parse("I try to split with invalid unit \"{unit}\""))
+@when(parsers.parse('I try to split with invalid unit "{unit}"'))
 def when_split_invalid_unit(context, unit):
     config = WindowConfig(step_unit=unit)
     try:
@@ -168,14 +174,18 @@ def when_split_invalid_n(context, n):
         context["exception"] = e
 
 
-@when(parsers.parse("I split the stream by \"{unit}\" with size {step_size:d} but max window time {max_hours:d} hours"))
+@when(
+    parsers.parse(
+        'I split the stream by "{unit}" with size {step_size:d} but max window time {max_hours:d} hours'
+    )
+)
 def when_split_max_window(context, unit, step_size, max_hours):
     max_window = timedelta(hours=max_hours)
     config = WindowConfig(step_size=step_size, step_unit=unit, max_window_time=max_window, overlap_ratio=0.0)
     context["windows"] = list(create_windows(context["table"], config=config))
 
 
-@when(parsers.parse("I generate a signature for the window with template \"{template}\""))
+@when(parsers.parse('I generate a signature for the window with template "{template}"'))
 def when_generate_signature(context, template):
     with patch("egregora.transformations.windowing.build_conversation_xml") as mock_build_xml:
         mock_build_xml.return_value = "<chat>content</chat>"
@@ -192,6 +202,7 @@ def when_generate_signature_again(context):
 
 
 # --- Then Steps ---
+
 
 @then(parsers.parse("I should get {num_windows:d} windows"))
 def then_check_window_count(context, num_windows):
@@ -218,14 +229,14 @@ def then_check_window_sizes(context, expected_sizes):
     assert sizes == expected
 
 
-@then(parsers.parse("the first window should contain \"{content}\""))
+@then(parsers.parse('the first window should contain "{content}"'))
 def then_check_first_window_content(context, content):
     expected_list = [s.strip() for s in content.split(",")]
     res = context["windows"][0].table.execute()
     assert res["text"].tolist() == expected_list
 
 
-@then(parsers.parse("the second window should contain \"{content}\""))
+@then(parsers.parse('the second window should contain "{content}"'))
 def then_check_second_window_content(context, content):
     expected_list = [s.strip() for s in content.split(",")]
     res = context["windows"][1].table.execute()
@@ -243,7 +254,7 @@ def then_check_sub_window_size(context, count):
         assert w.size == count
 
 
-@then(parsers.parse("an InvalidStepUnitError should be raised with unit \"{unit}\""))
+@then(parsers.parse('an InvalidStepUnitError should be raised with unit "{unit}"'))
 def then_check_invalid_unit_error(context, unit):
     exc = context.get("exception")
     assert isinstance(exc, InvalidStepUnitError)
@@ -270,7 +281,7 @@ def then_check_signatures_identical(context):
     assert context["signature"] == context["signature_2"]
 
 
-@then(parsers.parse("if I change the template to \"{template}\" the signature should change"))
+@then(parsers.parse('if I change the template to "{template}" the signature should change'))
 def then_check_signature_change(context, template):
     with patch("egregora.transformations.windowing.build_conversation_xml") as mock_build_xml:
         mock_build_xml.return_value = "<chat>content</chat>"

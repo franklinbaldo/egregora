@@ -25,6 +25,7 @@ from rich.console import Console
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
+from egregora.config.defaults import PipelineDefaults
 from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
 from egregora.config.settings import parse_date_arg, validate_timezone
 from egregora.data_primitives.document import OutputSink, UrlContext
@@ -455,8 +456,8 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
 
     max_tokens = full_context_window_size if use_full_window else config.pipeline.max_prompt_tokens
 
-    avg_tokens_per_message = config.pipeline.avg_tokens_per_message
-    buffer_ratio = config.pipeline.buffer_ratio
+    avg_tokens_per_message = PipelineDefaults.AVG_TOKENS_PER_MESSAGE
+    buffer_ratio = PipelineDefaults.BUFFER_RATIO
     return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
 
 
