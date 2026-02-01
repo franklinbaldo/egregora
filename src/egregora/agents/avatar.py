@@ -28,7 +28,7 @@ from egregora.ops.media import (
     extract_urls,
 )
 from egregora.orchestration.cache import EnrichmentCache
-from egregora.security.ssrf import SSRFValidationError, validate_public_url
+from egregora.security.dns import SSRFValidationError, safe_dns_validation
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -57,27 +57,16 @@ class AvatarProcessingError(EgregoraError):
     """Error during avatar processing."""
 
 
-def _validate_avatar_url(url: str) -> None:
-    try:
-        validate_public_url(url)
-    except SSRFValidationError as exc:
-        raise AvatarProcessingError(str(exc)) from exc
-
-
-def _validate_request(request: httpx.Request) -> None:
-    """Event hook to validate the URL of every request just before it is sent."""
-    validation_url = str(request.url)
-    logger.debug("Validating request URL (pre-send): %s", validation_url)
-    _validate_avatar_url(validation_url)
-
-
 def _create_secure_client(timeout: float = DEFAULT_DOWNLOAD_TIMEOUT) -> httpx.Client:
-    """Create a configured httpx.Client with security controls."""
+    """Create a configured httpx.Client with security controls.
+
+    Note: SSRF validation is handled by safe_dns_validation context manager
+    in download_avatar_from_url, not via event hooks.
+    """
     return httpx.Client(
         timeout=timeout,
         follow_redirects=True,
         max_redirects=MAX_REDIRECT_HOPS,
-        event_hooks={"request": [_validate_request]},
     )
 
 
@@ -400,11 +389,15 @@ def download_avatar_from_url(
         AvatarProcessingError: If download fails or image is invalid
 
     """
-    if client:
-        return _download_avatar_with_client(client, url, media_dir)
+    try:
+        with safe_dns_validation(url):
+            if client:
+                return _download_avatar_with_client(client, url, media_dir)
 
-    with _create_secure_client(timeout) as new_client:
-        return _download_avatar_with_client(new_client, url, media_dir)
+            with _create_secure_client(timeout) as new_client:
+                return _download_avatar_with_client(new_client, url, media_dir)
+    except SSRFValidationError as exc:
+        raise AvatarProcessingError(str(exc)) from exc
 
 
 @dataclass

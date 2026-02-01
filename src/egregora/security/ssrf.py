@@ -37,16 +37,29 @@ class SSRFValidationError(ValueError):
     """Raised when a URL fails SSRF safety validation."""
 
 
-def _validate_ip_is_public(
+def check_ip_is_public(
     ip_addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
     url: str,
     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
 ) -> None:
+    """Verify that an IP address is public and not in any blocked range.
+
+    Recursive for IPv4-mapped IPv6 addresses.
+
+    Args:
+        ip_addr: The IP address to check.
+        url: The original URL (for logging).
+        blocked_ranges: Tuple of blocked networks.
+
+    Raises:
+        SSRFValidationError: If IP is in a blocked range.
+
+    """
     # Check for IPv4-mapped IPv6 addresses (e.g., ::ffff:192.0.2.1)
     if isinstance(ip_addr, ipaddress.IPv6Address) and ip_addr.ipv4_mapped:
         ipv4_addr = ip_addr.ipv4_mapped
         logger.debug("Detected IPv4-mapped IPv6 address: %s maps to %s", ip_addr, ipv4_addr)
-        _validate_ip_is_public(ipv4_addr, url, blocked_ranges)
+        check_ip_is_public(ipv4_addr, url, blocked_ranges)
 
     for blocked_range in blocked_ranges:
         if ip_addr in blocked_range:
@@ -60,7 +73,19 @@ def _validate_ip_is_public(
             raise SSRFValidationError(msg)
 
 
-def _resolve_host_ips(hostname: str) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+def resolve_host_ips(hostname: str) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Resolve a hostname to all its A and AAAA records.
+
+    Args:
+        hostname: The hostname to resolve.
+
+    Returns:
+        Set of resolved IP addresses.
+
+    Raises:
+        SSRFValidationError: If resolution fails or returns no addresses.
+
+    """
     try:
         addr_info = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
@@ -110,7 +135,12 @@ def validate_public_url(
         msg = "URL must have a hostname"
         raise SSRFValidationError(msg)
 
-    for ip_addr in _resolve_host_ips(parsed.hostname):
-        _validate_ip_is_public(ip_addr, url, blocked_ranges)
+    for ip_addr in resolve_host_ips(parsed.hostname):
+        check_ip_is_public(ip_addr, url, blocked_ranges)
 
     logger.info("URL validation passed for: %s", url)
+
+
+# Backward compatibility aliases (if needed by other modules I might have missed)
+_resolve_host_ips = resolve_host_ips
+_validate_ip_is_public = check_ip_is_public
