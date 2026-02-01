@@ -22,16 +22,14 @@ class ImageGenerationRequest:
 class ImageGenerationResult:
     """Normalized response from an image generation provider."""
 
-    image_bytes: bytes | None
-    mime_type: str | None
+    image_bytes: bytes
+    mime_type: str
     debug_text: str | None = None
-    error: str | None = None
-    error_code: str | None = None
 
     @property
     def has_image(self) -> bool:
         """True when binary image data is available."""
-        return self.image_bytes is not None and self.mime_type is not None
+        return bool(self.image_bytes) and bool(self.mime_type)
 
 
 class ImageGenerationProvider(Protocol):

@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
-from egregora.agents.exceptions import (
+from egregora.agents.banner.exceptions import (
     BannerError,
     BannerTaskDataError,
     BannerTaskPayloadError,

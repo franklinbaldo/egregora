@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from pydantic_ai import ModelRetry
 
 from egregora.agents.banner.agent import generate_banner
+from egregora.agents.banner.exceptions import BannerError
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.text import InvalidInputError, slugify
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
@@ -408,10 +409,16 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         return BannerResult(status="scheduled", path=predicted_path)
 
     # Fallback: Synchronous generation
-    result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
+    try:
+        result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
-    if result.success and result.document:
-        web_path = persist_banner_document(ctx.output_sink, result.document)
-        return BannerResult(status="success", path=web_path, image_path=web_path)
+        if result.document:
+            web_path = persist_banner_document(ctx.output_sink, result.document)
+            return BannerResult(status="success", path=web_path, image_path=web_path)
 
-    return BannerResult(status="failed", error=result.error)
+        return BannerResult(status="failed", error="No document returned from banner generation")
+    except BannerError as e:
+        return BannerResult(status="failed", error=str(e))
+    except Exception as e:
+        logger.exception("Banner generation failed")
+        return BannerResult(status="failed", error=str(e))

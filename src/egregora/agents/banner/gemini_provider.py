@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from egregora.agents.banner.exceptions import BannerGenerationError, BannerNoImageError
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
     ImageGenerationRequest,
@@ -26,31 +27,24 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
         """Generate image using a direct generation call."""
+        # New SDK structure: client.models.generate_content
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=request.prompt,
+            config={
+                "response_modalities": request.response_modalities,
+            },
+        )
+
+        # Extract image from response parts
         try:
-            # New SDK structure: client.models.generate_content
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=request.prompt,
-                config={
-                    "response_modalities": request.response_modalities,
-                },
-            )
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data:
+                        return ImageGenerationResult(
+                            image_bytes=part.inline_data.data, mime_type=part.inline_data.mime_type
+                        )
+        except (AttributeError, IndexError) as e:
+            raise BannerGenerationError(f"Unexpected response structure: {e}") from e
 
-            # Extract image from response parts
-            for part in response.candidates[0].content.parts:
-                if part.inline_data:
-                    return ImageGenerationResult(
-                        image_bytes=part.inline_data.data, mime_type=part.inline_data.mime_type
-                    )
-
-            return ImageGenerationResult(
-                image_bytes=None,
-                mime_type=None,
-                error="No image data found in response",
-                error_code="NO_IMAGE_DATA",
-            )
-        except Exception as e:
-            logger.error(f"Image generation failed: {e}")
-            return ImageGenerationResult(
-                image_bytes=None, mime_type=None, error=str(e), error_code="GENERATION_FAILED"
-            )
+        raise BannerNoImageError("No image data found in response")

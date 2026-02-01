@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from egregora.agents.banner.exceptions import BannerGenerationError, BannerNoImageError
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 
@@ -94,7 +95,7 @@ def test_gemini_provider_returns_image_and_debug_text(_mock_httpx):
     assert result.mime_type == "image/png"
 
 
-def test_gemini_provider_returns_error_when_no_image(_mock_httpx):
+def test_gemini_provider_raises_error_when_no_image(_mock_httpx):
     # Mock response without inline_data (only text)
     response = _FakeResponse(
         parts=[
@@ -105,13 +106,10 @@ def test_gemini_provider_returns_error_when_no_image(_mock_httpx):
     client = _FakeClient(response=response)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
-    result = provider.generate(
-        ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio=None)
-    )
-
-    assert not result.has_image
-    # The error will be from AttributeError when accessing inline_data.data on None
-    assert result.error_code == "NO_IMAGE_DATA"
+    with pytest.raises(BannerNoImageError, match="No image data found"):
+        provider.generate(
+            ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio=None)
+        )
 
 
 def test_gemini_provider_handles_batch_failure():
@@ -120,8 +118,5 @@ def test_gemini_provider_handles_batch_failure():
     client = _FakeClient(error=error)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
-    result = provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))
-
-    assert not result.has_image
-    assert "Something went wrong" in result.error
-    assert result.error_code == "GENERATION_FAILED"
+    with pytest.raises(Exception, match="API call failed: Something went wrong"):
+        provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))

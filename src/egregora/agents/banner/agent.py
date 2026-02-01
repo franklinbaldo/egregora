@@ -17,6 +17,7 @@ from google.genai import errors as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
 
+from egregora.agents.banner.exceptions import BannerConfigurationError, BannerGenerationError
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig
@@ -45,21 +46,11 @@ class BannerOutput(BaseModel):
     """
 
     # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
-    document: Document | None = None
-    error: str | None = None
-    error_code: str | None = Field(
-        default=None,
-        description="Optional machine-readable code describing banner failures.",
-    )
+    document: Document
     debug_text: str | None = Field(
         default=None,
         description="Raw debug output from the image provider, when available.",
     )
-
-    @property
-    def success(self) -> bool:
-        """True if a document was successfully generated."""
-        return self.document is not None
 
 
 def _build_image_prompt(input_data: BannerInput) -> str:
@@ -84,11 +75,6 @@ def _generate_banner_image(
         provider = GeminiImageGenerationProvider(client=client, model=image_model)
         result = provider.generate(generation_request)
 
-        if not result.has_image:
-            error_message = result.error or "Image generation returned no data"
-            logger.error("%s for post '%s'", error_message, input_data.post_title)
-            return BannerOutput(error=error_message, error_code=result.error_code)
-
         # Create Document with binary content
         document = Document(
             content=result.image_bytes,
@@ -107,8 +93,8 @@ def _generate_banner_image(
         return BannerOutput(document=document, debug_text=result.debug_text)
 
     except google_exceptions.APIError as e:
-        logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
-        return BannerOutput(error=type(e).__name__, error_code="GENERATION_EXCEPTION")
+        logger.warning("Banner image generation failed (will retry if enabled) for post '%s': %s", input_data.post_title, e)
+        raise
 
 
 def generate_banner(
@@ -132,17 +118,19 @@ def generate_banner(
         language: Content language (default: pt-BR)
 
     Returns:
-        BannerOutput with Document containing binary image or error message
+        BannerOutput with Document containing binary image
+
+    Raises:
+        BannerConfigurationError: If API key is missing.
+        BannerGenerationError: If generation fails.
 
     Note:
         Requires GOOGLE_API_KEY environment variable to be set.
 
     """
     if not is_banner_generation_available():
-        return BannerOutput(
-            error="Banner generation is not available. Please set GOOGLE_API_KEY.",
-            error_code="NOT_CONFIGURED",
-        )
+        raise BannerConfigurationError("Banner generation is not available. Please set GOOGLE_API_KEY.")
+
     # Client reads GOOGLE_API_KEY from environment automatically
     config = EgregoraConfig()
     api_key = get_google_api_key()
@@ -172,7 +160,7 @@ def generate_banner(
         raise RuntimeError(msg)
     except google_exceptions.APIError as e:
         logger.exception("Banner generation failed after retries")
-        return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
+        raise BannerGenerationError(f"Generation failed after retries: {e}") from e
 
 
 def is_banner_generation_available() -> bool:
