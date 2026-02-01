@@ -19,10 +19,8 @@ This era was precipitated by the [Architecture Analysis of Jan 2026](../wiki/Arc
 The monolithic `write.py` has been decomposed into distinct logical domains:
 
 - **ETL (`orchestration/pipelines/etl/`)**: Handles data ingestion, preparation (`preparation.py`), and privacy filtering. It is purely functional and side-effect free where possible.
-- **Execution (`orchestration/pipelines/execution/`)**: The core processing logic (`processor.py`) that accepts prepared data and orchestrates agents.
 - **Coordination (`orchestration/pipelines/coordination/`)**: Manages background tasks (`background_tasks.py`), state persistence, and inter-process communication.
-
-The entry point `write.py` remains but has been reduced to a coordinator (~450 lines) that delegates work to these modules.
+- **Execution (`write.py` logic)**: While originally planned as a separate module, the core processing loop currently resides within `write.py` (lines ~350+), acting as the central nervous system that binds ETL and Agents together.
 
 ### 2. Explicit Configuration
 Gone are the "magic numbers" buried deep in conditional logic. The Symbiote architecture enforces explicit configuration via `src/egregora/config/defaults.py`.
@@ -36,7 +34,13 @@ The system manages state through a unified **`PipelineContext`** (`src/egregora/
 
 This allows the system to pass a single context object that provides access to everything needed for execution, ensuring consistency.
 
-### 4. Error Boundaries (Partial)
+### 4. Evaluation & Feedback (Elo)
+The system has moved beyond simple generation to self-evaluation.
+- **Elo Rating**: Posts are pitted against each other in pairwise comparisons.
+- **Feedback Loops**: The Reader agent provides structured feedback (star ratings, critique) which persists in the database.
+- **Darwinian Evolution**: Over time, higher quality content rises to the top of the "Top Posts" list.
+
+### 5. Error Boundaries (Partial)
 The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBoundary` protocol is not yet fully implemented, the system now employs broad exception handling at the item processing level to prevent one bad window from crashing the entire pipeline.
 
 ## 🧩 Key Components
@@ -44,12 +48,13 @@ The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBound
 ### The Orchestrator (`orchestration/`)
 The brain of the system. It delegates:
 - **`etl`**: Prepares the data.
-- **`write.py`**: Loops through conversations and calls processing logic.
+- **`write.py`**: The coordinator that executes the processing loop, handles item isolation, and manages the lifecycle of the run.
 - **`journal.py`**: Records execution history to prevent re-processing.
 
 ### The Agents (`agents/`)
 Specialized workers that perform discrete cognitive tasks.
 - **Writer**: Converts chat windows into narrative posts.
+- **Reader**: Evaluates and ranks posts using an Elo rating system (`agents/reader/`).
 - **Profile**: Updates author profiles based on new evidence.
 - **Banner**: Generates visual assets for posts.
 
@@ -58,16 +63,16 @@ Pluggable destinations for the generated content. Currently focused on MkDocs, b
 
 ## ⚠️ Known Technical Debt (Lore)
 
-### The Ghost in the Shell (`write.py` vs `processor.py`)
-Despite the creation of `src/egregora/orchestration/pipelines/execution/processor.py` to encapsulate item processing logic, the `write.py` coordinator currently defines its own local `process_item` function that duplicates much of this logic.
-- **Impact**: Logic changes must be manually synced between the two files.
-- **Status**: Identified for future refactoring.
+### The Ghost Reclaimed (`write.py` consolidation)
+Early in the Symbiote Era, an attempt was made to move execution logic to a dedicated `processor.py`. However, the complexity of distributed state management proved premature. The logic was consolidated back into `write.py`'s `process_item` function.
+- **Status:** Consolidated. The "Ghost in the Shell" has become the Shell.
+- **Lore:** The `[Taskmaster]` tag persists in comments as a reminder of the refactoring work that remains (e.g., validation logic, complexity reduction).
 
 ## 📈 Evolution from Batch Era
 
 | Feature | Batch Era (Sprint 1-2) | Symbiote Era (Sprint 3+) |
 | :--- | :--- | :--- |
-| **Structure** | Monolithic Scripts (`write.py`) | Modular Packages (`etl`, `execution`) |
+| **Structure** | Monolithic Scripts (`write.py`) | Modular Packages (`etl`) + Coordinator (`write.py`) |
 | **Configuration** | Implicit / Magic Numbers | Explicit `defaults.py` |
 | **Failure Mode** | Catastrophic Exit | Item-Level Isolation |
 | **State** | Filesystem Artifacts | `PipelineContext` (In-Memory + Journal) |
@@ -79,4 +84,4 @@ The Symbiote Era lays the groundwork for:
 - **Multi-Provider Support**: Seamlessly switching between Google Gemini, OpenAI, and Anthropic.
 - **Dry-Run Mode**: Estimating costs and tokens before spending a dime.
 - **Live Observability**: Real-time dashboards of pipeline progress.
-- **Consolidation**: Removing the logic duplication in `write.py`.
+- **Further Decomposition**: Eventually extracting `process_item` into a dedicated `ExecutionStrategy` pattern.

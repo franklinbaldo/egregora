@@ -4,7 +4,7 @@ status: todo
 title: "Taskmaster Run: src/egregora/agents/enricher.py"
 created_at: "2026-01-04T01:34:49+00:00"
 target_module: "src/egregora/agents/enricher.py"
-assigned_persona: "taskmaster"
+assigned_persona: "artisan"
 ---
 
 ## Summary

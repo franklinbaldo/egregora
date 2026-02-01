@@ -4,7 +4,7 @@ status: todo
 title: "Chore: Remove Commented-Out Legacy Code"
 created_at: "${ISO_TIMESTAMP}"
 target_module: "src/egregora/orchestration/pipelines/write.py"
-assigned_persona: "refactor"
+assigned_persona: "absolutist"
 ---
 
 ## 📋 Chore: Remove Commented-Out Legacy Code

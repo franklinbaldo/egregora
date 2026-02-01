@@ -4,7 +4,7 @@ status: todo
 title: "Clarify async execution comments in `RateLimitedModel`"
 created_at: "2025-12-30T23:04:51Z"
 target_module: "src/egregora/llm/providers/rate_limited.py"
-assigned_persona: "docs_curator"
+assigned_persona: "scribe"
 ---
 
 ## Description

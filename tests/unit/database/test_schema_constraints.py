@@ -12,6 +12,7 @@ import pytest
 # Let's import UNIFIED_SCHEMA
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
+    STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
@@ -196,4 +197,50 @@ class TestAnnotationsSchemaConstraints:
                             'parent1', ?, 'author1')
                     """,
                     (f"anno-{parent_type}", parent_type),
+                )
+
+
+class TestMessagesSchemaConstraints:
+    """Test constraints for the messages (staging) table."""
+
+    def test_messages_media_type_allows_valid_values_or_null(self, duckdb_conn):
+        """Verify that messages.media_type allows valid types or NULL."""
+        # Arrange
+        constraints = get_table_check_constraints("messages")
+        create_table_if_not_exists(
+            duckdb_conn, "messages", STAGING_MESSAGES_SCHEMA, check_constraints=constraints
+        )
+
+        # Act & Assert
+        valid_inputs = ["image", "video", "audio", None]
+        for i, media_type in enumerate(valid_inputs):
+            duckdb_conn.execute(
+                """
+                INSERT INTO messages (event_id, ts, created_at, media_type)
+                VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                """,
+                (f"msg-{i}", media_type),
+            )
+
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+        assert count == len(valid_inputs)
+
+    def test_messages_media_type_rejects_invalid_values(self, duckdb_conn):
+        """Verify that messages.media_type rejects invalid types."""
+        # Arrange
+        constraints = get_table_check_constraints("messages")
+        create_table_if_not_exists(
+            duckdb_conn, "messages", STAGING_MESSAGES_SCHEMA, check_constraints=constraints
+        )
+
+        # Act & Assert
+        invalid_inputs = ["text", "IMAGE", ""]
+        for i, media_type in enumerate(invalid_inputs):
+            with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
+                duckdb_conn.execute(
+                    """
+                    INSERT INTO messages (event_id, ts, created_at, media_type)
+                    VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                    """,
+                    (f"msg-invalid-{i}", media_type),
                 )

@@ -4,7 +4,7 @@ status: todo
 title: "Refactor: Make Gemini Client Retry Logic Configurable"
 created_at: "2025-12-31T04:18:08Z"
 target_module: "src/egregora/orchestration/pipelines/write.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ## 📋 Refactor: Make Gemini Client Retry Logic Configurable

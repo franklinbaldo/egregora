@@ -541,6 +541,10 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
     if n < min_splits:
         raise InvalidSplitError(n)
 
+    # Fetch timestamps for local counting (Fetch-then-Compute)
+    # This avoids running N queries inside the loop.
+    ts_list = window.table.select("ts").order_by("ts").execute()["ts"].tolist()
+
     duration = window.end_time - window.start_time
     part_duration = duration / n
 
@@ -549,15 +553,22 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
         part_start = window.start_time + (part_duration * i)
         part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
 
+        # Calculate size locally using bisect
+        # Note: We rely on ts_list being sorted (ensured by order_by("ts"))
+        start_idx = bisect_left(ts_list, part_start)
+
         # For the LAST partition, use <= to include messages at window.end_time
         # (critical for message/byte-based windows where end_time == last message timestamp)
         # IR v1: use .ts column
         if i == n - 1:
+            end_idx = bisect_right(ts_list, part_end)
             part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts <= part_end))
         else:
+            end_idx = bisect_left(ts_list, part_end)
             part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts < part_end))
 
-        part_size = part_table.count().execute()
+        part_size = end_idx - start_idx
+
         if part_size > 0:
             part_window = Window(
                 window_index=window.window_index,

@@ -38,7 +38,6 @@ def test_is_rag_available():
 def test_is_rag_not_available(monkeypatch):
     """Test that RAG is not available when the API key is not set."""
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     assert not is_rag_available()
 
 

@@ -19,7 +19,7 @@ def test_demo_command_offline_mode(mock_run_offline_demo):
 @patch("egregora.cli.main.run_cli_flow")
 def test_demo_command_online_mode(mock_run_cli_flow):
     """Test that the demo command runs in online mode when an API key is set."""
-    with patch.dict("os.environ", {"GEMINI_API_KEY": "test_key"}, clear=True):
+    with patch.dict("os.environ", {"GOOGLE_API_KEY": "test_key"}, clear=True):
         result = runner.invoke(app, ["demo"])
         assert result.exit_code == 0
         mock_run_cli_flow.assert_called_once()

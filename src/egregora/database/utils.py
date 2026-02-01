@@ -1,7 +1,9 @@
 """Database utility functions."""
 
+import logging
 import os
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -61,3 +63,55 @@ def quote_identifier(identifier: str) -> str:
 
     """
     return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
+
+
+def convert_ibis_table_to_list(table: Any) -> list[dict[str, Any]]:
+    """Convert an Ibis table (or similar object) to a list of dictionaries safely.
+
+    Handles various execution results from different Ibis backends:
+    - PyArrow Table -> to_pylist()
+    - Pandas DataFrame -> to_dict(orient="records")
+    - List -> return as is
+
+    Args:
+        table: An Ibis table expression, executed result, or list.
+
+    Returns:
+        List of dictionaries representing the rows.
+
+    """
+    if isinstance(table, list):
+        return table
+
+    result = table
+    # If it's an Ibis table expression, execute it
+    if hasattr(table, "execute"):
+        try:
+            result = table.execute()
+        except (AttributeError, TypeError):
+            # If execution fails with specific errors, we might be dealing with a mock or raw object
+            # Fall through to try conversion methods on the object itself.
+            # CRITICAL: Do not catch generic Exception here; DB errors must propagate.
+            logging.getLogger(__name__).debug(
+                "Execution failed with AttributeError/TypeError in convert_ibis_table_to_list, falling back",
+                exc_info=True,
+            )
+
+    # Handle PyArrow Table (has to_pylist)
+    if hasattr(result, "to_pylist"):
+        return result.to_pylist()
+
+    # Handle Pandas DataFrame (has to_dict)
+    if hasattr(result, "to_dict"):
+        return result.to_dict(orient="records")
+
+    # Fallback if result is already a list (some backends might return list)
+    if isinstance(result, list):
+        return result
+
+    # Last resort fallback: check if the original object has conversion methods
+    # (e.g. if execute() wasn't called or failed but methods exist on the object)
+    if hasattr(table, "to_pylist"):
+        return table.to_pylist()
+
+    return []

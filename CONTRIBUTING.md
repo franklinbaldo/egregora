@@ -1,89 +1,114 @@
 # Contributing to Egregora
 
-Thank you for your interest in contributing to Egregora! We welcome contributions from everyone, whether you're fixing a bug, improving documentation, or proposing a new feature.
+First off, thank you for considering contributing to Egregora! It's people like you that make Egregora such a great tool.
 
-## 🤝 Code of Conduct
+## Code of Conduct
 
-This project is committed to providing a welcoming and inspiring community for all. By participating in this project, you agree to abide by our Code of Conduct.
+This project and everyone participating in it is governed by the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). By participating, you are expected to uphold this code. Please report unacceptable behavior to the project maintainers.
 
-## 🚀 Getting Started
+## Development Setup
+
+Egregora uses modern Python tooling for a consistent development experience.
 
 ### Prerequisites
 
-- **Python 3.12+**: Ensure you have a compatible Python version installed.
-- **uv**: We use [uv](https://github.com/astral-sh/uv) for dependency management.
-- **Google Gemini API Key**: Required for running the AI agents (free tier available).
+- **Python 3.12+**: Required for modern type hinting and performance features.
+- **[uv](https://github.com/astral-sh/uv)**: Used for dependency management and running tasks.
+- **Google Gemini API Key**: Required for AI features (Writer, RAG).
 
-### Installation
+### Quick Start
 
-1.  **Clone the repository**:
+1.  **Clone the repository:**
     ```bash
     git clone https://github.com/franklinbaldo/egregora.git
     cd egregora
     ```
 
-2.  **Install dependencies**:
+2.  **Install dependencies:**
     ```bash
     uv sync --all-extras
     ```
 
-3.  **Install pre-commit hooks**:
+3.  **Install pre-commit hooks:**
     ```bash
     uv run pre-commit install
     ```
 
-4.  **Set up environment variables**:
+4.  **Set environment variables:**
     ```bash
     export GOOGLE_API_KEY="your-api-key"
     ```
 
-## 🛠️ Development Workflow
+## Pull Request Process
 
-### Branching Strategy
+1.  **Create a Branch:**
+    Use a descriptive branch name: `feature/new-agent`, `fix/db-locking`, `docs/update-readme`.
 
-- **`main`**: The stable branch. Do not commit directly to `main`.
-- **Feature Branches**: Create a new branch for your work:
+2.  **Make Changes:**
+    Follow the [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md) standards.
+    - Write small, atomic commits.
+    - Add tests for new features.
+    - Ensure type annotations are present.
+
+3.  **Run Tests:**
+    Ensure all tests pass before submitting.
     ```bash
-    git checkout -b feature/your-feature-name
+    uv run pytest tests/unit/
     ```
 
-### Making Changes
+4.  **Run Pre-commit:**
+    Ensure linting and formatting are correct.
+    ```bash
+    uv run pre-commit run --all-files
+    ```
 
-1.  **Read the documentation**: Familiarize yourself with [`CLAUDE.md`](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md) for coding standards and architecture details.
-2.  **Make small, atomic commits**: Each commit should do one thing well.
-3.  **Write tests**: Ensure your changes are covered by tests.
-4.  **Follow the style guide**: We use Ruff for linting and formatting.
+5.  **Submit PR:**
+    - Provide a clear title and description.
+    - Reference any related issues.
+    - Wait for CI checks to pass.
 
-## 🧪 Testing
+## Coding Standards
 
-Run the test suite to ensure your changes don't break existing functionality:
+We follow strict coding standards to ensure maintainability and performance. Please read the **[Code of the Weaver (CLAUDE.md)](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)** for detailed guidelines on:
+
+- **Architecture**: Functional patterns, Ibis-first data processing.
+- **Style**: Google-style docstrings, Ruff formatting.
+- **Testing**: Pytest fixtures, markers, and coverage.
+
+### Key Rules
+- **No Pandas**: Use `ibis-framework` for all data transformations.
+- **Type Safety**: Pydantic for validation, strict MyPy checks.
+- **Absolute Imports**: No relative imports (e.g., `from . import utils`).
+
+## Testing
+
+We use `pytest` for testing.
+
+- **Unit Tests**: `tests/unit/` - Fast, isolated tests.
+- **E2E Tests**: `tests/e2e/` - Full pipeline verification.
 
 ```bash
-# Run all tests
-uv run pytest
+# Run all unit tests
+uv run pytest tests/unit/
 
-# Run tests with coverage
-uv run pytest --cov=egregora
+# Run with coverage
+uv run pytest --cov=src/egregora
 ```
 
-## 📝 Pull Request Process
+## Documentation
 
-1.  **Push your branch**: `git push origin feature/your-feature-name`
-2.  **Open a Pull Request**: Provide a clear title and description of your changes.
-3.  **Link Issues**: If your PR fixes an issue, link it (e.g., "Fixes #123").
-4.  **Wait for Review**: A team member (or Jules persona) will review your PR.
-5.  **Address Feedback**: Make necessary changes based on the review.
+Documentation is built with **MkDocs Material**.
 
-## 📜 Documentation Standards
+```bash
+# Serve docs locally
+uv run mkdocs serve
+```
 
-- **Examples**: All code examples in documentation must be copy-paste-runnable.
-- **Verification**: Run `uv run mkdocs build` to verify documentation changes locally.
-- **Spelling**: We use `codespell` to check for spelling errors.
+Documentation files are located in `docs/`. We use `mkdocstrings` to auto-generate API reference from code docstrings.
 
-## 🧩 Architecture Decisions
+## Community
 
-Significant architectural changes require an ADR (Architecture Decision Record). See [`docs/adr/`](https://github.com/franklinbaldo/egregora/tree/main/docs/adr/) for existing records and [`docs/adr/template.md`](https://github.com/franklinbaldo/egregora/blob/main/docs/adr/template.md) for the template.
+- **Issues**: Use GitHub Issues for bug reports and feature requests.
+- **Discussions**: Use GitHub Discussions for questions and ideas.
 
----
-
-For more detailed technical guidelines, please refer to [`CLAUDE.md`](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md).
+Thank you for contributing! 🚀

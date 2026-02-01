@@ -6,6 +6,15 @@
 
 Egregora uses a sophisticated **persona system** to enable autonomous AI agents (powered by Google's Jules) to collaborate on development tasks. Each persona is a specialized agent with a specific role, expertise, and workflow.
 
+## Terminology: Personas vs. Agents
+
+As we enter the **Symbiote Era**, it is critical to distinguish between the **creators** and the **creations**:
+
+*   **Personas (The Team):** Autonomous AI developers (like `meta`, `builder`, `visionary`) powered by Google's Jules. We live in the repository, plan sprints, and write code. We are the *builders*.
+*   **Agents (The Software):** The specific software components being built (like `WriterAgent`, `BannerAgent`, `EnricherAgent`) powered by Pydantic-AI. These run within the user's Egregora application to generate content. They are the *product*.
+
+> See [V3 Architecture: Agents](v3/architecture/agents.md) for details on the software agents we are building.
+
 ## Architecture
 
 ### Template System
@@ -104,6 +113,8 @@ Create `.team/personas/your-persona/prompt.md.j2`:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 ---
 description: One-line description of your persona
@@ -160,6 +171,8 @@ Specific objective this persona achieves.
 3. **STEP 3**: Final verification
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -205,11 +218,15 @@ Reference these in your custom blocks:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -268,6 +285,8 @@ Personas must work **independently** without human input:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% block constraints %}
 - Make decisions autonomously
@@ -275,6 +294,8 @@ Personas must work **independently** without human input:
 - Document uncertainties in journal
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -284,6 +305,8 @@ Always define **measurable success criteria**:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% block verification %}
 - All tests pass (run `uv run pytest`)
@@ -291,6 +314,8 @@ Always define **measurable success criteria**:
 - Documentation updated in docs/
 {% endblock %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -319,6 +344,8 @@ Use Jinja2 conditionals for flexible prompts:
 
 {% raw %}
 ```jinja
+{% endraw %}
+{{ "{% raw %}" }}
 {% raw %}
 {% if journal_entries %}
 ## Previous Work
@@ -327,6 +354,8 @@ Use Jinja2 conditionals for flexible prompts:
 This is your first session!
 {% endif %}
 {% endraw %}
+{{ "{% endraw %}" }}
+{% raw %}
 ```
 {% endraw %}
 
@@ -389,14 +418,11 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 - **absolutist** - Methodical refactorer who removes legacy code based on rigorous evidence collection.
 - **artisan** - Skilled software craftsman dedicated to elevating code quality and maintaining high engineering standards.
 - **bdd_specialist** - Precision-focused BDD Specialist who ensures features are defined by clear, testable behaviors.
-- **bolt** - Performance Engineer who optimizes resource usage, reduces latency, and ensures responsiveness.
 - **builder** - Data Architect who designs and implements robust data structures and migrations.
-- **curator** - Opinionated UX/UI designer who evaluates generated blogs for visual and functional excellence.
-- **deps** - Dependency guardian who keeps packages secure, minimal, and up-to-date.
 - **essentialist** - Senior architect focused on radical simplicity and reducing lifetime maintenance load.
-- **forge** - Senior frontend developer who transforms UX vision into high-performance web components.
+- **evaluator** - Performance supervisor who evaluates each persona's output after every robin round, producing per-session evaluation reports.
+- **forge** - Full-stack implementer who builds features, evaluates UX, and keeps the codebase clean.
 - **franklin** - The human user and project lead.
-- **janitor** - Meticulous code hygienist who keeps the codebase clean, consistent, and free of rot.
 - **lore** - Technical historian and investigative journalist. Archivist of the System Lore Blog and JULES Wiki.
 - **maya** - User advocate who provides feedback on documentation and features from a non-technical, memory-focused perspective.
 - **meta** - System introspection specialist who documents and maintains the persona infrastructure.
@@ -416,4 +442,4 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-28*
+*This documentation is maintained by the team. Last updated: 2026-01-30*

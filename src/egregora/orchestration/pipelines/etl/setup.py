@@ -24,6 +24,7 @@ from google.genai import types
 from rich.console import Console
 
 from egregora.agents.shared.annotations import AnnotationStore
+from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
@@ -35,6 +36,7 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.exceptions import ApiKeyInvalidError
 from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
@@ -70,7 +72,13 @@ def ensure_site_initialized(output_dir: Path) -> None:
 
 
 def validate_api_key(output_dir: Path) -> None:
-    """Validate that API key is set and valid."""
+    """Validate that API key is set and valid.
+
+    Raises:
+        ApiKeyNotFoundError: If no API key is found.
+        ApiKeyInvalidError: If no valid API key is found among candidates.
+
+    """
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
         "1",
         "true",
@@ -85,15 +93,11 @@ def validate_api_key(output_dir: Path) -> None:
         api_keys = get_google_api_keys()
 
     if not api_keys:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
-        )
-        console.print("You can also create a .env file in the output directory or current directory.")
-        raise SystemExit(1)
+        msg = "GOOGLE_API_KEY"
+        raise ApiKeyNotFoundError(msg)
 
     if skip_validation:
-        if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+        if not os.environ.get("GOOGLE_API_KEY"):
             os.environ["GOOGLE_API_KEY"] = api_keys[0]
         return
 
@@ -102,19 +106,18 @@ def validate_api_key(output_dir: Path) -> None:
     for key in api_keys:
         try:
             validate_gemini_api_key(key)
-            if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+            if not os.environ.get("GOOGLE_API_KEY"):
                 os.environ["GOOGLE_API_KEY"] = key
             console.print("[green]✓ API key validated successfully[/green]")
             return
         except ValueError as e:
             validation_errors.append(str(e))
         except ImportError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            raise SystemExit(1) from e
+            msg = f"Import error validating key: {e}"
+            raise ApiKeyInvalidError(msg, validation_errors=[str(e)]) from e
 
-    joined = "\n\n".join(validation_errors)
-    console.print(f"[red]Error: {joined}[/red]")
-    raise SystemExit(1)
+    msg = "No valid API key found"
+    raise ApiKeyInvalidError(msg, validation_errors=validation_errors)
 
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:

@@ -20,6 +20,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from egregora.cli.diagnostics import HealthStatus, run_diagnostics
+from egregora.cli.errorhandler import handle_cli_errors
 
 # from egregora.cli.db import db_app  # Removed - db.py no longer exists
 from egregora.cli.read import read_app
@@ -104,9 +105,11 @@ def init(
     else:
         site_name = site_root.name or "Egregora Archive"
 
-    scaffolder = MkDocsSiteScaffolder()
-    _, mkdocs_created = scaffolder.scaffold_site(site_root, site_name=site_name)
-    docs_dir = MkDocsPaths(site_root).docs_dir
+    with handle_cli_errors():
+        scaffolder = MkDocsSiteScaffolder()
+        _, mkdocs_created = scaffolder.scaffold_site(site_root, site_name=site_name)
+        docs_dir = MkDocsPaths(site_root).docs_dir
+
     if mkdocs_created:
         console.print(
             Panel(
@@ -181,27 +184,28 @@ def write(
     ] = None,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
-    run_cli_flow(
-        input_file=input_file,
-        output=output,
-        source=source,
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap=overlap,
-        enable_enrichment=enable_enrichment,
-        from_date=from_date,
-        to_date=to_date,
-        timezone=timezone,
-        model=model,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-        max_windows=max_windows,
-        resume=resume,
-        refresh=refresh,
-        force=force,
-        debug=debug,
-        options=options,
-    )
+    with handle_cli_errors(debug=debug):
+        run_cli_flow(
+            input_file=input_file,
+            output=output,
+            source=source,
+            step_size=step_size,
+            step_unit=step_unit,
+            overlap=overlap,
+            enable_enrichment=enable_enrichment,
+            from_date=from_date,
+            to_date=to_date,
+            timezone=timezone,
+            model=model,
+            max_prompt_tokens=max_prompt_tokens,
+            use_full_context_window=use_full_context_window,
+            max_windows=max_windows,
+            resume=resume,
+            refresh=refresh,
+            force=force,
+            debug=debug,
+            options=options,
+        )
 
 
 # TODO: [Taskmaster] Refactor site validation logic into a reusable utility function.
@@ -247,11 +251,12 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
-    storage = DuckDBStorageManager(db_path)
-    elo_store = EloStore(storage)
+    with handle_cli_errors():
+        # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
+        storage = DuckDBStorageManager(db_path)
+        elo_store = EloStore(storage)
 
-    top_posts = elo_store.get_top_posts(limit=limit).execute()
+        top_posts = elo_store.get_top_posts(limit=limit).execute()
 
     if top_posts.empty:
         console.print("[yellow]No rankings found[/yellow]")
@@ -329,14 +334,15 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
-    storage = DuckDBStorageManager(db_path)
-    elo_store = EloStore(storage)
+    with handle_cli_errors():
+        # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
+        storage = DuckDBStorageManager(db_path)
+        elo_store = EloStore(storage)
 
-    history = elo_store.get_comparison_history(
-        post_slug=post_slug,
-        limit=limit,
-    ).execute()
+        history = elo_store.get_comparison_history(
+            post_slug=post_slug,
+            limit=limit,
+        ).execute()
 
     if history.empty:
         console.print("[yellow]No comparison history found[/yellow]")
@@ -407,7 +413,7 @@ To generate a full demo with content synthesized from a sample chat, please:
 1.  Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 2.  Set the environment variable:
     ```bash
-    export GEMINI_API_KEY="YOUR_API_KEY_HERE"
+    export GOOGLE_API_KEY="YOUR_API_KEY_HERE"
     ```
 3.  Run the demo command again:
     ```bash
@@ -477,7 +483,6 @@ def demo(
                 force=True,  # Always force a refresh for the demo
                 debug=False,
                 options=None,
-                exit_on_error=False,
             )
         except Exception as e:
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")

@@ -1,7 +1,7 @@
 """Enrichment agent logic for processing URLs and media.
 
 This module implements the enrichment workflow using Pydantic-AI agents. It provides:
-- UrlEnrichmentAgent & MediaEnrichmentAgent
+- EnrichmentWorker (Orchestrates URL and Media enrichment)
 - Async orchestration via enrich_table
 """
 
@@ -12,7 +12,6 @@ import base64
 import json
 import logging
 import mimetypes
-import os
 import re
 import shutil
 import tempfile
@@ -67,6 +66,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.input_adapters.base import MediaMapping
+    from egregora.llm.providers.model_key_rotator import ModelKeyRotator
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
 
@@ -498,6 +498,15 @@ class EnrichmentWorker(BaseWorker):
         self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
         self.staged_files: set[str] = set()
 
+        # Initialize ModelKeyRotator if enabled (reusing state across batches)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        self.rotator: ModelKeyRotator | None = None
+        if rotation_enabled:
+            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
+
+            rotation_models = getattr(self.enrichment_config, "rotation_models", None)
+            self.rotator = ModelKeyRotator(models=rotation_models)
+
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
             try:
                 self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
@@ -815,11 +824,7 @@ class EnrichmentWorker(BaseWorker):
         from google import genai
         from google.genai import types
 
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for URL enrichment"
-            raise ValueError(msg)
-
+        api_key = get_google_api_key()
         client = genai.Client(api_key=api_key)
 
         # Extract URLs from tasks
@@ -841,14 +846,8 @@ class EnrichmentWorker(BaseWorker):
             pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
         ).strip()
 
-        # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-
-            rotator = ModelKeyRotator(models=rotation_models)
+        # Use initialized rotator if available
+        if self.rotator:
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
@@ -859,11 +858,11 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
+            response_text = self.rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
             model_name = self.ctx.config.models.enricher
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            api_key = get_google_api_key()
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
@@ -1133,11 +1132,7 @@ class EnrichmentWorker(BaseWorker):
                 params,
             )
 
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                msg = "API key required for file upload"
-                raise ValueError(msg)
-
+            api_key = get_google_api_key()
             client = genai.Client(api_key=api_key)
 
             # Upload file
@@ -1161,10 +1156,7 @@ class EnrichmentWorker(BaseWorker):
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
         model_name = self.ctx.config.models.enricher_vision
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
-            raise ValueError(msg)
+        api_key = get_google_api_key()
 
         # Use strategy-based dispatch
         strategy = getattr(self.enrichment_config, "strategy", "individual")
@@ -1247,14 +1239,8 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}, *parts]
 
-        # Build model+key rotator if enabled
-        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
+        # Use initialized rotator if available
+        if self.rotator:
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
@@ -1265,7 +1251,7 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
+            response_text = self.rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
             response = client.models.generate_content(

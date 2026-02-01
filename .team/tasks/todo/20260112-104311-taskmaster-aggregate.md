@@ -4,7 +4,7 @@ status: todo
 title: "Taskmaster Run: src/egregora/agents/avatar.py"
 created_at: "2026-01-12T10:43:11Z"
 target_module: "src/egregora/agents/avatar.py"
-assigned_persona: "taskmaster"
+assigned_persona: "artisan"
 ---
 
 ## Summary

@@ -53,7 +53,7 @@ def create_table_if_not_exists(
     *,
     overwrite: bool = False,
     check_constraints: dict[str, str] | None = None,
-    primary_key: str | None = None,
+    primary_key: str | list[str] | None = None,
     foreign_keys: list[str] | None = None,
 ) -> None:
     """Create a table using Ibis if it doesn't already exist.
@@ -65,7 +65,7 @@ def create_table_if_not_exists(
         overwrite: If True, drop existing table first
         check_constraints: Optional dict of constraint_name -> check_expression
                           Example: {"chk_status": "status IN ('draft', 'published')"}
-        primary_key: Optional column name to set as PRIMARY KEY
+        primary_key: Optional column name (or list of names) to set as PRIMARY KEY
         foreign_keys: Optional list of foreign key constraint strings
                       Example: ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
 
@@ -85,7 +85,11 @@ def create_table_if_not_exists(
 
         # Add PRIMARY KEY
         if primary_key:
-            all_clauses.append(f"PRIMARY KEY ({quote_identifier(primary_key)})")
+            if isinstance(primary_key, list):
+                pk_cols = ", ".join(quote_identifier(c) for c in primary_key)
+            else:
+                pk_cols = quote_identifier(primary_key)
+            all_clauses.append(f"PRIMARY KEY ({pk_cols})")
 
         # Add FOREIGN KEYs
         if foreign_keys:
@@ -170,13 +174,13 @@ def _execute_on_connection(conn: DatabaseConnection, sql: str) -> None:
         logger.warning("Could not execute SQL on connection: %s", conn)
 
 
-def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str) -> None:
+def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str | list[str]) -> None:
     """Add a primary key constraint to an existing table.
 
     Args:
         conn: Database connection (Ibis or raw DuckDB)
         table_name: Name of the table
-        column_name: Column to use as primary key
+        column_name: Column(s) to use as primary key
 
     Note:
         DuckDB requires ALTER TABLE for primary key constraints.
@@ -185,8 +189,13 @@ def add_primary_key(conn: DatabaseConnection, table_name: str, column_name: str)
     try:
         quoted_table = quote_identifier(table_name)
         quoted_constraint = quote_identifier(f"pk_{table_name}")
-        quoted_col = quote_identifier(column_name)
-        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} PRIMARY KEY ({quoted_col})"
+
+        if isinstance(column_name, list):
+            quoted_cols = ", ".join(quote_identifier(c) for c in column_name)
+        else:
+            quoted_cols = quote_identifier(column_name)
+
+        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} PRIMARY KEY ({quoted_cols})"
         _execute_on_connection(conn, sql)
     except (duckdb.Error, RuntimeError) as e:
         # Constraint may already exist - log and continue
@@ -313,6 +322,10 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
             "chk_doc_media_req": "(doc_type != 'media') OR (filename IS NOT NULL)",
             "chk_doc_media_type": f"(doc_type != 'media') OR (media_type IN ({valid_media_types}))",
         }
+
+    if table_name == "messages":
+        valid_media_types = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
+        return {"chk_messages_media_type": f"(media_type IS NULL) OR (media_type IN ({valid_media_types}))"}
 
     return {}
 

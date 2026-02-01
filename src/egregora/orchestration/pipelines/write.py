@@ -29,6 +29,7 @@ from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
 from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentWorker
+from egregora.agents.formatting import build_conversation_xml
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, WriterResources
@@ -37,10 +38,17 @@ from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import Document
+from egregora.database.utils import convert_ibis_table_to_list
 from egregora.input_adapters import ADAPTER_REGISTRY
-from egregora.llm.exceptions import AllModelsExhaustedError
+from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.exceptions import (
+    CommandAnnouncementError,
+    OutputSinkError,
+    ProfileGenerationError,
+)
+from egregora.orchestration.journal import create_journal_document, window_already_processed
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -54,6 +62,8 @@ from egregora.orchestration.pipelines.etl.setup import (
     pipeline_environment,
     validate_api_key,
 )
+from egregora.resources.prompts import PromptManager
+from egregora.transformations.windowing import generate_window_signature
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -245,14 +255,12 @@ def run_cli_flow(
     debug: bool = False,
     options: str | None = None,
     smoke_test: bool = False,
-    exit_on_error: bool = True,
 ) -> None:
     """Execute the write flow from CLI arguments.
 
     Args:
         source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
                 If None, will use default_source from config, or run all sources if default is None.
-        exit_on_error: If True, raise SystemExit(1) on failure. If False, re-raise the exception.
 
     """
     cli_values = {
@@ -283,14 +291,7 @@ def run_cli_flow(
 
     output_dir = output.expanduser().resolve()
     ensure_site_initialized(output_dir)
-    try:
-        validate_api_key(output_dir)
-    except SystemExit as e:
-        if exit_on_error:
-            raise
-        # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
-        msg = f"API key validation failed: {e}"
-        raise RuntimeError(msg) from e
+    validate_api_key(output_dir)
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
@@ -316,34 +317,24 @@ def run_cli_flow(
             debug=parsed_options.debug,
         )
 
-        try:
-            console.print(
-                Panel(
-                    f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
-                    title="⚙️  Egregora Pipeline",
-                    border_style="cyan",
-                )
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
             )
-            run_params = PipelineRunParams(
-                output_dir=runtime.output_dir,
-                config=egregora_config,
-                source_type=source_type,
-                source_key=source_key,
-                input_path=runtime.input_file,
-                refresh="all" if parsed_options.force else parsed_options.refresh,
-                smoke_test=smoke_test,
-            )
-            run(run_params)
-            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except (AllModelsExhaustedError, RuntimeError) as e:
-            # Re-raise this specific error so the 'demo' command can catch it
-            raise e
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            if exit_on_error:
-                raise SystemExit(1) from e
-            raise e
+        )
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=source_type,
+            source_key=source_key,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+            smoke_test=smoke_test,
+        )
+        run(run_params)
+        console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
 
 
 def process_whatsapp_export(
@@ -406,34 +397,8 @@ def process_whatsapp_export(
     return run(run_params)
 
 
-def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
-    """Execute the agent on an isolated conversation item."""
-    ctx = conversation.context
-    output_sink = ctx.output_sink
-
-    # Extract commands (ETL/Processing boundary - commands are side effects)
-    # We do this here or in generator? Generator does "data prep".
-    # Commands might generate announcements which is "output".
-    # But filtering commands from input to writer is "prep".
-
-    # Convert table to list
-    try:
-        executed = conversation.messages_table.execute()
-        if hasattr(executed, "to_pylist"):
-            messages_list = executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
-            messages_list = executed.to_dict(orient="records")
-        else:
-            messages_list = []
-    except (AttributeError, TypeError):
-        try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
-
-    # Handle commands (Announcements)
+def _process_commands(messages_list: list[dict[str, Any]], output_sink: Any) -> int:
+    """Extract commands and generate announcements."""
     command_messages = extract_commands_list(messages_list)
     announcements_generated = 0
     if command_messages:
@@ -443,24 +408,63 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
+                msg = f"Failed to generate announcement: {exc}"
+                raise CommandAnnouncementError(msg) from exc
+    return announcements_generated
 
+
+def _check_window_processed(
+    ctx: PipelineContext,
+    messages_list: list[dict[str, Any]],
+    window_start: datetime,
+    window_end: datetime,
+) -> tuple[bool, str]:
+    """Check if window has already been processed using journal signature."""
+    xml_content = build_conversation_xml(messages_list, None)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=ctx.site_root)
+    signature = generate_window_signature(
+        None,
+        ctx.config,
+        template_content,
+        xml_content=xml_content,
+    )
+
+    if window_already_processed(ctx.output_sink, signature):
+        window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+        logger.info("⏭️  Skipping window %s (Already Processed)", window_label)
+        return True, signature
+
+    return False, signature
+
+
+def _prepare_messages(
+    messages_list: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[Message]]:
+    """Filter commands and convert to Message DTOs."""
     clean_messages_list = filter_commands(messages_list)
-
-    # Convert to DTOs
     messages_dtos: list[Message] = []
+
+    valid_keys = Message.model_fields.keys()
+
     for msg_dict in clean_messages_list:
         try:
             # Basic conversion - assuming keys match
             if "event_id" in msg_dict and "ts" in msg_dict and "author_uuid" in msg_dict:
-                # Filter only valid keys
-                valid_keys = Message.model_fields.keys()
                 filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
                 messages_dtos.append(Message(**filtered_dict))
         except (ValueError, TypeError):
             continue
 
-    # Prepare Resources
+    return clean_messages_list, messages_dtos
+
+
+def _run_writer_agent(
+    ctx: PipelineContext,
+    conversation: Conversation,
+    messages_dtos: list[Message],
+    clean_messages_list: list[dict[str, Any]],
+) -> tuple[list[Any], list[str]]:
+    """Execute writer agent and persist posts."""
     resources = WriterResources.from_pipeline_context(ctx)
 
     params = WindowProcessingParams(
@@ -477,14 +481,12 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         smoke_test=ctx.state.smoke_test,
     )
 
-    # EXECUTE WRITER
-    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
-    # in the generator. If it fails here, it fails.
     writer_result = write_posts_for_window(params)
     posts = writer_result.get("posts", [])
-    profiles = writer_result.get("profiles", [])
+    # Writer might return profile IDs, though currently it seems generate_profile_posts is separate
+    # but `writer_result` dict has "profiles" key.
+    initial_profiles = writer_result.get("profiles", [])
 
-    # Warn if writer processed messages but generated no posts
     if not posts and clean_messages_list:
         logger.warning(
             "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
@@ -493,23 +495,24 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
         )
 
-    # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
     for post in posts:
-        if hasattr(post, "document_id"):  # Is a Document
+        if hasattr(post, "document_id"):
             try:
-                output_sink.persist(post)
+                ctx.output_sink.persist(post)
             except Exception as exc:
-                logger.exception("Failed to persist post: %s", exc)
+                msg = f"Failed to persist post {post.document_id}: {exc}"
+                raise OutputSinkError(msg) from exc
 
-    # EXECUTE PROFILE GENERATOR
-    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    return posts, initial_profiles
+
+
+def _run_profile_agent(
+    ctx: PipelineContext,
+    clean_messages_list: list[dict[str, Any]],
+    window_date: str,
+) -> list[str]:
+    """Execute profile generator and persist profiles."""
+    profiles: list[str] = []
     try:
         profile_docs = cast(
             "list[Document]",
@@ -517,17 +520,72 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         )
         for profile_doc in profile_docs:
             try:
-                output_sink.persist(profile_doc)
+                ctx.output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
+                msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
+                raise OutputSinkError(msg) from exc
     except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
+        if isinstance(exc, OutputSinkError):
+            raise
+        msg = f"Failed to generate profile posts: {exc}"
+        raise ProfileGenerationError(msg) from exc
+    return profiles
 
-    # Process background tasks (Banner, etc)
-    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
-    # Background tasks are usually global or batched.
-    # We will trigger them here to ensure "isolated item" processing is complete.
+
+def _persist_journal_entry(
+    ctx: PipelineContext,
+    signature: str,
+    conversation: Conversation,
+    posts_count: int,
+    profiles_count: int,
+) -> None:
+    """Create and persist journal entry."""
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    try:
+        journal = create_journal_document(
+            signature=signature,
+            run_id=ctx.run_id,
+            window_start=conversation.window.start_time,
+            window_end=conversation.window.end_time,
+            model=ctx.config.models.writer,
+            posts_generated=posts_count,
+            profiles_updated=profiles_count,
+        )
+        ctx.output_sink.persist(journal)
+    except Exception as e:
+        logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
+
+
+def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
+    """Execute the agent on an isolated conversation item."""
+    ctx = conversation.context
+
+    # Convert table to list
+    messages_list = convert_ibis_table_to_list(conversation.messages_table)
+
+    # Check Journal / Deduplication
+    is_processed, signature = _check_window_processed(
+        ctx, messages_list, conversation.window.start_time, conversation.window.end_time
+    )
+    if is_processed:
+        return {}
+
+    # Handle commands
+    announcements_generated = _process_commands(messages_list, ctx.output_sink)
+
+    # Prepare messages
+    clean_messages_list, messages_dtos = _prepare_messages(messages_list)
+
+    # Execute Writer
+    posts, profiles = _run_writer_agent(ctx, conversation, messages_dtos, clean_messages_list)
+
+    # Execute Profile Generator
+    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    new_profiles = _run_profile_agent(ctx, clean_messages_list, window_date)
+    profiles.extend(new_profiles)
+
+    # Process background tasks
     process_background_tasks(ctx)
 
     # Logging
@@ -539,6 +597,9 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         announcements_generated,
         window_label,
     )
+
+    # Persist Journal
+    _persist_journal_entry(ctx, signature, conversation, len(posts), len(profiles))
 
     return {window_label: {"posts": posts, "profiles": profiles}}
 
@@ -589,8 +650,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     # Instead of using singleton from registry, instantiate with config
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
-        msg = f"Unknown source type: {run_params.source_type}"
-        raise ValueError(msg)
+        raise UnknownAdapterError(run_params.source_type)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
@@ -633,8 +693,5 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
             raise  # Re-raise to allow proper cleanup
-        except Exception:
-            # Broad catch is intentional: record failure for any exception, then re-raise
-            raise  # Re-raise original exception to preserve error context
 
         return results

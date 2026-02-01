@@ -527,11 +527,6 @@ class EmbeddingRouter:
         return self.single_queue.submit(texts_list, task_type)
 
 
-# Global singleton
-_router: EmbeddingRouter | None = None
-_router_lock = threading.Lock()
-
-
 def create_embedding_router(
     *,
     model: str,
@@ -548,39 +543,6 @@ def create_embedding_router(
     )
     router.start()
     return router
-
-
-def get_router(
-    *,
-    model: str,
-    api_key: str | None = None,
-    max_batch_size: int = 100,
-    timeout: float = 60.0,
-) -> EmbeddingRouter:
-    """Get or create global embedding router singleton.
-
-    Prefer :func:`create_embedding_router` when the caller owns lifecycle
-    management. This helper is kept for backwards compatibility.
-    """
-    global _router
-    with _router_lock:
-        if _router is None:
-            _router = create_embedding_router(
-                model=model,
-                api_key=api_key,
-                max_batch_size=max_batch_size,
-                timeout=timeout,
-            )
-    return _router
-
-
-def shutdown_router() -> None:
-    """Shutdown global router (for cleanup)."""
-    global _router
-    with _router_lock:
-        if _router is not None:
-            _router.stop()
-            _router = None
 
 
 def validate_api_key(api_key: str | None = None, *, model: str = "models/gemini-2.0-flash-exp") -> None:
@@ -634,7 +596,5 @@ __all__ = [
     "RateLimitState",
     "TaskType",
     "create_embedding_router",
-    "get_router",
-    "shutdown_router",
     "validate_api_key",
 ]

@@ -4,7 +4,7 @@ status: todo
 title: "Extract Status Message Generation from _process_single_window"
 created_at: "2025-12-31T09:08:48Z"
 target_module: "src/egregora/orchestration/runner.py"
-assigned_persona: "refactor"
+assigned_persona: "artisan"
 ---
 
 ### Description

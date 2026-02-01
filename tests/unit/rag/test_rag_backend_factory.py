@@ -57,8 +57,15 @@ def test_embed_fn_uses_rag_settings_for_router(
     created_router = Mock()
     created_router.embed.return_value = [[0.1]]
 
-    get_router_mock = Mock(return_value=created_router)
-    monkeypatch.setattr(rag, "get_router", get_router_mock)
+    # Ensure clean state
+    if hasattr(rag, "shutdown"):
+        rag.shutdown()
+    else:
+        rag._router = None
+
+    # Mock the router creation
+    create_mock = Mock(return_value=created_router)
+    monkeypatch.setattr(rag, "create_embedding_router", create_mock)
 
     class DummyBackend:
         def __init__(self, *, embed_fn, **_: object) -> None:
@@ -71,6 +78,10 @@ def test_embed_fn_uses_rag_settings_for_router(
 
     # Call embed_fn to trigger router usage
     rag.embed_fn(("hello",), "RETRIEVAL_DOCUMENT")
+
+    # Verify router was created with correct model
+    create_mock.assert_called_once()
+    assert create_mock.call_args.kwargs["model"] == "models/test-embedding"
 
     # Verify router was called with the text
     created_router.embed.assert_called_once_with(["hello"], task_type="RETRIEVAL_DOCUMENT")

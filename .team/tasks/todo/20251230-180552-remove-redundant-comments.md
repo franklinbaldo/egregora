@@ -4,7 +4,7 @@ status: todo
 title: "Remove Redundant Comment Block in google_batch.py"
 created_at: "2025-12-30T18:06:00Z"
 target_module: "src/egregora/llm/providers/google_batch.py"
-assigned_persona: "refactor"
+assigned_persona: "absolutist"
 ---
 
 ## Description
