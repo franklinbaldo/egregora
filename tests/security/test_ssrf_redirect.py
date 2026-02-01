@@ -11,13 +11,13 @@ SAFE_IP = "93.184.216.34"  # example.com
 EVIL_IP = "127.0.0.1"
 
 
-def mock_getaddrinfo(host, port, _family=0, _socktype=0, _proto=0, _flags=0):
+def mock_getaddrinfo(host, port, family=0, _socktype=0, proto=0, flags=0):
     if host == "safe.com":
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (SAFE_IP, port or 80))]
     if host == "evil.com":
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (EVIL_IP, port or 80))]
     # Fallback for localhost etc if needed, though safe_dns_validation shouldn't be called on random things
-    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))]
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", 0))]  # noqa: S104
 
 
 def test_redirect_ssrf_bypass():
