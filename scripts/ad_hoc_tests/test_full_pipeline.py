@@ -63,7 +63,8 @@ def test_full_pipeline_with_openrouter() -> bool | None:
 
         # Try to import the full pipeline
         try:
-            from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
+            from egregora.cli.write import process_whatsapp_export
+            from egregora.orchestration.pipelines.types import WhatsAppProcessOptions
 
             # Create temp directory for output
             with tempfile.TemporaryDirectory() as tmp_dir:
