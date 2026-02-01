@@ -1,20 +1,17 @@
 """Benchmark for TaskStore operations (enqueue vs enqueue_batch)."""
 
-import json
-import time
-import uuid
-from datetime import UTC, datetime
-from typing import Any
-
 import pytest
+
 from egregora.database.duckdb_manager import temp_storage
 from egregora.database.task_store import TaskStore
+
 
 @pytest.fixture
 def task_store():
     with temp_storage() as storage:
         store = TaskStore(storage)
         yield store
+
 
 def test_benchmark_enqueue_sequential(task_store, benchmark):
     """Benchmark sequential enqueueing of tasks."""
@@ -26,6 +23,7 @@ def test_benchmark_enqueue_sequential(task_store, benchmark):
             task_store.enqueue(f"task_{i}", payload)
 
     benchmark(run_sequential)
+
 
 def test_benchmark_enqueue_batch(task_store, benchmark):
     """Benchmark real batch enqueueing."""

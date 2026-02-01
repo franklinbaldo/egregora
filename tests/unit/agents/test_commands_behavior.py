@@ -3,10 +3,10 @@
 Verifies the behavior of command parsing, filtering, and document generation.
 """
 
-from datetime import datetime
 from unittest.mock import patch
 
 import pytest
+
 from egregora.agents.commands import (
     command_to_announcement,
     extract_commands,
@@ -149,9 +149,7 @@ class TestCommandToAnnouncement:
 
     def test_creates_avatar_announcement(self, base_message):
         """Given an avatar command, creates correct ANNOUNCEMENT document."""
-        message = base_message | {
-            "text": "/egregora avatar set https://example.com/img.jpg"
-        }
+        message = base_message | {"text": "/egregora avatar set https://example.com/img.jpg"}
 
         doc = command_to_announcement(message)
 

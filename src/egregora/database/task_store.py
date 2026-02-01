@@ -102,15 +102,17 @@ class TaskStore:
         for task_type, payload in tasks:
             task_id = str(uuid.uuid4())
             task_ids.append(task_id)
-            rows.append({
-                "task_id": task_id,
-                "task_type": task_type,
-                "status": "pending",
-                "payload": json.dumps(payload),
-                "created_at": now,
-                "processed_at": None,
-                "error": None,
-            })
+            rows.append(
+                {
+                    "task_id": task_id,
+                    "task_type": task_type,
+                    "status": "pending",
+                    "payload": json.dumps(payload),
+                    "created_at": now,
+                    "processed_at": None,
+                    "error": None,
+                }
+            )
 
         self.storage.ibis_conn.insert("tasks", rows)
         logger.debug("Enqueued batch of %d tasks", len(tasks))
