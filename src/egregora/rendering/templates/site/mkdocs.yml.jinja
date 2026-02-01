@@ -1,13 +1,13 @@
-site_name: {{ site_name }}
-site_description: Collective consciousness journal - {{ site_name }}
-site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your deployment URL (e.g., https://example.com)
+site_name: {{ site_name | tojson }}
+site_description: {{ ("Collective consciousness journal - " ~ site_name) | tojson }}
+site_url: {{ site_url | default("http://127.0.0.1:8000") | tojson }}  # Update with your deployment URL (e.g., https://example.com)
 # When using multiple sites from a shared repo, give each site its own mkdocs.yml via sites.<name>.output.adapters[*].config_path
 # repo_url: https://github.com/your-user/your-repo  # Uncomment to enable 'Edit on GitHub'
 # repo_name: your-repo
 docs_dir: ../{{ docs_dir }}
-site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
+site_dir: {{ site_dir | default("site") | tojson }}  # Set per-site to avoid build collisions in multi-site configs
 use_directory_urls: true
-copyright: Copyright &copy; {{ now.year }} {{ site_name }}
+copyright: {{ ("Copyright &copy; " ~ now.year ~ " " ~ site_name) | tojson }}
 
 theme:
   name: material

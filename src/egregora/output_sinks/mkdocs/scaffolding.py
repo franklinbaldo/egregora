@@ -83,7 +83,16 @@ class MkDocsSiteScaffolder:
 
         try:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+            # Enable autoescape for Markdown templates to prevent XSS
+            # We explicitly include .md.jinja but exclude .yml.jinja and .py.jinja
+            def _autoescape(template_name: str | None) -> bool:
+                if template_name is None:
+                    return False
+                return template_name.endswith((".html", ".htm", ".xml", ".md.jinja"))
+
+            # S701: Using custom autoescape function to cover markdown files
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=_autoescape)  # noqa: S701
 
             docs_dir = site_paths.docs_dir
             docs_relative = Path(os.path.relpath(docs_dir, site_root)).as_posix()

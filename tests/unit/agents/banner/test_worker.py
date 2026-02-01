@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.banner.exceptions import BannerTaskDataError, BannerTaskPayloadError
+from egregora.agents.banner.worker import BannerWorker
 
 
 @pytest.fixture
