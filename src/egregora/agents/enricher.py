@@ -1488,12 +1488,14 @@ class EnrichmentWorker(BaseWorker):
             }
 
             # Map media_type to specific DocumentType for folder organization
-            media_type_to_doc_type = {
-                "image": DocumentType.ENRICHMENT_IMAGE,
-                "video": DocumentType.ENRICHMENT_VIDEO,
-                "audio": DocumentType.ENRICHMENT_AUDIO,
-            }
-            doc_type = media_type_to_doc_type.get(media_type, DocumentType.ENRICHMENT_MEDIA)
+            doc_type = DocumentType.ENRICHMENT_MEDIA
+            if media_type:
+                if media_type.startswith("image"):
+                    doc_type = DocumentType.ENRICHMENT_IMAGE
+                elif media_type.startswith("video"):
+                    doc_type = DocumentType.ENRICHMENT_VIDEO
+                elif media_type.startswith("audio"):
+                    doc_type = DocumentType.ENRICHMENT_AUDIO
 
             doc = Document(
                 content=markdown,
