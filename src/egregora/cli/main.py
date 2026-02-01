@@ -24,13 +24,13 @@ from egregora.cli.errorhandler import handle_cli_errors
 
 # from egregora.cli.db import db_app  # Removed - db.py no longer exists
 from egregora.cli.read import read_app
+from egregora.cli.write import run_cli_flow
 from egregora.config import load_egregora_config
 from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 from egregora.llm.api_keys import get_google_api_key
-from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_sinks.mkdocs.paths import MkDocsPaths
 from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 

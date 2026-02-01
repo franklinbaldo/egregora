@@ -5,24 +5,24 @@ from egregora.config.settings import SiteSettings, SourceSettings
 from egregora.constants import SourceType
 
 
-def test_write_pipeline_importable():
+def test_write_cli_importable():
     """
-    GREEN TEST: Verify that the module now exists and can be imported.
+    GREEN TEST: Verify that the CLI module exists and imports correctly.
     """
-    import egregora.orchestration.pipelines.write
+    import egregora.cli.write
 
-    assert hasattr(egregora.orchestration.pipelines.write, "run_cli_flow")
+    assert hasattr(egregora.cli.write, "run_cli_flow")
 
 
-@patch("egregora.orchestration.pipelines.write.run")
-@patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.cli.write.run")
+@patch("egregora.cli.write.load_egregora_config")
+@patch("egregora.cli.write.validate_api_key")
 @patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
     """
-    from egregora.orchestration.pipelines.write import run_cli_flow
+    from egregora.cli.write import run_cli_flow
 
     # Mock config
     mock_config = config_factory()
@@ -42,9 +42,9 @@ def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, m
     assert mock_validate_key.called is not None
 
 
-@patch("egregora.orchestration.pipelines.write.run")
-@patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.cli.write.run")
+@patch("egregora.cli.write.load_egregora_config")
+@patch("egregora.cli.write.validate_api_key")
 @patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_runs_all_sources_when_default_missing(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
@@ -52,7 +52,7 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
     """
     GREEN TEST: Ensure multiple configured sources run sequentially without repeated CLI flags.
     """
-    from egregora.orchestration.pipelines.write import run_cli_flow
+    from egregora.cli.write import run_cli_flow
 
     config = config_factory()
     config.site = SiteSettings(
@@ -75,9 +75,9 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
     assert second_params.source_type == "self"
 
 
-@patch("egregora.orchestration.pipelines.write.run")
-@patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.cli.write.run")
+@patch("egregora.cli.write.load_egregora_config")
+@patch("egregora.cli.write.validate_api_key")
 @patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_invalid_source_key_exits(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
@@ -85,7 +85,7 @@ def test_run_cli_flow_invalid_source_key_exits(
     """
     GREEN TEST: Unknown source keys emit a clear error and abort.
     """
-    from egregora.orchestration.pipelines.write import run_cli_flow
+    from egregora.cli.write import run_cli_flow
 
     config = config_factory()
     config.site = SiteSettings(
@@ -104,15 +104,15 @@ def test_run_cli_flow_invalid_source_key_exits(
     mock_run.assert_not_called()
 
 
-@patch("egregora.orchestration.pipelines.write.run")
-@patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.cli.write.run")
+@patch("egregora.cli.write.load_egregora_config")
+@patch("egregora.cli.write.validate_api_key")
 @patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_scaffolds_if_no_config(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory, tmp_path
 ):
     """Verify that a new site is scaffolded if the config doesn't exist."""
-    from egregora.orchestration.pipelines.write import run_cli_flow
+    from egregora.cli.write import run_cli_flow
 
     # Simulate no config file existing
     output_dir = tmp_path / "new-site"
