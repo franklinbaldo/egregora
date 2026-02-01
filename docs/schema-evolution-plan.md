@@ -2,7 +2,7 @@
 
 **Status**: Active
 **Owner**: Builder
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-02-02
 
 ## Philosophy: Structure Before Scale
 
@@ -44,6 +44,10 @@ The system is transitioning to a "Pure" architecture with a unified `documents` 
 3.  **Caching** (Implemented Jan 2026)
     -   **`asset_cache`**: Caching layer for external resources (images, fonts).
 
+4.  **Knowledge Graph** (Implemented Feb 2026)
+    -   **`document_relations`**: Stores typed links between documents (mentions, authorship).
+    -   **`entity_aliases`**: Maps text aliases to entity IDs for "Smart Links".
+
 ## 2. Planned Improvements
 
 ### 2.1 Enforce `doc_type` Integrity in `documents`
@@ -78,5 +82,6 @@ CHECK (
 -   [x] Implement `Git Context` schemas (`git_commits`, `git_refs`) (Completed Jan 2026).
 -   [x] Implement `Elo` ranking schemas (Completed Jan 2026).
 -   [x] Implement `Asset Cache` schema (Completed Jan 2026).
--   [ ] Add index on `asset_cache.expires_at` for cleanup (Planned).
--   [ ] Enforce strict types in `messages` table (Planned).
+-   [x] Add index on `asset_cache.expires_at` for cleanup (Completed Jan 2026).
+-   [x] Enforce strict types in `messages` table (Completed Jan 2026 via CHECK constraints).
+-   [x] Implement `Knowledge Graph` schemas (`document_relations`, `entity_aliases`) (Completed Feb 2026).
