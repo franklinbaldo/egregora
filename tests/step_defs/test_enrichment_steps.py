@@ -82,7 +82,7 @@ def strategy_individual(context):
     context["worker"] = EnrichmentWorker(context["pipeline_ctx"])
 
 
-@given('there are 5 pending URL enrichment tasks')
+@given("there are 5 pending URL enrichment tasks")
 def create_5_tasks(context):
     tasks = []
     for i in range(5):
@@ -155,6 +155,7 @@ def process_batch(context):
     # Mock the API calling methods based on strategy
     if strategy == "batch_all":
         with patch.object(worker, "_execute_url_single_call") as mock_single:
+
             def side_effect(tasks_data):
                 context["api_call_count"] += 1
                 context["items_per_call"].append(len(tasks_data))
@@ -165,6 +166,7 @@ def process_batch(context):
 
     else:  # individual
         with patch.object(worker, "_enrich_single_url") as mock_enrich:
+
             def side_effect(task_data):
                 context["api_call_count"] += 1
                 return (task_data["task"], Mock(), None)
