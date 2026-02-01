@@ -8,6 +8,10 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from egregora.agents.exceptions import (
+    ReaderConfigurationError,
+    ReaderInputError,
+)
 from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.elo import calculate_elo_update
 from egregora.agents.reader.models import EvaluationRequest, RankingResult
@@ -69,8 +73,8 @@ def run_reader_evaluation(
 
     posts_dir = posts_dir.expanduser().resolve()
     if not posts_dir.exists():
-        logger.warning("Posts directory not found: %s", posts_dir)
-        return []
+        msg = f"Posts directory not found: {posts_dir}"
+        raise ReaderConfigurationError(msg)
 
     db_path = Path(config.database_path)
     if not db_path.is_absolute():
@@ -79,8 +83,8 @@ def run_reader_evaluation(
 
     post_files = sorted(posts_dir.glob("**/*.md"))
     if not post_files:
-        logger.warning("No posts found for evaluation")
-        return []
+        msg = f"No posts found for evaluation in: {posts_dir}"
+        raise ReaderInputError(msg)
 
     slug_documents: dict[str, Document] = {}
     for file_path in post_files:
@@ -94,8 +98,11 @@ def run_reader_evaluation(
 
     post_slugs = list(slug_documents.keys())
     if len(post_slugs) < MIN_POSTS_FOR_COMPARISON:
-        logger.warning("Need at least 2 unique slugs for reader evaluation")
-        return []
+        msg = (
+            f"Need at least {MIN_POSTS_FOR_COMPARISON} unique slugs for reader evaluation. "
+            f"Found: {len(post_slugs)}"
+        )
+        raise ReaderInputError(msg)
 
     with DuckDBStorageManager(db_path=db_path) as storage:
         initialize_database(storage.ibis_conn)
@@ -103,8 +110,8 @@ def run_reader_evaluation(
 
         pairs = select_post_pairs(post_slugs, config.comparisons_per_post, elo_store)
         if not pairs:
-            logger.warning("No post pairs selected for comparison")
-            return []
+            msg = "No post pairs selected for comparison"
+            raise ReaderInputError(msg)
 
         for idx, (slug_a, slug_b) in enumerate(pairs, start=1):
             document_a = slug_documents[slug_a]
