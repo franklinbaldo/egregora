@@ -41,13 +41,13 @@ def test_execute_media_batch_fallback_on_api_errors(exception_to_raise, mock_con
     mock_model_instance.run_batch.side_effect = exception_to_raise
 
     # Mock the individual call method to verify it's called
-    worker._execute_media_individual = MagicMock(return_value=[])
+    worker.media_handler._execute_individual = MagicMock(return_value=[])
 
     # Act
-    with patch("egregora.agents.enricher.GoogleBatchModel", return_value=mock_model_instance):
-        worker._execute_media_batch(requests, task_map)
+    with patch("egregora.agents.enricher.media.GoogleBatchModel", return_value=mock_model_instance):
+        worker.media_handler._execute_batch(requests, task_map)
 
     # Assert
-    worker._execute_media_individual.assert_called_once_with(
+    worker.media_handler._execute_individual.assert_called_once_with(
         requests, task_map, "gemini-pro-vision", "test-key"
     )

@@ -18,12 +18,12 @@ class TestEnricherBatchUpdate:
         return EnrichmentWorker(ctx)
 
     def test_apply_media_replacements_batch_empty(self, worker):
-        worker._apply_media_replacements_batch([])
+        worker.media_handler._apply_batch_replacements([])
         worker.ctx.storage.execute_sql.assert_not_called()
 
     def test_apply_media_replacements_batch_single(self, worker):
         replacements = [("old.jpg", "new.jpg")]
-        worker._apply_media_replacements_batch(replacements)
+        worker.media_handler._apply_batch_replacements(replacements)
 
         args = worker.ctx.storage.execute_sql.call_args
         query, params = args[0]
@@ -33,7 +33,7 @@ class TestEnricherBatchUpdate:
 
     def test_apply_media_replacements_batch_multiple(self, worker):
         replacements = [("old1.jpg", "new1.jpg"), ("old2.png", "new2.png")]
-        worker._apply_media_replacements_batch(replacements)
+        worker.media_handler._apply_batch_replacements(replacements)
 
         args = worker.ctx.storage.execute_sql.call_args
         query, params = args[0]
@@ -49,7 +49,7 @@ class TestEnricherBatchUpdate:
 
     def test_apply_media_replacements_batch_special_chars(self, worker):
         replacements = [("file(1).jpg", "file_1.jpg")]
-        worker._apply_media_replacements_batch(replacements)
+        worker.media_handler._apply_batch_replacements(replacements)
 
         args = worker.ctx.storage.execute_sql.call_args
         _, params = args[0]
@@ -72,7 +72,7 @@ class TestEnricherBatchUpdate:
 
         replacements = [("old.jpg", "new.jpg"), ("file(1).jpg", "file_1.jpg")]
 
-        worker._apply_media_replacements_batch(replacements)
+        worker.media_handler._apply_batch_replacements(replacements)
 
         rows = con.execute("SELECT text FROM messages ORDER BY text").fetchall()
         assert rows[0][0] == "Hello new.jpg"

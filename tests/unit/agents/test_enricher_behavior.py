@@ -38,7 +38,7 @@ def test_schedule_enrichment_enqueue_url_tasks():
 
     settings = EnrichmentSettings(enable_url=True, max_enrichments=5, enable_media=False)
 
-    with patch("egregora.agents.enricher.MessageRepository", return_value=mock_repo):
+    with patch("egregora.agents.enricher.url.MessageRepository", return_value=mock_repo):
         schedule_enrichment(mock_messages, {}, settings, mock_context)
 
     # Verify
@@ -71,7 +71,7 @@ def test_schedule_enrichment_respects_max_enrichments():
     # Limit to 2
     settings = EnrichmentSettings(enable_url=True, max_enrichments=2, enable_media=False)
 
-    with patch("egregora.agents.enricher.MessageRepository", return_value=mock_repo):
+    with patch("egregora.agents.enricher.url.MessageRepository", return_value=mock_repo):
         # Note: MessageRepository.get_url_enrichment_candidates handles the LIMIT at DB level usually,
         # but the scheduler logic relies on what it returns.
         # However, _enqueue_url_enrichments takes max_enrichments.
@@ -110,7 +110,7 @@ def test_schedule_enrichment_skips_existing_in_db():
 
     settings = EnrichmentSettings(enable_url=True, max_enrichments=10, enable_media=False)
 
-    with patch("egregora.agents.enricher.MessageRepository", return_value=mock_repo):
+    with patch("egregora.agents.enricher.url.MessageRepository", return_value=mock_repo):
         schedule_enrichment(mock_messages, {}, settings, mock_context)
 
     # Verify
@@ -153,8 +153,8 @@ def test_worker_run_processes_url_batch(mock_worker_context):
 
     # Mock execution methods to isolate flow testing
     with (
-        patch.object(worker, "_process_url_batch", return_value=1) as mock_process_url,
-        patch.object(worker, "_process_media_batch", return_value=0) as mock_process_media,
+        patch.object(worker.url_handler, "process_batch", return_value=1) as mock_process_url,
+        patch.object(worker.media_handler, "process_batch", return_value=0) as mock_process_media,
     ):
         count = worker.run()
 
@@ -173,8 +173,8 @@ def test_worker_run_processes_media_batch(mock_worker_context):
     mock_worker_context.task_store.fetch_pending.side_effect = [[], tasks]  # URLs (empty), then Media
 
     with (
-        patch.object(worker, "_process_url_batch", return_value=0) as mock_process_url,
-        patch.object(worker, "_process_media_batch", return_value=1) as mock_process_media,
+        patch.object(worker.url_handler, "process_batch", return_value=0) as mock_process_url,
+        patch.object(worker.media_handler, "process_batch", return_value=1) as mock_process_media,
     ):
         count = worker.run()
 
@@ -219,7 +219,7 @@ def test_persist_url_results_success(mock_worker_context):
     mock_worker_context.library = None  # ensure using sink
 
     # Act
-    worker._persist_url_results(results)
+    worker.url_handler._persist_results(results)
 
     # Verify Document Persistence
     mock_sink.persist.assert_called_once()
@@ -278,7 +278,7 @@ def test_persist_media_results_success(mock_worker_context):
         mock_worker_context.library = None
 
         # Act
-        worker._persist_media_results([mock_res], task_map)
+        worker.media_handler._persist_results([mock_res], task_map)
 
         # Verify
         assert mock_sink.persist.call_count == 2  # 1 Media doc, 1 Enrichment doc
@@ -300,4 +300,5 @@ def test_persist_media_results_success(mock_worker_context):
         mock_worker_context.storage.execute_sql.assert_called()
 
         # Verify Task Completion
-        mock_worker_context.task_store.mark_completed.assert_called_once_with("m1")
+        # Media handler uses batch completion if available
+        mock_worker_context.task_store.mark_completed_batch.assert_called_once_with(["m1"])

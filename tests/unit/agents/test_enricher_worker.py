@@ -34,14 +34,14 @@ def test_media_batch_usage_limit_fallback(mock_context):
     task_map = {"1": {}, "2": {}}
 
     with (
-        patch("egregora.agents.enricher.GoogleBatchModel") as mock_batch_model,
-        patch.object(worker, "_execute_media_individual", return_value=[]) as mock_fallback,
+        patch("egregora.agents.enricher.media.GoogleBatchModel") as mock_batch_model,
+        patch.object(worker.media_handler, "_execute_individual", return_value=[]) as mock_fallback,
     ):
         # Configure the mock to raise the specific exception
         mock_batch_model.return_value.run_batch.side_effect = UsageLimitExceeded("Quota exceeded")
 
         # Execute the method
-        worker._execute_media_batch(requests, task_map)
+        worker.media_handler._execute_batch(requests, task_map)
 
         # Assert that the fallback method was called
         mock_fallback.assert_called_once()
@@ -82,8 +82,8 @@ def test_media_batch_http_error_fallback(mock_context):
     task_map = {"1": {}, "2": {}}
 
     with (
-        patch("egregora.agents.enricher.GoogleBatchModel") as mock_batch_model,
-        patch.object(worker, "_execute_media_individual", return_value=[]) as mock_fallback,
+        patch("egregora.agents.enricher.media.GoogleBatchModel") as mock_batch_model,
+        patch.object(worker.media_handler, "_execute_individual", return_value=[]) as mock_fallback,
     ):
         # Configure the mock to raise the specific exception
         mock_batch_model.return_value.run_batch.side_effect = ModelHTTPError(
@@ -91,7 +91,7 @@ def test_media_batch_http_error_fallback(mock_context):
         )
 
         # Execute the method
-        worker._execute_media_batch(requests, task_map)
+        worker.media_handler._execute_batch(requests, task_map)
 
         # Assert that the fallback method was called
         mock_fallback.assert_called_once()

@@ -47,4 +47,4 @@ def test_stage_file_raises_error_when_file_not_in_zip(mock_context, mock_zip_fil
         payload = {"filename": "non_existent_file.jpg", "original_filename": "non_existent_file.jpg"}
 
         with pytest.raises(MediaStagingError, match=r"Media file non_existent_file.jpg not found in ZIP"):
-            worker._stage_file(task, payload)
+            worker.media_handler._stage_file(task, payload)

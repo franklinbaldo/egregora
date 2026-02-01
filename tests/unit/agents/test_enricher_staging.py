@@ -35,7 +35,7 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
         self.env_patcher.stop()
         self.temp_dir.cleanup()
 
-    @patch("egregora.agents.enricher.zipfile.ZipFile")
+    @patch("egregora.agents.enricher.worker.zipfile.ZipFile")
     def test_staging_and_large_file_handling(self, mock_zip_cls):
         mock_zf = MagicMock()
         mock_zip_cls.return_value = mock_zf
@@ -103,7 +103,7 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
                 mock_client_instance = mock_client.return_value
                 mock_client_instance.files.upload.return_value = MagicMock(uri="http://file-uri")
 
-                requests, _task_map = worker._prepare_media_requests(tasks)
+                requests, _task_map = worker.media_handler._prepare_requests(tasks)
 
                 self.assertEqual(len(requests), 2)
 
