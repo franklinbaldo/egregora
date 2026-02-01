@@ -23,6 +23,7 @@ def mock_conversation():
 
     return conversation
 
+
 @patch("egregora.orchestration.pipelines.write.convert_ibis_table_to_list")
 @patch("egregora.orchestration.pipelines.write._check_window_processed")
 @patch("egregora.orchestration.pipelines.write._process_commands")
@@ -32,7 +33,15 @@ def mock_conversation():
 @patch("egregora.orchestration.pipelines.write.process_background_tasks")
 @patch("egregora.orchestration.pipelines.write._persist_journal_entry")
 def test_process_item_delegates_command_error(
-    mock_persist, mock_bg, mock_profile, mock_writer, mock_prep, mock_cmd, mock_check, mock_convert, mock_conversation
+    mock_persist,
+    mock_bg,
+    mock_profile,
+    mock_writer,
+    mock_prep,
+    mock_cmd,
+    mock_check,
+    mock_convert,
+    mock_conversation,
 ):
     mock_convert.return_value = []
     mock_check.return_value = (False, "sig")
@@ -50,6 +59,7 @@ def test_process_item_delegates_command_error(
     args, _ = mock_conversation.context.error_boundary.handle_command_error.call_args
     assert args[0] == error
 
+
 @patch("egregora.orchestration.pipelines.write.convert_ibis_table_to_list")
 @patch("egregora.orchestration.pipelines.write._check_window_processed")
 @patch("egregora.orchestration.pipelines.write._process_commands")
@@ -59,7 +69,15 @@ def test_process_item_delegates_command_error(
 @patch("egregora.orchestration.pipelines.write.process_background_tasks")
 @patch("egregora.orchestration.pipelines.write._persist_journal_entry")
 def test_process_item_delegates_writer_error(
-    mock_persist, mock_bg, mock_profile, mock_writer, mock_prep, mock_cmd, mock_check, mock_convert, mock_conversation
+    mock_persist,
+    mock_bg,
+    mock_profile,
+    mock_writer,
+    mock_prep,
+    mock_cmd,
+    mock_check,
+    mock_convert,
+    mock_conversation,
 ):
     mock_convert.return_value = []
     mock_check.return_value = (False, "sig")
@@ -76,6 +94,7 @@ def test_process_item_delegates_writer_error(
     args, _ = mock_conversation.context.error_boundary.handle_writer_error.call_args
     assert args[0] == error
 
+
 @patch("egregora.orchestration.pipelines.write.convert_ibis_table_to_list")
 @patch("egregora.orchestration.pipelines.write._check_window_processed")
 @patch("egregora.orchestration.pipelines.write._process_commands")
@@ -85,7 +104,15 @@ def test_process_item_delegates_writer_error(
 @patch("egregora.orchestration.pipelines.write.process_background_tasks")
 @patch("egregora.orchestration.pipelines.write._persist_journal_entry")
 def test_process_item_delegates_enrichment_error(
-    mock_persist, mock_bg, mock_profile, mock_writer, mock_prep, mock_cmd, mock_check, mock_convert, mock_conversation
+    mock_persist,
+    mock_bg,
+    mock_profile,
+    mock_writer,
+    mock_prep,
+    mock_cmd,
+    mock_check,
+    mock_convert,
+    mock_conversation,
 ):
     mock_convert.return_value = []
     mock_check.return_value = (False, "sig")

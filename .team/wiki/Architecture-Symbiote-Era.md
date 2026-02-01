@@ -34,13 +34,19 @@ The system manages state through a unified **`PipelineContext`** (`src/egregora/
 
 This allows the system to pass a single context object that provides access to everything needed for execution, ensuring consistency.
 
-### 4. Evaluation & Feedback (Elo)
+### 4. The Persistent Queue (TaskStore)
+To ensure resilience against crashes and interruptions, the Symbiote employs a **[Persistent Task Store](Patterns-TaskStore.md)** pattern.
+- **Mechanism**: A DuckDB-backed transactional queue (`tasks` table) that persists intent before execution.
+- **Benefit**: If the pipeline fails, tasks remain pending. The system resumes exactly where it left off upon restart.
+- **Observability**: Queue depth and failure rates are queryable via standard SQL.
+
+### 5. Evaluation & Feedback (Elo)
 The system has moved beyond simple generation to self-evaluation.
 - **Elo Rating**: Posts are pitted against each other in pairwise comparisons.
 - **Feedback Loops**: The Reader agent provides structured feedback (star ratings, critique) which persists in the database.
 - **Darwinian Evolution**: Over time, higher quality content rises to the top of the "Top Posts" list.
 
-### 5. Error Boundaries (Partial)
+### 6. Error Boundaries (Partial)
 The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBoundary` protocol is not yet fully implemented, the system now employs broad exception handling at the item processing level to prevent one bad window from crashing the entire pipeline.
 
 ## 🧩 Key Components
