@@ -68,7 +68,7 @@ uv run pre-commit install
 uv run pytest tests/
 ```
 
-See [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for full development setup.
+See [Contributing Guide](../community/contributing.md) for full development setup.
 
 ## API Key Setup
 
