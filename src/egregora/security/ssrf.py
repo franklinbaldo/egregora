@@ -139,8 +139,3 @@ def validate_public_url(
         check_ip_is_public(ip_addr, url, blocked_ranges)
 
     logger.info("URL validation passed for: %s", url)
-
-
-# Backward compatibility aliases (if needed by other modules I might have missed)
-_resolve_host_ips = resolve_host_ips
-_validate_ip_is_public = check_ip_is_public

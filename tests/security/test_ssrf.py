@@ -8,8 +8,8 @@ import pytest
 from egregora.security.ssrf import (
     DEFAULT_BLOCKED_IP_RANGES,
     SSRFValidationError,
-    _resolve_host_ips,
-    _validate_ip_is_public,
+    check_ip_is_public,
+    resolve_host_ips,
     validate_public_url,
 )
 
@@ -28,20 +28,20 @@ def _fake_addrinfo(*ip_addresses: str) -> list[tuple]:
     ]
 
 
-class TestValidateIpIsPublic:
-    """Tests for _validate_ip_is_public function."""
+class TestCheckIpIsPublic:
+    """Tests for check_ip_is_public function."""
 
     def test_public_ipv4_passes(self):
         """Public IPv4 addresses should pass validation."""
         public_ip = ipaddress.IPv4Address("8.8.8.8")
         # Should not raise
-        _validate_ip_is_public(public_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+        check_ip_is_public(public_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
 
     def test_private_ipv4_blocked(self):
         """Private IPv4 addresses should be blocked."""
         private_ip = ipaddress.IPv4Address("192.168.1.1")
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(private_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(private_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
         assert "blocked IP address" in str(exc_info.value)
         assert "192.168.1.1" in str(exc_info.value)
 
@@ -49,27 +49,27 @@ class TestValidateIpIsPublic:
         """Loopback IPv4 addresses should be blocked."""
         loopback_ip = ipaddress.IPv4Address("127.0.0.1")
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(loopback_ip, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(loopback_ip, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
         assert "blocked IP address" in str(exc_info.value)
 
     def test_public_ipv6_passes(self):
         """Public IPv6 addresses should pass validation."""
         public_ip = ipaddress.IPv6Address("2001:4860:4860::8888")  # Google DNS
         # Should not raise
-        _validate_ip_is_public(public_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+        check_ip_is_public(public_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
 
     def test_loopback_ipv6_blocked(self):
         """Loopback IPv6 addresses should be blocked."""
         loopback_ip = ipaddress.IPv6Address("::1")
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(loopback_ip, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(loopback_ip, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
         assert "blocked IP address" in str(exc_info.value)
 
     def test_link_local_ipv6_blocked(self):
         """Link-local IPv6 addresses should be blocked."""
         link_local_ip = ipaddress.IPv6Address("fe80::1")
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(link_local_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(link_local_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
         assert "blocked IP address" in str(exc_info.value)
 
     def test_ipv4_mapped_ipv6_with_private_ip_blocked(self):
@@ -84,7 +84,7 @@ class TestValidateIpIsPublic:
         assert ipv4_mapped.ipv4_mapped is not None  # Verify it's actually IPv4-mapped
 
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(ipv4_mapped, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(ipv4_mapped, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
         # Error should mention the IPv4 address in the blocked range
         assert "192.168.1.1" in str(exc_info.value)
 
@@ -95,7 +95,7 @@ class TestValidateIpIsPublic:
         assert ipv4_mapped.ipv4_mapped is not None
 
         # Should not raise
-        _validate_ip_is_public(ipv4_mapped, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+        check_ip_is_public(ipv4_mapped, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
 
     def test_ipv4_mapped_ipv6_with_loopback_blocked(self):
         """IPv4-mapped IPv6 addresses with loopback should be blocked."""
@@ -104,7 +104,7 @@ class TestValidateIpIsPublic:
         assert ipv4_mapped.ipv4_mapped is not None
 
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(ipv4_mapped, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(ipv4_mapped, "http://localhost", DEFAULT_BLOCKED_IP_RANGES)
         assert "127.0.0.1" in str(exc_info.value)
 
     def test_custom_blocked_ranges(self):
@@ -113,18 +113,18 @@ class TestValidateIpIsPublic:
         test_ip = ipaddress.IPv4Address("203.0.113.5")
 
         with pytest.raises(SSRFValidationError):
-            _validate_ip_is_public(test_ip, "http://example.com", custom_ranges)
+            check_ip_is_public(test_ip, "http://example.com", custom_ranges)
 
     def test_carrier_grade_nat_blocked(self):
         """Carrier-grade NAT addresses should be blocked."""
         cgnat_ip = ipaddress.IPv4Address("100.64.0.1")
         with pytest.raises(SSRFValidationError) as exc_info:
-            _validate_ip_is_public(cgnat_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
+            check_ip_is_public(cgnat_ip, "http://example.com", DEFAULT_BLOCKED_IP_RANGES)
         assert "blocked IP address" in str(exc_info.value)
 
 
 class TestResolveHostIps:
-    """Tests for _resolve_host_ips function."""
+    """Tests for resolve_host_ips function."""
 
     def test_resolve_valid_hostname(self, monkeypatch: pytest.MonkeyPatch):
         """Valid hostnames should resolve to IP addresses."""
@@ -134,7 +134,7 @@ class TestResolveHostIps:
 
         monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 
-        ips = _resolve_host_ips("example.com")
+        ips = resolve_host_ips("example.com")
         assert len(ips) == 1
         assert ipaddress.IPv4Address("93.184.216.34") in ips
 
@@ -146,7 +146,7 @@ class TestResolveHostIps:
 
         monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 
-        ips = _resolve_host_ips("example.com")
+        ips = resolve_host_ips("example.com")
         assert len(ips) == 2
         assert ipaddress.IPv4Address("93.184.216.34") in ips
         assert ipaddress.IPv6Address("2001:4860:4860::8888") in ips
@@ -161,7 +161,7 @@ class TestResolveHostIps:
         monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 
         with pytest.raises(SSRFValidationError) as exc_info:
-            _resolve_host_ips("nonexistent.example.invalid")
+            resolve_host_ips("nonexistent.example.invalid")
         assert "Could not resolve hostname" in str(exc_info.value)
 
     def test_resolve_empty_result(self, monkeypatch: pytest.MonkeyPatch):
@@ -173,7 +173,7 @@ class TestResolveHostIps:
         monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 
         with pytest.raises(SSRFValidationError) as exc_info:
-            _resolve_host_ips("example.com")
+            resolve_host_ips("example.com")
         assert "no addresses returned" in str(exc_info.value)
 
 
