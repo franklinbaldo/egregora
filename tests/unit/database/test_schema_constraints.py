@@ -39,8 +39,8 @@ class TestUnifiedDocumentsSchemaConstraints:
         # Valid Post
         duckdb_conn.execute(
             """
-            INSERT INTO documents (id, doc_type, status, title, slug, content, created_at)
-            VALUES (?, 'post', 'draft', 'Title', 'slug', 'content', CURRENT_TIMESTAMP)
+            INSERT INTO documents (id, doc_type, status, title, slug, content, created_at, source_checksum)
+            VALUES (?, 'post', 'draft', 'Title', 'slug', 'content', CURRENT_TIMESTAMP, 'hash')
             """,
             ("post-1",),
         )
@@ -58,8 +58,8 @@ class TestUnifiedDocumentsSchemaConstraints:
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, status, title, slug, content, created_at)
-                VALUES (?, 'post', 'draft', NULL, 'slug', 'content', CURRENT_TIMESTAMP)
+                INSERT INTO documents (id, doc_type, status, title, slug, content, created_at, source_checksum)
+                VALUES (?, 'post', 'draft', NULL, 'slug', 'content', CURRENT_TIMESTAMP, 'hash')
                 """,
                 ("post-2",),
             )

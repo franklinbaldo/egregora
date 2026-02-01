@@ -74,7 +74,7 @@ def test_get_profile_from_db_e2e(storage_manager: DuckDBStorageManager):
 
     # Insert manually
     storage_manager._conn.execute(
-        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at) VALUES (?, ?, 'published', ?, ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at, source_checksum) VALUES (?, ?, 'published', ?, ?, CURRENT_TIMESTAMP, 'hash')",
         (author_uuid, DocumentType.PROFILE.value, content, author_uuid),
     )
 
@@ -95,11 +95,11 @@ def test_get_all_profiles_from_db_e2e(storage_manager: DuckDBStorageManager):
     uuid2 = str(uuid.uuid4())
 
     storage_manager._conn.execute(
-        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at) VALUES (?, ?, 'published', 'c1', ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at, source_checksum) VALUES (?, ?, 'published', 'c1', ?, CURRENT_TIMESTAMP, 'hash1')",
         (uuid1, DocumentType.PROFILE.value, uuid1),
     )
     storage_manager._conn.execute(
-        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at) VALUES (?, ?, 'published', 'c2', ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at, source_checksum) VALUES (?, ?, 'published', 'c2', ?, CURRENT_TIMESTAMP, 'hash2')",
         (uuid2, DocumentType.PROFILE.value, uuid2),
     )
 
@@ -118,11 +118,11 @@ def test_get_opted_out_authors_from_db_e2e(storage_manager: DuckDBStorageManager
     uuid_normal = str(uuid.uuid4())
 
     storage_manager._conn.execute(
-        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at) VALUES (?, ?, 'published', 'opt-out: true', ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at, source_checksum) VALUES (?, ?, 'published', 'opt-out: true', ?, CURRENT_TIMESTAMP, 'hash_opt')",
         (uuid_opt_out, DocumentType.PROFILE.value, uuid_opt_out),
     )
     storage_manager._conn.execute(
-        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at) VALUES (?, ?, 'published', 'normal bio', ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO documents (id, doc_type, status, content, subject_uuid, created_at, source_checksum) VALUES (?, ?, 'published', 'normal bio', ?, CURRENT_TIMESTAMP, 'hash_norm')",
         (uuid_normal, DocumentType.PROFILE.value, uuid_normal),
     )
 
@@ -167,10 +167,10 @@ def test_get_profile_posts_from_db_e2e(storage_manager: DuckDBStorageManager):
     # Insert posts using raw SQL for array support
     storage_manager._conn.execute(
         f"""
-        INSERT INTO documents (id, doc_type, status, content, slug, title, authors, created_at)
+        INSERT INTO documents (id, doc_type, status, content, slug, title, authors, created_at, source_checksum)
         VALUES
-        ('p1', '{DocumentType.POST.value}', 'published', 'c1', 'p1', 't1', ARRAY['{author_uuid}'], CURRENT_TIMESTAMP),
-        ('p2', '{DocumentType.POST.value}', 'published', 'c2', 'p2', 't2', ARRAY['{other_uuid}'], CURRENT_TIMESTAMP)
+        ('p1', '{DocumentType.POST.value}', 'published', 'c1', 'p1', 't1', ARRAY['{author_uuid}'], CURRENT_TIMESTAMP, 'hash1'),
+        ('p2', '{DocumentType.POST.value}', 'published', 'c2', 'p2', 't2', ARRAY['{other_uuid}'], CURRENT_TIMESTAMP, 'hash2')
         """
     )
 

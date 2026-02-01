@@ -53,11 +53,11 @@ def test_document_relations_insertion(duckdb_conn):
 
     # Insert dummy documents first (to satisfy potential FKs)
     duckdb_conn.execute(
-        "INSERT INTO documents (id, doc_type, status, created_at, title, slug) VALUES ('doc1', 'post', 'published', ?, 'Title1', 'slug1')",
+        "INSERT INTO documents (id, doc_type, status, created_at, title, slug, source_checksum) VALUES ('doc1', 'post', 'published', ?, 'Title1', 'slug1', 'hash1')",
         [ts],
     )
     duckdb_conn.execute(
-        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid) VALUES ('doc2', 'profile', 'published', ?, 'Name2', 'uuid2')",
+        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid, source_checksum) VALUES ('doc2', 'profile', 'published', ?, 'Name2', 'uuid2', 'hash2')",
         [ts],
     )
 
@@ -83,11 +83,11 @@ def test_document_relations_check_constraint(duckdb_conn):
 
     # Insert dummy documents
     duckdb_conn.execute(
-        "INSERT INTO documents (id, doc_type, status, created_at, title, slug) VALUES ('doc1', 'post', 'published', ?, 'Title1', 'slug1')",
+        "INSERT INTO documents (id, doc_type, status, created_at, title, slug, source_checksum) VALUES ('doc1', 'post', 'published', ?, 'Title1', 'slug1', 'hash1')",
         [ts],
     )
     duckdb_conn.execute(
-        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid) VALUES ('doc2', 'profile', 'published', ?, 'Name2', 'uuid2')",
+        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid, source_checksum) VALUES ('doc2', 'profile', 'published', ?, 'Name2', 'uuid2', 'hash2')",
         [ts],
     )
 
@@ -108,7 +108,7 @@ def test_entity_aliases_insertion(duckdb_conn):
 
     # Insert dummy document
     duckdb_conn.execute(
-        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid) VALUES ('doc_p1', 'profile', 'published', ?, 'NameP1', 'uuidP1')",
+        "INSERT INTO documents (id, doc_type, status, created_at, title, subject_uuid, source_checksum) VALUES ('doc_p1', 'profile', 'published', ?, 'NameP1', 'uuidP1', 'hashP1')",
         [ts],
     )
 
