@@ -8,6 +8,7 @@ import pytest
 from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.llm.api_keys import (
     _get_api_keys_from_env,
+    find_valid_google_api_key,
     get_google_api_key,
     get_google_api_keys,
     get_openrouter_api_key,
@@ -173,3 +174,58 @@ def test_validate_gemini_api_key_import_error():
     ):
         with pytest.raises(ImportError, match="google-genai package not installed"):
             validate_gemini_api_key(api_key="any_key")
+
+
+@patch("egregora.llm.api_keys.validate_gemini_api_key")
+def test_find_valid_google_api_key_first_valid(mock_validate):
+    """Test finding a valid key when the first one is valid."""
+    keys = ["valid_key", "other_key"]
+    # No exception raised means valid
+    key, errors = find_valid_google_api_key(keys)
+    assert key == "valid_key"
+    assert errors == []
+    mock_validate.assert_called_once_with("valid_key")
+
+
+@patch("egregora.llm.api_keys.validate_gemini_api_key")
+def test_find_valid_google_api_key_second_valid(mock_validate):
+    """Test finding a valid key when the second one is valid."""
+    keys = ["invalid_key", "valid_key"]
+
+    # First call raises ValueError, second passes
+    mock_validate.side_effect = [ValueError("Invalid key"), None]
+
+    key, errors = find_valid_google_api_key(keys)
+    assert key == "valid_key"
+    assert errors == []  # Errors are only returned if NO valid key is found?
+    # Wait, my implementation accumulates errors but returns them only if no key found?
+    # Let's check implementation:
+    #     errors = []
+    #     for key in api_keys:
+    #         try:
+    #             validate_gemini_api_key(key)
+    #             return key, []  <-- Returns empty list if found
+    #         except ValueError as e:
+    #             errors.append(str(e))
+    #     return None, errors
+
+    assert mock_validate.call_count == 2
+
+
+@patch("egregora.llm.api_keys.validate_gemini_api_key")
+def test_find_valid_google_api_key_all_invalid(mock_validate):
+    """Test when all keys are invalid."""
+    keys = ["invalid1", "invalid2"]
+    mock_validate.side_effect = [ValueError("Error 1"), ValueError("Error 2")]
+
+    key, errors = find_valid_google_api_key(keys)
+    assert key is None
+    assert errors == ["Error 1", "Error 2"]
+    assert mock_validate.call_count == 2
+
+
+def test_find_valid_google_api_key_empty():
+    """Test when input list is empty."""
+    key, errors = find_valid_google_api_key([])
+    assert key is None
+    assert errors == []

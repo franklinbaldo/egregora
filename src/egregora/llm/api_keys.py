@@ -148,6 +148,29 @@ __all__ = [
     "get_google_api_keys",
     "get_openrouter_api_key",
     "get_openrouter_api_keys",
+    "find_valid_google_api_key",
     "google_api_key_available",
     "validate_gemini_api_key",
 ]
+
+
+def find_valid_google_api_key(api_keys: list[str]) -> tuple[str | None, list[str]]:
+    """Find the first valid Google API key from a list.
+
+    Args:
+        api_keys: List of API keys to validate.
+
+    Returns:
+        Tuple containing:
+        - The valid key (or None if none found)
+        - List of validation error messages for invalid keys
+
+    """
+    errors: list[str] = []
+    for key in api_keys:
+        try:
+            validate_gemini_api_key(key)
+            return key, []
+        except ValueError as e:
+            errors.append(str(e))
+    return None, errors
