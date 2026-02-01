@@ -17,6 +17,7 @@ class MockPipelineContext:
     def __init__(self, strategy="batch_all"):
         self.config = Mock()
         self.config.enrichment = Mock()
+        self.config.enrichment.rotation_models = ["gemini-pro"]  # Ensure it acts as a list
         self.config.enrichment.strategy = strategy
         self.config.enrichment.max_concurrent_enrichments = 5
         self.config.quota = Mock()

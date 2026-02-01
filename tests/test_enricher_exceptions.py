@@ -15,6 +15,7 @@ class MockPipelineContext:
 
     def __init__(self, input_path=None):
         self.config = Mock()
+        self.config.enrichment.rotation_models = ["gemini-pro"]
         self.config.enrichment.strategy = "individual"
         self.task_store = Mock()
         self.storage = Mock()

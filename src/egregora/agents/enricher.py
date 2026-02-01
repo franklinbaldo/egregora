@@ -364,6 +364,7 @@ def _enqueue_url_enrichments(
             )
 
     scheduled = 0
+    tasks_batch = []
     for url, metadata in candidates:
         # Skip if already in database OR disk cache
         if url in existing_urls:
@@ -382,8 +383,12 @@ def _enqueue_url_enrichments(
             "message_metadata": _serialize_metadata(metadata),
         }
         if context.task_store:
-            context.task_store.enqueue("enrich_url", payload)
+            tasks_batch.append(("enrich_url", payload))
             scheduled += 1
+
+    if context.task_store and tasks_batch:
+        context.task_store.enqueue_batch(tasks_batch)
+
     return scheduled
 
 
@@ -434,6 +439,7 @@ def _enqueue_media_enrichments(
             )
 
     scheduled = 0
+    tasks_batch = []
     for ref, media_doc, metadata in candidates:
         # Skip if already in database OR disk cache
         if media_doc.document_id in existing_media:
@@ -457,10 +463,14 @@ def _enqueue_media_enrichments(
             "message_metadata": _serialize_metadata(metadata),
         }
         if context.task_store:
-            context.task_store.enqueue("enrich_media", payload)
+            tasks_batch.append(("enrich_media", payload))
             scheduled += 1
         if scheduled >= config.max_enrichments:
             break
+
+    if context.task_store and tasks_batch:
+        context.task_store.enqueue_batch(tasks_batch)
+
     return scheduled
 
 
