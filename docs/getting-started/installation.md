@@ -1,5 +1,10 @@
 # Installation
 
+!!! tip "Just want to get started?"
+    If you just want to create your blog, check out our **[Quick Start Guide](quickstart.md)** which covers installation in simple steps.
+
+    This page contains detailed installation instructions for developers and power users.
+
 Egregora requires Python 3.12+ and uses [uv](https://github.com/astral-sh/uv) for package management.
 
 ## Install uv
