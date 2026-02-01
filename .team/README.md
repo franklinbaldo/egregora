@@ -24,7 +24,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 ### Key Features
 
-- **17 Personas (16 AI + 1 Human)** - Each with unique expertise (security, testing, UX, etc.)
+- **18 Personas (17 AI + 1 Human)** - Each with unique expertise (security, testing, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
 - **Round-Robin Scheduling** - Stateless scheduler rotates through all personas automatically
 - **Mail System** - Async communication between personas for conflict resolution
@@ -226,15 +226,11 @@ Persona prompts use the **ROSAV framework** (Role, Objective, Situation, Act, Ve
 | 💯 | **Absolutist** | Rule Enforcer | Legacy code removal |
 | 🔨 | **Artisan** | Craftsman | Code quality and refactoring |
 | 🥒 | **BDD Specialist** | Test Expert | Behavior-driven testing |
-| ⚡ | **Bolt** | Perf. Engineer | Performance optimization |
 | 🏗️ | **Builder** | Architect | Data architecture, schemas |
-| 🎭 | **Curator** | UX Designer | User experience, blog evaluation |
-| 📦 | **Deps** | Guardian | Dependency management, security |
 | 💎 | **Essentialist** | Pragmatist | Radical simplicity |
 | 📊 | **Evaluator** | Supervisor | Round performance evaluation |
 | ⚒️ | **Forge** | Builder | Feature implementation |
 | 🧔 | **Franklin** | Human Lead | Project lead (human, not scheduled) |
-| 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
 | 📚 | **Lore** | Historian | System history, ADRs, git forensics |
 | 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
 | 🔍 | **Meta** | Introspector | System introspection, prompt evolution |
@@ -1157,7 +1153,7 @@ uv run mail inbox --persona system@team
 
 ### 2026-01-30
 
-- **Persona count**: 17 (16 AI + 1 human), down from 21
+- **Persona count**: 18 (17 AI + 1 human), down from 21
 - **Cut**: Bolt (perf), Deps (dependency mgmt), Janitor (cleanup), Curator (UX eval)
 - **Merged**: Janitor (code cleanup) and Curator (UX evaluation) duties absorbed into Forge
 - **Forge** is now a full-stack implementer: features + UX evaluation + code cleanup
