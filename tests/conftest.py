@@ -372,7 +372,6 @@ def reader_test_config(test_config):
     config = test_config.model_copy(deep=True)
     config.reader.enabled = True
     config.reader.comparisons_per_post = 1  # Fast tests (minimal comparisons)
-    config.reader.k_factor = 32  # Standard ELO K-factor
     return config
 
 
