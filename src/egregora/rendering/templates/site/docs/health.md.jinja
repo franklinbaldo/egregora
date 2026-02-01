@@ -1,0 +1,75 @@
+---
+title: Connection Health Report
+description: Relationship health metrics and the Ghost List
+hide:
+  - navigation
+exclude_from_blog: true
+---
+
+# Connection Health Report
+
+<p class="health-subtitle">Who have you been talking to — and who have you forgotten?</p>
+
+{% if summary %}
+<div class="health-summary-grid">
+  <div class="health-stat-card">
+    <span class="health-stat-number">{{ summary.total_contacts }}</span>
+    <span class="health-stat-label">Contacts</span>
+  </div>
+  <div class="health-stat-card">
+    <span class="health-stat-number">{{ summary.total_messages }}</span>
+    <span class="health-stat-label">Messages</span>
+  </div>
+  <div class="health-stat-card">
+    <span class="health-stat-number">{{ summary.avg_silence_days }}</span>
+    <span class="health-stat-label">Avg Days Silent</span>
+  </div>
+</div>
+
+{% if summary.status_counts %}
+<div class="health-status-bar">
+  {% for status, count in summary.status_counts.items() %}
+  <span class="health-status-segment health-status-{{ status|lower }}" title="{{ status }}: {{ count }}">
+    {{ status }} ({{ count }})
+  </span>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+---
+
+## The Ghost List
+
+Contacts sorted by silence duration — longest silence first.
+
+{% if entries %}
+| Status | Name | Last Seen | Silence | Messages | Active Since | Msgs/Year |
+|:------:|:-----|:----------|--------:|---------:|:-------------|----------:|
+{% for entry in entries %}
+| {{ status_icon(entry.status) }} | **{{ entry.author_name }}** | {{ entry.last_seen.strftime('%Y-%m-%d') }} | {{ format_silence(entry.days_since_last) }} | {{ entry.msg_count }} | {{ entry.first_seen.strftime('%Y-%m-%d') }} | {{ entry.messages_per_year }} |
+{% endfor %}
+
+---
+
+### Status Legend
+
+| Icon | Status | Silence |
+|:----:|:-------|:--------|
+| :fire: | **Hot** | < 7 days |
+| :sunny: | **Warm** | 7–30 days |
+| :cloud: | **Cool** | 30–90 days |
+| :snowflake: | **Cold** | 90–180 days |
+| :ice_cube: | **Frozen** | 180–365 days |
+| :ghost: | **Ghost** | > 1 year |
+
+{% else %}
+
+!!! info "No Data Yet"
+    No connection data available. Run `egregora write` with a chat export to populate this report.
+
+{% endif %}
+
+<div class="health-footer">
+  <p><em>Generated on {{ generated_date }}. Contacts with fewer than {{ min_messages }} messages are excluded.</em></p>
+</div>

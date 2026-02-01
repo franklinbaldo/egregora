@@ -176,6 +176,7 @@ def run_cli_flow(
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
+    report_health: bool = False,
     options: str | None = None,
     smoke_test: bool = False,
 ) -> None:
@@ -232,6 +233,17 @@ def run_cli_flow(
         )
 
         egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+
+        # Apply --report-health CLI flag override
+        if report_health:
+            egregora_config = egregora_config.model_copy(
+                deep=True,
+                update={
+                    "features": egregora_config.features.model_copy(
+                        update={"report_health_enabled": True}
+                    ),
+                },
+            )
 
         runtime = RuntimeContext(
             output_dir=output_dir,

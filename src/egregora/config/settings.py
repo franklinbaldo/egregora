@@ -656,6 +656,10 @@ class FeaturesSettings(BaseModel):
         default=True,
         description="Enable conversation annotations/threading",
     )
+    report_health_enabled: bool = Field(
+        default=False,
+        description="Generate Connection Health Report (Ghost List) after pipeline run",
+    )
 
 
 class QuotaSettings(BaseModel):

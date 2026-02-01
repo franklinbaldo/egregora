@@ -334,6 +334,15 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 except (OSError, AttributeError, TypeError) as e:
                     logger.warning("Failed to regenerate tags page: %s", e)
 
+            # Generate connection health report if enabled (RFC 041)
+            if run_params.config.features.report_health_enabled:
+                try:
+                    logger.info("[bold cyan]📊 Generating connection health report...[/]")
+                    if hasattr(dataset.context.output_sink, "regenerate_health_report"):
+                        dataset.context.output_sink.regenerate_health_report()
+                except (OSError, AttributeError, TypeError) as e:
+                    logger.warning("Failed to generate health report: %s", e)
+
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except KeyboardInterrupt:

@@ -905,15 +905,27 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
         logger.warning("Site root is not set, skipping site generation.")
         return
 
-    # Load config to get reader database path
+    # Load config to get reader and pipeline database paths
     from egregora.config import load_egregora_config
+    from egregora.database.utils import resolve_db_uri
 
+    db_path = None
+    pipeline_db_path = None
+    report_health = False
     try:
         config = load_egregora_config(adapter.site_root)
         db_path = adapter.site_root / config.reader.database_path
+        report_health = config.features.report_health_enabled
+
+        # Resolve pipeline database path for health report
+        pipeline_uri = config.database.pipeline_db
+        if pipeline_uri:
+            resolved = resolve_db_uri(pipeline_uri, adapter.site_root)
+            # Extract filesystem path from DuckDB URI
+            if resolved.startswith("duckdb:///"):
+                pipeline_db_path = Path(resolved.removeprefix("duckdb:///"))
     except Exception as e:
-        logger.debug("Could not load reader database path: %s", e)
-        db_path = None
+        logger.debug("Could not load database paths: %s", e)
 
     site_generator = SiteGenerator(
         site_root=adapter.site_root,
@@ -925,12 +937,20 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
         url_convention=adapter.url_convention,
         url_context=adapter.url_context,
         db_path=db_path,
+        pipeline_db_path=pipeline_db_path,
     )
     site_generator.regenerate_main_index()
     site_generator.regenerate_profiles_index()
     site_generator.regenerate_media_index()
     site_generator.regenerate_tags_page()
     site_generator.regenerate_feeds_page()
+
+    if report_health:
+        try:
+            site_generator.regenerate_health_report()
+        except Exception as e:
+            logger.warning("Failed to generate health report: %s", e)
+
     logger.info("Successfully regenerated site indices.")
 
 

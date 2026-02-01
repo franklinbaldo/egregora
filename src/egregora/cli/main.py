@@ -175,6 +175,10 @@ def write(
         bool, typer.Option("--force", "-f", help="Force full refresh (same as --refresh all)")
     ] = False,
     debug: Annotated[bool, typer.Option("--debug", help="Enable debug logging")] = False,
+    report_health: Annotated[
+        bool,
+        typer.Option("--report-health", help="Generate Connection Health Report (Ghost List)"),
+    ] = False,
     options: Annotated[
         str | None,
         typer.Option(
@@ -204,6 +208,7 @@ def write(
             refresh=refresh,
             force=force,
             debug=debug,
+            report_health=report_health,
             options=options,
         )
 

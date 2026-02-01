@@ -45,6 +45,7 @@ class SiteGenerator:
         url_convention: UrlConvention,
         url_context: UrlContext,
         db_path: Path | None = None,
+        pipeline_db_path: Path | None = None,
     ) -> None:
         self.site_root = site_root
         self.docs_dir = docs_dir
@@ -56,6 +57,7 @@ class SiteGenerator:
         self._url_convention = url_convention
         self._ctx = url_context
         self.db_path = db_path
+        self.pipeline_db_path = pipeline_db_path
 
         templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
         self._template_env = Environment(
@@ -546,3 +548,67 @@ class SiteGenerator:
         template = self._template_env.get_template("docs/media/index.md.jinja")
         content = template.render(media_items=media_items)
         (self.media_dir / "index.md").write_text(content, encoding="utf-8")
+
+    def regenerate_health_report(self) -> None:
+        """Generate the Connection Health Report page (RFC 041).
+
+        Queries the pipeline database for per-author message statistics
+        and renders a Ghost List showing which contacts have gone silent.
+        """
+        from egregora.orchestration.pipelines.health import (
+            compute_summary_stats,
+            get_connection_health_data,
+        )
+
+        if not self.pipeline_db_path:
+            logger.debug("Pipeline database path not set, skipping health report")
+            return
+
+        entries = get_connection_health_data(
+            pipeline_db_path=self.pipeline_db_path,
+            profiles_dir=self.profiles_dir,
+        )
+
+        if not entries:
+            logger.debug("No health data available, skipping health report generation")
+            return
+
+        summary = compute_summary_stats(entries)
+
+        def status_icon(status: str) -> str:
+            icons = {
+                "Hot": ":fire:",
+                "Warm": ":sunny:",
+                "Cool": ":cloud:",
+                "Cold": ":snowflake:",
+                "Frozen": ":ice_cube:",
+                "Ghost": ":ghost:",
+            }
+            return icons.get(status, ":question:")
+
+        def format_silence(days: int) -> str:
+            if days == 0:
+                return "Today"
+            if days == 1:
+                return "1 day"
+            if days < 30:
+                return f"{days} days"
+            if days < 365:
+                months = days // 30
+                return f"{months} month{'s' if months != 1 else ''}"
+            years = round(days / 365.25, 1)
+            return f"{years} year{'s' if years != 1 else ''}"
+
+        self._template_env.globals["status_icon"] = status_icon
+        self._template_env.globals["format_silence"] = format_silence
+
+        template = self._template_env.get_template("docs/health.md.jinja")
+        content = template.render(
+            entries=entries,
+            summary=summary,
+            generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            min_messages=5,
+        )
+
+        (self.docs_dir / "health.md").write_text(content, encoding="utf-8")
+        logger.info("Generated connection health report with %d contacts", len(entries))
