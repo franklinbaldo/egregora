@@ -1,176 +1,101 @@
 # Quick Start
 
-This guide will walk you through generating your first blog post from a WhatsApp export in under 5 minutes.
+**Turn your chats into stories in 5 minutes.**
+
+This guide is designed for everyone—you don't need to be a programmer to use it.
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) installed
-- [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
+Before we start, you will need:
+1.  **Python 3.12+** installed on your computer.
+2.  **uv** (a tool to run Egregora).
+3.  A **Google Gemini API Key** (it's free!).
+
+[See Glossary](../glossary.md) if any of these terms are new to you.
+
+---
 
 ## Step 1: Install Egregora
 
-Install the latest version from GitHub:
+Open your **Terminal** (Mac) or **PowerShell** (Windows) and copy-paste this command:
 
 ```bash
 uv tool install git+https://github.com/franklinbaldo/egregora
 ```
 
-## Step 2: Initialize Your Blog
+## Step 2: Create Your Site
 
-Now, create a new blog site:
+Now, let's create a folder for your new blog. Copy these commands:
+
 ```bash
 egregora init my-blog
 cd my-blog
 ```
 
-Running `egregora init` creates the necessary folders and configuration files for your site. If you ever need to reset these files, you can use the bootstrap script included in the repository.
+This creates a folder named `my-blog` with everything you need.
 
-This creates a minimal site structure:
+## Step 3: Export Your Chat
 
+1.  Open **WhatsApp** on your phone.
+2.  Go to the chat you want to save.
+3.  Tap the name of the person/group at the top.
+4.  Scroll down to **Export Chat**.
+5.  Choose **Without Media** (this is faster and safer for now).
+6.  Save the ZIP file to your computer.
+
+## Step 4: Add Your Magic Key
+
+You need to tell Egregora your API Key so it can write stories.
+
+**Mac / Linux:**
+```bash
+export GOOGLE_API_KEY="paste-your-key-here"
 ```
-my-blog/
-├── .egregora/
-│   └── mkdocs.yml      # Site configuration
-└── docs/
-    ├── index.md        # Homepage
-    └── posts/          # Generated blog posts go here
+
+**Windows (PowerShell):**
+```powershell
+$Env:GOOGLE_API_KEY = "paste-your-key-here"
 ```
 
-## Step 3: Export Your WhatsApp Chat
+*(Replace `paste-your-key-here` with the actual key from Google)*
 
-From your WhatsApp:
+## Step 5: Make Magic!
 
-1. Open the group or individual chat
-2. Tap the three dots (⋮) → **More** → **Export chat**
-3. Choose **Without media** (for privacy)
-4. Save the `.zip` file
-
-!!! tip
-    For privacy, we recommend exporting **without media**. Egregora can enrich URLs and media references using LLMs instead.
-
-## Step 4: Set Your API Key
+This is where the magic happens. Run this command:
 
 ```bash
-export GOOGLE_API_KEY="your-api-key-here"
+egregora write path/to/your/whatsapp-export.zip --output-dir=.
 ```
+*(Tip: You can drag and drop the ZIP file into the terminal window to get the path)*
 
-## Step 5: Process the Export
+Egregora will now:
+*   ✨ Read your chat history.
+*   🧠 Find the most important memories.
+*   💝 Write stories and create profiles for everyone.
+
+**Grab a coffee! ☕** This might take a few minutes depending on how long your chat is.
+
+## Step 6: See Your Stories
+
+Once it's done, you can see your beautiful new site. Run this command:
 
 ```bash
-egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
-```
-
-This single command automatically creates the magic:
-
-1. **Parses** your WhatsApp export
-2. **Anonymizes** all names (real names never reach the AI)
-3. **Groups** messages into meaningful conversation windows
-4. **Generates** blog posts using Gemini
-5. ✨ **Builds contextual memory** - Posts will reference previous discussions
-6. 🏆 **Ranks content** - Your best memories are automatically identified
-7. 💝 **Creates profiles** - Loving portraits of each person in the chat
-
-!!! info "What's happening behind the scenes?"
-    The first run may take a few minutes as it:
-
-    - Builds the LanceDB vector index for contextual memory (RAG)
-    - Embeds all messages for semantic search
-    - Generates multiple blog posts with interconnected narratives
-    - Evaluates and ranks posts to surface the best content
-    - Creates author profiles capturing each person's personality
-
-    All three magical features (Contextual Memory, Content Discovery, Author Profiles) work automatically with **zero configuration**.
-
-## Step 6: Preview Your Blog
-
-Launch a local preview server:
-
-```bash
-# Preview your site
 uv tool run --from "git+https://github.com/franklinbaldo/egregora[mkdocs]" mkdocs serve -f .egregora/mkdocs.yml
 ```
 
-Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
+Now open your web browser and go to: **[http://localhost:8000](http://localhost:8000)**
 
-## What Just Happened?
+🎉 **Congratulations! You have preserved your memories.**
 
-Egregora processed your chat through multiple stages:
+---
 
-1. **Ingestion**: Parsed WhatsApp `.zip` → structured data in DuckDB
-2. **Privacy**: Replaced names with UUIDs (e.g., `john` → `a3f2b91c`)
-3. **Enrichment**: (Optional) Enriched URLs/media with descriptions
-4. **Knowledge**: Built LanceDB RAG index for retrieving similar past posts
-5. **Generation**: Gemini generated 0-N blog posts per window
-6. **Publication**: Created markdown files in `docs/posts/`
-
-## Next Steps
-
-### Customize Your Blog
-
-Edit `mkdocs.yml` to change:
-
-- Site name, description, theme
-- Navigation structure
-
-Edit `.egregora.toml` to customize:
-
-- Models and parameters
-- RAG settings
-- Enrichment behavior
-- Pipeline configuration
-
-See [Configuration Guide](configuration.md) for details.
-
-### Deploy Your Site
-
-Ready to share your archive with the world? See [Deployment Guide](deployment.md).
-
-### Generate More Posts
-
-Process another export or adjust windowing:
-
-```bash
-# Daily windowing (default)
-egregora write another-export.zip --output-dir=. --step-size=1 --step-unit=days
-
-# Hourly windowing for active chats
-egregora write export.zip --step-size=4 --step-unit=hours
-
-# Message-based windowing
-egregora write export.zip --step-size=100 --step-unit=messages
-```
-
-### Enable Enrichment
-
-Use LLM to enrich URLs and media:
-
-```bash
-egregora write export.zip --enable-enrichment
-```
-
-### Rank Your Content
-
-Use ELO comparisons to identify your best posts:
-
-```bash
-egregora read rank docs/posts/
-egregora top --limit=10
-```
-
-### Check Pipeline Runs
-
-View pipeline execution history:
-
-```bash
-egregora runs list
-egregora runs show <run_id>
-```
+<details>
+<summary>🔧 Advanced Options & Troubleshooting (Click to Expand)</summary>
 
 ## Common Options
 
 ```bash
-# Daily windowing instead of default
+# Daily windowing (default)
 egregora write export.zip --step-size=1 --step-unit=days
 
 # Enable URL/media enrichment
@@ -193,32 +118,22 @@ egregora write export.zip --refresh=all     # Full rebuild
 ## Troubleshooting
 
 ### "No posts were generated"
-
 Check that:
-
-1. Your chat has enough messages (minimum varies by window size)
-2. The date range includes your messages
-3. The window parameters are appropriate for your chat volume
+1. Your chat has enough messages.
+2. The date range includes your messages.
 
 ### Rate Limiting
-
-If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora.toml`:
-
-```toml
-[quota]
-daily_llm_requests = 1000
-per_second_limit = 1.0
-concurrency = 5
-```
+If you hit API rate limits, Egregora will automatically retry.
 
 ### LanceDB Permission Issues
-
 In restricted environments, ensure `.egregora/lancedb/` is writable:
-
 ```bash
 chmod -R u+w .egregora/lancedb/
 ```
 
-## Learn More
+</details>
 
-- [Main Architecture Overview](../v3/architecture/overview.md) - Understand the pipeline
+## Next Steps
+
+*   [Customize your site](../configuration.md)
+*   [Learn about the Magic Features](../index.md#what-makes-egregora-magical)
