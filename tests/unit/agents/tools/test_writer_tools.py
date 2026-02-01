@@ -16,3 +16,22 @@ def test_generate_banner_impl_handles_none_slug(monkeypatch):
     assert isinstance(result, BannerResult)
     assert result.status == "failed"
     assert "Invalid post_slug" in result.error
+
+
+def test_generate_banner_impl_fallback_failure(monkeypatch):
+    """Verify generate_banner_impl handles synchronous generation failure."""
+    from egregora.agents.banner.exceptions import BannerGenerationError
+    from egregora.agents.tools import writer_tools
+
+    mock_context = MagicMock()
+    mock_context.task_store = None  # Force synchronous path
+
+    def mock_generate_banner(*args, **kwargs):
+        raise BannerGenerationError("Generation failed")
+
+    monkeypatch.setattr(writer_tools, "generate_banner", mock_generate_banner)
+
+    result = generate_banner_impl(ctx=mock_context, post_slug="slug", title="Title", summary="Summary")
+
+    assert result.status == "failed"
+    assert result.error == "Generation failed"

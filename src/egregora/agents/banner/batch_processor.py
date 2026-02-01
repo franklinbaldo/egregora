@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
+from egregora.agents.banner.exceptions import BannerError
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
@@ -106,12 +107,16 @@ class BannerBatchProcessor:
         for task in tasks:
             banner_input = task.to_banner_input()
 
-            if self.provider:
-                result = self._generate_with_provider(task, banner_input)
-            else:
-                result = self._generate_with_default(task, banner_input)
-
-            results.append(result)
+            try:
+                if self.provider:
+                    result = self._generate_with_provider(task, banner_input)
+                else:
+                    result = self._generate_with_default(task, banner_input)
+                results.append(result)
+            except BannerError as e:
+                results.append(BannerGenerationResult(task, error=str(e), error_code=type(e).__name__))
+            except Exception as e:
+                results.append(BannerGenerationResult(task, error=str(e), error_code="UNEXPECTED_ERROR"))
 
         return results
 
@@ -132,23 +137,24 @@ class BannerBatchProcessor:
         for task, request in zip(tasks, requests, strict=True):
             try:
                 batch_result = self.provider.generate(request)
-                if batch_result.has_image and batch_result.image_bytes:
-                    document = self._create_document(
+                # Success implied if no exception raised
+                document = self._create_document(
+                    task,
+                    batch_result.image_bytes,
+                    batch_result.mime_type,
+                    extra_metadata={"language": task.language},
+                )
+                results.append(BannerGenerationResult(task, document=document))
+
+            except BannerError as e:
+                results.append(
+                    BannerGenerationResult(
                         task,
-                        batch_result.image_bytes,
-                        batch_result.mime_type or "image/png",
-                        extra_metadata={"language": task.language},
+                        error=str(e),
+                        error_code=type(e).__name__,
                     )
-                    results.append(BannerGenerationResult(task, document=document))
-                else:
-                    results.append(
-                        BannerGenerationResult(
-                            task,
-                            error=batch_result.error or "Unknown error",
-                            error_code=batch_result.error_code or "GENERATION_FAILED",
-                        )
-                    )
-            except (RuntimeError, ValueError) as exc:
+                )
+            except Exception as exc:
                 results.append(
                     BannerGenerationResult(
                         task,
@@ -168,35 +174,29 @@ class BannerBatchProcessor:
             aspect_ratio="1:1",
         )
 
-        try:
-            result = self.provider.generate(request) if self.provider else None
-            if result and result.has_image and result.image_bytes:
-                document = self._create_document(
-                    task,
-                    result.image_bytes,
-                    result.mime_type or "image/png",
-                    extra_metadata={"language": task.language},
-                )
-                return BannerGenerationResult(task, document=document)
-            error = result.error if result else "Unknown error"
-            error_code = (result.error_code if result else None) or "GENERATION_FAILED"
-            return BannerGenerationResult(task, error=error, error_code=error_code)
-        except (RuntimeError, ValueError) as exc:
-            return BannerGenerationResult(task, error=str(exc), error_code="GENERATION_EXCEPTION")
+        # Provider raises exceptions on failure
+        result = self.provider.generate(request) if self.provider else None
+
+        if result:
+            document = self._create_document(
+                task,
+                result.image_bytes,
+                result.mime_type,
+                extra_metadata={"language": task.language},
+            )
+            return BannerGenerationResult(task, document=document)
+
+        # Should be unreachable if provider is set, but as a fallback:
+        raise BannerError("Provider returned None without raising exception")
 
     def _generate_with_default(
         self, task: BannerTaskEntry, banner_input: BannerInput
     ) -> BannerGenerationResult:
+        # Agent raises exceptions on failure
         result = generate_banner(**banner_input.model_dump())
 
-        if result.document:
-            document = self._attach_task_metadata(task, result.document)
-            return BannerGenerationResult(task, document=document)
-        return BannerGenerationResult(
-            task,
-            error=result.error or "Unknown error",
-            error_code=result.error_code or "GENERATION_FAILED",
-        )
+        document = self._attach_task_metadata(task, result.document)
+        return BannerGenerationResult(task, document=document)
 
     def _build_prompt(self, banner_input: BannerInput) -> str:
         template = self.jinja_env.get_template("banner.jinja")
