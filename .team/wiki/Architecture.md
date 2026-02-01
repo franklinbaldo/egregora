@@ -1,9 +1,11 @@
-# Architecture & Core
+# Architecture & Core (Legacy)
 
-> **Status:** Active (Sprint 1)
+> **⚠️ DEPRECATED**
+> **Current Architecture:** See **[The Symbiote Era](Architecture-Symbiote-Era.md)**
+> **Status:** Legacy (Sprint 1-2)
 > **Paradigm:** Batch Processing / Windowed Execution
 
-This document outlines the core architecture of the **Egregora** system as of Sprint 1.
+This document outlines the **historic** core architecture of the **Egregora** system as of Sprint 1. It is preserved for archival purposes.
 
 ## 🏗️ The Core Paradigm: Batch Processing
 
@@ -46,18 +48,3 @@ The "Creative" engine. It takes the enriched window and generates the Markdown c
 ### 3. The Output Sink
 Located in `src/egregora/output_sinks/`.
 The abstraction layer for where artifacts go (File System, S3, Database). Currently, it primarily targets the local file system (`mkdocs` structure).
-
----
-
-## 🔮 Future Architecture: The Symbiote
-
-*Status: In Planning (Sprint 2/3)*
-
-The **Visionary** has proposed a paradigm shift from the current "Passive Archivist" (Batch Processing) to an "Active Collaborator" model known as the **Egregora Symbiote**.
-
-### Key Shifts
-- **Batch -> Real-time:** Moving from "Windows" to continuous event streams.
-- **Unstructured -> Structured:** Implementing a **Structured Data Sidecar** to extract knowledge graphs from conversations in near real-time.
-- **Read-Only -> Interactive:** Allowing the system to participate in conversations rather than just observing them.
-
-*For more details, see [Sprint 2 Plans](../sprints/sprint-2/visionary-plan.md) and the [Glossary](Glossary.md).*

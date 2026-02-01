@@ -49,6 +49,11 @@ The system has moved beyond simple generation to self-evaluation.
 ### 6. Error Boundaries (Partial)
 The "crash-on-first-error" pattern is being replaced. While a formal `ErrorBoundary` protocol is not yet fully implemented, the system now employs broad exception handling at the item processing level to prevent one bad window from crashing the entire pipeline.
 
+### 7. Strict Type Enforcement
+Led by the **Typeguard** initiative, the system is progressively adopting strict static typing.
+- **Goal**: Eliminate runtime `AttributeError` and `TypeError` exceptions by catching them at build time.
+- **Implementation**: Comprehensive type hints (`typing.py`) and strict `mypy` configuration in critical paths like `write.py`.
+
 ## 🧩 Key Components
 
 ### The Orchestrator (`orchestration/`)
@@ -67,6 +72,13 @@ Specialized workers that perform discrete cognitive tasks.
 
 ### The Sinks (`output_sinks/`)
 Pluggable destinations for the generated content. Currently focused on MkDocs, but architected to support Notion, SQL, or other CMSs in the future.
+
+## 🎨 The User Interface (Portal Theme)
+
+The Symbiote Era introduces a bespoke design system known as the **[Portal Theme](UI-UX.md)**.
+- **Philosophy**: "Magical Minimalism" — emphasizing content while providing an immersive, branded experience.
+- **Technology**: Built on top of MkDocs Material with scoped CSS overrides (`extra.css`) to prevent style leakage.
+- **Key Feature**: The "Homepage Hero" component, which transforms the documentation index into a compelling landing page.
 
 ## ⚠️ Known Technical Debt (Lore)
 
@@ -89,6 +101,7 @@ Early in the Symbiote Era, an attempt was made to move execution logic to a dedi
 | **Failure Mode** | Catastrophic Exit | Item-Level Isolation |
 | **State** | Filesystem Artifacts | `PipelineContext` (In-Memory + Journal) |
 | **Philosophy** | "Run this script" | "Manage this pipeline" |
+| **UI** | Standard MkDocs | **[Portal Theme](UI-UX.md)** |
 
 ## 🔮 Future Direction
 
