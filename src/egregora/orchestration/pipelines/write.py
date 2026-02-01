@@ -397,37 +397,8 @@ def process_whatsapp_export(
     return run(run_params)
 
 
-def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
-    """Execute the agent on an isolated conversation item."""
-    ctx = conversation.context
-    output_sink = ctx.output_sink
-
-    # Extract commands (ETL/Processing boundary - commands are side effects)
-    # We do this here or in generator? Generator does "data prep".
-    # Commands might generate announcements which is "output".
-    # But filtering commands from input to writer is "prep".
-
-    # Convert table to list
-    messages_list = convert_ibis_table_to_list(conversation.messages_table)
-
-    # Journal / Deduplication Check
-    xml_content = build_conversation_xml(messages_list, None)
-    template_content = PromptManager.get_template_content("writer.jinja", site_dir=ctx.site_root)
-    signature = generate_window_signature(
-        None,
-        ctx.config,
-        template_content,
-        xml_content=xml_content,
-    )
-
-    if window_already_processed(output_sink, signature):
-        window_label = (
-            f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-        )
-        logger.info("⏭️  Skipping window %s (Already Processed)", window_label)
-        return {}
-
-    # Handle commands (Announcements)
+def _process_commands(messages_list: list[dict[str, Any]], output_sink: Any) -> int:
+    """Extract commands and generate announcements."""
     command_messages = extract_commands_list(messages_list)
     announcements_generated = 0
     if command_messages:
@@ -439,23 +410,61 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             except Exception as exc:
                 msg = f"Failed to generate announcement: {exc}"
                 raise CommandAnnouncementError(msg) from exc
+    return announcements_generated
 
+
+def _check_window_processed(
+    ctx: PipelineContext,
+    messages_list: list[dict[str, Any]],
+    window_start: datetime,
+    window_end: datetime,
+) -> tuple[bool, str]:
+    """Check if window has already been processed using journal signature."""
+    xml_content = build_conversation_xml(messages_list, None)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=ctx.site_root)
+    signature = generate_window_signature(
+        None,
+        ctx.config,
+        template_content,
+        xml_content=xml_content,
+    )
+
+    if window_already_processed(ctx.output_sink, signature):
+        window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+        logger.info("⏭️  Skipping window %s (Already Processed)", window_label)
+        return True, signature
+
+    return False, signature
+
+
+def _prepare_messages(
+    messages_list: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[Message]]:
+    """Filter commands and convert to Message DTOs."""
     clean_messages_list = filter_commands(messages_list)
-
-    # Convert to DTOs
     messages_dtos: list[Message] = []
+
+    valid_keys = Message.model_fields.keys()
+
     for msg_dict in clean_messages_list:
         try:
             # Basic conversion - assuming keys match
             if "event_id" in msg_dict and "ts" in msg_dict and "author_uuid" in msg_dict:
-                # Filter only valid keys
-                valid_keys = Message.model_fields.keys()
                 filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
                 messages_dtos.append(Message(**filtered_dict))
         except (ValueError, TypeError):
             continue
 
-    # Prepare Resources
+    return clean_messages_list, messages_dtos
+
+
+def _run_writer_agent(
+    ctx: PipelineContext,
+    conversation: Conversation,
+    messages_dtos: list[Message],
+    clean_messages_list: list[dict[str, Any]],
+) -> tuple[list[Any], list[str]]:
+    """Execute writer agent and persist posts."""
     resources = WriterResources.from_pipeline_context(ctx)
 
     params = WindowProcessingParams(
@@ -472,14 +481,12 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         smoke_test=ctx.state.smoke_test,
     )
 
-    # EXECUTE WRITER
-    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
-    # in the generator. If it fails here, it fails.
     writer_result = write_posts_for_window(params)
     posts = writer_result.get("posts", [])
-    profiles = writer_result.get("profiles", [])
+    # Writer might return profile IDs, though currently it seems generate_profile_posts is separate
+    # but `writer_result` dict has "profiles" key.
+    initial_profiles = writer_result.get("profiles", [])
 
-    # Warn if writer processed messages but generated no posts
     if not posts and clean_messages_list:
         logger.warning(
             "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
@@ -488,24 +495,24 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
         )
 
-    # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
     for post in posts:
-        if hasattr(post, "document_id"):  # Is a Document
+        if hasattr(post, "document_id"):
             try:
-                output_sink.persist(post)
+                ctx.output_sink.persist(post)
             except Exception as exc:
                 msg = f"Failed to persist post {post.document_id}: {exc}"
                 raise OutputSinkError(msg) from exc
 
-    # EXECUTE PROFILE GENERATOR
-    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    return posts, initial_profiles
+
+
+def _run_profile_agent(
+    ctx: PipelineContext,
+    clean_messages_list: list[dict[str, Any]],
+    window_date: str,
+) -> list[str]:
+    """Execute profile generator and persist profiles."""
+    profiles: list[str] = []
     try:
         profile_docs = cast(
             "list[Document]",
@@ -513,7 +520,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         )
         for profile_doc in profile_docs:
             try:
-                output_sink.persist(profile_doc)
+                ctx.output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
                 msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
@@ -523,15 +530,68 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
             raise
         msg = f"Failed to generate profile posts: {exc}"
         raise ProfileGenerationError(msg) from exc
+    return profiles
 
-    # Process background tasks (Banner, etc)
-    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
-    # Background tasks are usually global or batched.
-    # We will trigger them here to ensure "isolated item" processing is complete.
+
+def _persist_journal_entry(
+    ctx: PipelineContext,
+    signature: str,
+    conversation: Conversation,
+    posts_count: int,
+    profiles_count: int,
+) -> None:
+    """Create and persist journal entry."""
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    try:
+        journal = create_journal_document(
+            signature=signature,
+            run_id=ctx.run_id,
+            window_start=conversation.window.start_time,
+            window_end=conversation.window.end_time,
+            model=ctx.config.models.writer,
+            posts_generated=posts_count,
+            profiles_updated=profiles_count,
+        )
+        ctx.output_sink.persist(journal)
+    except Exception as e:
+        logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
+
+
+def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
+    """Execute the agent on an isolated conversation item."""
+    ctx = conversation.context
+
+    # Convert table to list
+    messages_list = convert_ibis_table_to_list(conversation.messages_table)
+
+    # Check Journal / Deduplication
+    is_processed, signature = _check_window_processed(
+        ctx, messages_list, conversation.window.start_time, conversation.window.end_time
+    )
+    if is_processed:
+        return {}
+
+    # Handle commands
+    announcements_generated = _process_commands(messages_list, ctx.output_sink)
+
+    # Prepare messages
+    clean_messages_list, messages_dtos = _prepare_messages(messages_list)
+
+    # Execute Writer
+    posts, profiles = _run_writer_agent(ctx, conversation, messages_dtos, clean_messages_list)
+
+    # Execute Profile Generator
+    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    new_profiles = _run_profile_agent(ctx, clean_messages_list, window_date)
+    profiles.extend(new_profiles)
+
+    # Process background tasks
     process_background_tasks(ctx)
 
     # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    window_label = (
+        f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    )
     logger.info(
         "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
         len(posts),
@@ -541,19 +601,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     )
 
     # Persist Journal
-    try:
-        journal = create_journal_document(
-            signature=signature,
-            run_id=ctx.run_id,
-            window_start=conversation.window.start_time,
-            window_end=conversation.window.end_time,
-            model=ctx.config.models.writer,
-            posts_generated=len(posts),
-            profiles_updated=len(profiles),
-        )
-        output_sink.persist(journal)
-    except Exception as e:
-        logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
+    _persist_journal_entry(ctx, signature, conversation, len(posts), len(profiles))
 
     return {window_label: {"posts": posts, "profiles": profiles}}
 
