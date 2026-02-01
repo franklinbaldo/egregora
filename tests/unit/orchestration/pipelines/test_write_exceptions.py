@@ -6,7 +6,6 @@ import pytest
 from egregora.data_primitives.document import Document
 from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.orchestration.context import PipelineRunParams
-from egregora.orchestration.error_boundary import DefaultErrorBoundary
 from egregora.orchestration.exceptions import (
     CommandAnnouncementError,
     OutputSinkError,
@@ -50,9 +49,9 @@ def test_process_item_handles_command_announcement_error(mock_conversation):
         ),
         # We need to mock _run_writer_agent to avoid it running and causing side effects
         patch("egregora.orchestration.pipelines.write._run_writer_agent", return_value=([], [])),
-         # Mock profile generation to avoid it running
+        # Mock profile generation to avoid it running
         patch("egregora.orchestration.pipelines.write._run_profile_agent", return_value=[]),
-         # Mock background tasks
+        # Mock background tasks
         patch("egregora.orchestration.pipelines.write.process_background_tasks"),
     ):
         # Act
@@ -108,7 +107,7 @@ def test_process_item_handles_profile_generation_error(mock_conversation):
             "egregora.orchestration.pipelines.write.generate_profile_posts",
             side_effect=RuntimeError("Profile generation failed"),
         ),
-         # Mock background tasks
+        # Mock background tasks
         patch("egregora.orchestration.pipelines.write.process_background_tasks"),
     ):
         # Act
