@@ -182,12 +182,23 @@ Jules personas are autonomous AI agents that perform maintenance tasks. Active p
 
 | Emoji | Name | Role | Focus |
 | :---: | :--- | :--- | :--- |
-| 🕸️ | **Weaver** | Integrator | PR Merging & Builds |
-| 🧹 | **Janitor** | Hygienist | Code Cleanup, Technical Debt |
-| 🔨 | **Artisan** | Craftsman | Code Quality, Refactoring |
-| 🎨 | **Palette** | Design Sys | Accessibility & UI |
-| 📉 | **Essentialist** | Reducer | Complexity Reduction |
-| 💝 | **Maya** | User Advocate | Non-technical user feedback (on-demand) |
+| 💯 | **Absolutist** | Rule Enforcer | Legacy code removal |
+| 🔨 | **Artisan** | Craftsman | Code quality, Refactoring |
+| 🥒 | **BDD Specialist** | Test Expert | Behavior-driven testing |
+| 🏗️ | **Builder** | Data Architect | Data structures, Migrations |
+| 💎 | **Essentialist** | Pragmatist | Radical simplicity |
+| 📊 | **Evaluator** | Supervisor | Round performance evaluation |
+| ⚒️ | **Forge** | Implementer | Features, UX, Code cleanup |
+| 📚 | **Lore** | Historian | System history, ADRs |
+| 💝 | **Maya** | User Advocate | Non-technical feedback |
+| 🔍 | **Meta** | Introspector | System introspection, Documentation |
+| 🔮 | **Oracle** | Facilitator | Unblocking, Technical guidance |
+| 💣 | **Sapper** | Structurer | Exception handling |
+| ✍️ | **Scribe** | Writer | Documentation maintenance |
+| 🛡️ | **Sentinel** | Security | Vulnerability scanning |
+| 🧑‍🌾 | **Shepherd** | Test Engineer | Test coverage |
+| 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
+| 🔭 | **Visionary** | Strategist | Strategic RFCs |
 
 See [.team/README.md](.team/README.md) for full persona definitions.
 
@@ -465,4 +476,4 @@ class MyModuleError(EgregoraError):
 
 ---
 
-*Last updated: 2026-01-10*
+*Last updated: 2026-01-31*
