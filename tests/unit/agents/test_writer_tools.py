@@ -164,7 +164,7 @@ class TestWriterToolsExtraction:
 
             # Assert
             assert result.status == "failed"
-            assert result.error == "Banner generation failed"
+            assert result.error == "No document returned from banner generation"
             assert result.path is None
             assert result.image_path is None
 

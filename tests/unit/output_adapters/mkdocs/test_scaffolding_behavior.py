@@ -60,7 +60,7 @@ def test_scaffold_wrapper_method(tmp_path: Path):
 
     assert (site_root / ".egregora" / "mkdocs.yml").exists()
     mkdocs_content = (site_root / ".egregora" / "mkdocs.yml").read_text()
-    assert "site_name: Wrapper Site" in mkdocs_content
+    assert 'site_name: "Wrapper Site"' in mkdocs_content
 
 
 def test_scaffold_authors_file_creation(tmp_path: Path):
