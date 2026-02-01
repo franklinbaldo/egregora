@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.agents.banner.exceptions import BannerGenerationError, BannerNoImageError
+from egregora.agents.banner.exceptions import BannerNoImageError
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 

@@ -27,7 +27,8 @@ def test_generate_banner_impl_fallback_failure(monkeypatch):
     mock_context.task_store = None  # Force synchronous path
 
     def mock_generate_banner(*args, **kwargs):
-        raise BannerGenerationError("Generation failed")
+        msg = "Generation failed"
+        raise BannerGenerationError(msg)
 
     monkeypatch.setattr(writer_tools, "generate_banner", mock_generate_banner)
 
