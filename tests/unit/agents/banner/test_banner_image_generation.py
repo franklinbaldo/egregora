@@ -21,7 +21,6 @@ from google.genai import errors as google_exceptions  # noqa: E402
 
 from egregora.agents.banner import agent  # noqa: E402
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image  # noqa: E402
-from egregora.agents.banner.exceptions import BannerGenerationError  # noqa: E402
 from egregora.agents.banner.image_generation import (  # noqa: E402
     ImageGenerationRequest,
     ImageGenerationResult,

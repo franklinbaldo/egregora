@@ -1,14 +1,11 @@
-import pytest
-import ibis
-import math
 from datetime import datetime, timedelta
-from egregora.transformations.windowing import (
-    create_windows,
-    WindowConfig,
-    split_window_into_n_parts,
-    Window
-)
+
+import ibis
+import pytest
+
 from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
+from egregora.transformations.windowing import WindowConfig, create_windows, split_window_into_n_parts
+
 
 @pytest.fixture
 def messages_table():
@@ -17,9 +14,10 @@ def messages_table():
     data = {
         "ts": [base_time + timedelta(hours=i) for i in range(10)],
         "text": [f"message_{i}" for i in range(10)],
-        "id": list(range(10))
+        "id": list(range(10)),
     }
     return ibis.memtable(data)
+
 
 def test_window_by_count_no_overlap(messages_table):
     """Test splitting by message count without overlap."""
@@ -39,6 +37,7 @@ def test_window_by_count_no_overlap(messages_table):
 
     w3_ids = windows[3].table.select("id").execute()["id"].tolist()
     assert w3_ids == [9]
+
 
 def test_window_by_count_with_overlap(messages_table):
     """Test splitting by message count with overlap."""
@@ -91,6 +90,7 @@ def test_window_by_time_hours(messages_table):
     w0_ids = windows[0].table.select("id").execute()["id"].tolist()
     assert w0_ids == [0, 1, 2]
 
+
 def test_window_by_time_days(messages_table):
     """Test splitting by time (days)."""
     # Data spans 9 hours (less than 1 day).
@@ -100,6 +100,7 @@ def test_window_by_time_days(messages_table):
 
     assert len(windows) == 1
     assert windows[0].size == 10
+
 
 def test_window_by_time_max_constraint(messages_table):
     """Test max_window_time reduces the step size."""
@@ -112,10 +113,7 @@ def test_window_by_time_max_constraint(messages_table):
     # W4: [8, 10) -> 8, 9
 
     config = WindowConfig(
-        step_size=5,
-        step_unit="hours",
-        max_window_time=timedelta(hours=2),
-        overlap_ratio=0.0
+        step_size=5, step_unit="hours", max_window_time=timedelta(hours=2), overlap_ratio=0.0
     )
     windows = list(create_windows(messages_table, config=config))
 
@@ -124,6 +122,7 @@ def test_window_by_time_max_constraint(messages_table):
 
     assert len(windows) == 5
     assert windows[0].size == 2
+
 
 def test_window_by_bytes(messages_table):
     """Test splitting by byte size."""
@@ -134,16 +133,13 @@ def test_window_by_bytes(messages_table):
     # So 3 messages per window.
     # 10 messages -> 3, 3, 3, 1 -> 4 windows.
 
-    config = WindowConfig(
-        max_bytes_per_window=20,
-        step_unit="bytes",
-        overlap_ratio=0.0
-    )
+    config = WindowConfig(max_bytes_per_window=20, step_unit="bytes", overlap_ratio=0.0)
     windows = list(create_windows(messages_table, config=config))
 
     assert len(windows) == 4
     assert windows[0].size == 3
     assert windows[3].size == 1
+
 
 def test_window_by_bytes_overlap(messages_table):
     """Test splitting by bytes with overlap."""
@@ -158,11 +154,7 @@ def test_window_by_bytes_overlap(messages_table):
     # W2: 6, 7, 8, 9.
     # W3: 9.
 
-    config = WindowConfig(
-        max_bytes_per_window=27,
-        step_unit="bytes",
-        overlap_ratio=0.35
-    )
+    config = WindowConfig(max_bytes_per_window=27, step_unit="bytes", overlap_ratio=0.35)
     windows = list(create_windows(messages_table, config=config))
 
     assert len(windows) == 4
@@ -173,6 +165,7 @@ def test_window_by_bytes_overlap(messages_table):
 
     w1_ids = windows[1].table.select("id").execute()["id"].tolist()
     assert w1_ids == [3, 4, 5, 6]
+
 
 def test_split_window(messages_table):
     """Test splitting a window into N parts."""
@@ -204,6 +197,7 @@ def test_split_window(messages_table):
     p0_ids = parts[0].table.select("id").execute()["id"].tolist()
     assert p0_ids == [0, 1, 2, 3, 4]
 
+
 def test_split_window_uneven(messages_table):
     """Test splitting into parts with uneven distribution."""
     # Split into 3 parts.
@@ -213,7 +207,7 @@ def test_split_window_uneven(messages_table):
     # P3: [18:00, 21:00] -> 18, 19, 20, 21. (4 msgs)
 
     config = WindowConfig(step_size=10, step_unit="messages")
-    window = list(create_windows(messages_table, config=config))[0]
+    window = next(iter(create_windows(messages_table, config=config)))
 
     parts = split_window_into_n_parts(window, 3)
 
@@ -221,6 +215,7 @@ def test_split_window_uneven(messages_table):
     assert parts[0].size == 3
     assert parts[1].size == 3
     assert parts[2].size == 4
+
 
 def test_empty_table():
     """Test behavior with empty table."""
@@ -232,6 +227,7 @@ def test_empty_table():
     windows = list(create_windows(t, config=config))
     assert len(windows) == 0
 
+
 def test_single_row(messages_table):
     """Test behavior with single row."""
     t = messages_table.limit(1)
@@ -241,16 +237,18 @@ def test_single_row(messages_table):
     assert len(windows) == 1
     assert windows[0].size == 1
 
+
 def test_invalid_unit(messages_table):
     """Test invalid unit raises error."""
     config = WindowConfig(step_size=10, step_unit="invalid")
     with pytest.raises(InvalidStepUnitError):
         list(create_windows(messages_table, config=config))
 
+
 def test_invalid_split(messages_table):
     """Test invalid split n raises error."""
     config = WindowConfig(step_size=10, step_unit="messages")
-    window = list(create_windows(messages_table, config=config))[0]
+    window = next(iter(create_windows(messages_table, config=config)))
 
     with pytest.raises(InvalidSplitError):
         split_window_into_n_parts(window, 1)

@@ -4,7 +4,11 @@ import pytest
 from google.genai import errors as google_exceptions
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
-from egregora.agents.banner.exceptions import BannerConfigurationError, BannerGenerationError, BannerNoImageError
+from egregora.agents.banner.exceptions import (
+    BannerConfigurationError,
+    BannerGenerationError,
+    BannerNoImageError,
+)
 from egregora.agents.banner.image_generation import ImageGenerationResult
 
 
