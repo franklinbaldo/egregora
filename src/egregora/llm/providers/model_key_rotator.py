@@ -113,7 +113,6 @@ class ModelKeyRotator:
         call_fn: Callable[[str, str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
-        # TODO: [Taskmaster] Refactor for clarity and simplified logic
         """Call function trying all keys for each model before rotating models.
 
         Args:
@@ -142,44 +141,40 @@ class ModelKeyRotator:
         last_exception: Exception | None = None
 
         # Try all Gemini models + keys
-        while True:
+        for _ in range(len(self.models)):
             model = self.current_model
-            api_key = self.key_rotator.current_key
+            # Keep iterating keys for this model until success, exhaust, or non-retryable error
+            while True:
+                api_key = self.key_rotator.current_key
+                try:
+                    result = call_fn(model, api_key)
 
-            try:
-                result = call_fn(model, api_key)
+                    # Success! Proactively rotate key for load balancing
+                    self.key_rotator.rotate()
+                    return result
 
-                # Success!
-                # Proactively rotate key for load balancing (handled by key_rotator.rotate() via next_key behavior in simple impl?)
-                # Wait, my fix to GeminiKeyRotator separated rotate() and next_key()!
-                # I need to call rotate() here!
+                except Exception as exc:
+                    last_exception = exc
+                    if is_rate_limit_error(exc):
+                        # Try next key for same model (marks current as exhausted)
+                        next_key = self.key_rotator.next_key()
+                        if next_key:
+                            # Still have keys for this model
+                            continue
 
-                self.key_rotator.rotate()
+                        # No more keys for this model
+                        break
 
-                return result
-            except Exception as exc:
-                last_exception = exc
-                if is_rate_limit_error(exc):
-                    # Try next key for same model (marks current as exhausted)
-                    next_key = self.key_rotator.next_key()
-                    if next_key:
-                        # Still have keys for this model
-                        continue
+                    # Non-rate-limit error - propagate immediately
+                    # But we should probably rotate key for next time?
+                    self.key_rotator.rotate()
+                    raise
 
-                    # All keys exhausted for this model, try next model
-                    next_model = self._next_model()
-                    if next_model:
-                        # Moved to new model, exhausted keys are cleared in _next_model
-                        continue
-
-                    # All Gemini models+keys exhausted
-                    logger.warning("[ModelKeyRotator] All Gemini models and keys exhausted")
-                    break
-
-                # Non-rate-limit error - propagate immediately
-                # But we should probably rotate key for next time?
-                self.key_rotator.rotate()
-                raise
+            # If we broke the inner loop, it means we exhausted keys for this model.
+            # Try next model (if any)
+            if not self._next_model():
+                logger.warning("[ModelKeyRotator] All Gemini models and keys exhausted")
+                break
 
         # All models+keys exhausted
         if last_exception:
