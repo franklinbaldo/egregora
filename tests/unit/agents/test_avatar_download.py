@@ -108,3 +108,33 @@ def test_download_avatar_os_error(_, mock_save, mock_media_dir, mock_client):
         _download_avatar_with_client(mock_client, url, mock_media_dir)
 
     assert "Failed to save avatar" in str(exc.value)
+
+
+def test_detect_mime_type_valid():
+    from egregora.agents.avatar import _detect_mime_type
+
+    assert _detect_mime_type(b"\xff\xd8\xff") == "image/jpeg"
+    assert _detect_mime_type(b"\x89PNG\r\n\x1a\n") == "image/png"
+    assert _detect_mime_type(b"GIF87a") == "image/gif"
+    assert _detect_mime_type(b"RIFF\x20\x00\x00\x00WEBP") == "image/webp"
+
+
+def test_detect_mime_type_invalid_riff():
+    from egregora.agents.avatar import _detect_mime_type, AvatarProcessingError
+
+    # Too short for RIFF check
+    assert _detect_mime_type(b"RIF") is None
+
+    # RIFF but too short for WEBP check
+    with pytest.raises(AvatarProcessingError, match="File too small"):
+        _detect_mime_type(b"RIFF\x00")
+
+    # RIFF but not WEBP
+    with pytest.raises(AvatarProcessingError, match="RIFF file is not WEBP"):
+        _detect_mime_type(b"RIFF\x20\x00\x00\x00AVI ")
+
+
+def test_detect_mime_type_unknown():
+    from egregora.agents.avatar import _detect_mime_type
+
+    assert _detect_mime_type(b"unknown") is None
