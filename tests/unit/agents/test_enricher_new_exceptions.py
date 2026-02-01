@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -65,7 +66,8 @@ def test_parse_media_result_raises_exception():
     mock_ctx = MagicMock()
     # Mock task_store to avoid attribute error if it's accessed
     mock_ctx.task_store = MagicMock()
-    worker = EnrichmentWorker(ctx=mock_ctx)
+    with patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"}):
+        worker = EnrichmentWorker(ctx=mock_ctx)
 
     task = {"task_id": "1", "_parsed_payload": {"filename": "test.jpg"}}
     res = MagicMock()

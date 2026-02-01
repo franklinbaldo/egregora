@@ -1,11 +1,12 @@
 """Unit tests for the enrichment agent's logic."""
 
 import json
+import os
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,6 +21,8 @@ from egregora.agents.exceptions import (
 
 class TestEnrichmentWorkerStageFile(unittest.TestCase):
     def setUp(self):
+        self.patcher = patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"})
+        self.patcher.start()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.mock_ctx = MagicMock()
         self.mock_ctx.input_path = Path(self.temp_dir.name) / "archive.zip"
@@ -28,6 +31,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
     def tearDown(self):
         self.worker.close()
         self.temp_dir.cleanup()
+        self.patcher.stop()
 
     def test_stage_file_success(self):
         """Test successful staging of a file from a ZIP archive."""
@@ -91,12 +95,15 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
 
 class TestEnrichmentWorkerClose(unittest.TestCase):
     def setUp(self):
+        self.patcher = patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"})
+        self.patcher.start()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.mock_ctx = MagicMock()
         self.mock_ctx.input_path = Path(self.temp_dir.name) / "archive.zip"
 
     def tearDown(self):
         self.temp_dir.cleanup()
+        self.patcher.stop()
 
     def test_close_closes_zip_handle_and_cleans_up_staging_dir(self):
         """Verify that the close method closes the zip handle and cleans up the staging directory."""
@@ -169,10 +176,15 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
 
 class TestParseMediaResult(unittest.TestCase):
     def setUp(self):
+        self.patcher = patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"})
+        self.patcher.start()
         self.mock_ctx = MagicMock()
         self.worker = EnrichmentWorker(ctx=self.mock_ctx)
         self.worker.task_store = MagicMock()
         self.task = {"task_id": "media-task-1", "_parsed_payload": {"filename": "image.jpg"}}
+
+    def tearDown(self):
+        self.patcher.stop()
 
     def test_parse_media_result_success(self):
         """Test successful parsing of a valid media result."""

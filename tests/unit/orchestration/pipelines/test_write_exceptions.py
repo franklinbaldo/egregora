@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,12 +19,27 @@ def mock_conversation():
     conversation = MagicMock()
     conversation.context = MagicMock()
     conversation.window = MagicMock()
+    # Set real datetimes to avoid MagicMock formatting errors
+    conversation.window.start_time = datetime(2023, 1, 1, 10, 0)
+    conversation.window.end_time = datetime(2023, 1, 1, 11, 0)
+
     conversation.messages_table = MagicMock()
 
     # Mock messages table execution to return a list
     # The code tries execute().to_pylist() or to_dict() or just to_pylist()
     # We mock the first one to succeed
     conversation.messages_table.execute.return_value.to_pylist.return_value = []
+
+    def raise_error(e, *args, **kwargs):
+        raise e
+
+    # Configure error boundary to raise exceptions
+    conversation.context.error_boundary.handle_command_error.side_effect = raise_error
+    conversation.context.error_boundary.handle_writer_error.side_effect = raise_error
+    conversation.context.error_boundary.handle_profile_error.side_effect = raise_error
+    conversation.context.error_boundary.handle_output_error.side_effect = raise_error
+    conversation.context.error_boundary.handle_journal_error.side_effect = raise_error
+    conversation.context.error_boundary.handle_enrichment_error.side_effect = raise_error
 
     return conversation
 

@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +22,8 @@ def mock_context():
 
 @pytest.fixture
 def worker(mock_context):
-    return EnrichmentWorker(ctx=mock_context)
+    with patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"}):
+        return EnrichmentWorker(ctx=mock_context)
 
 
 def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mocker):

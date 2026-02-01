@@ -1,6 +1,7 @@
 """Tests for the media enrichment functionality of the EnrichmentWorker."""
 
 import json
+import os
 import tempfile
 import zipfile
 from pathlib import Path
@@ -64,7 +65,8 @@ def mock_context_and_worker():
                 zf.writestr(f"image-{i}.jpg", b"dummy image data")
 
         context = MockPipelineContext(site_root_path=str(temp_path), input_path=zip_path)
-        worker = EnrichmentWorker(context)
+        with patch.dict(os.environ, {"GOOGLE_API_KEY": "dummy"}):
+            worker = EnrichmentWorker(context)
         yield context, worker
         worker.close()
 
