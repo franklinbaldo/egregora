@@ -1,7 +1,5 @@
-
-import pytest
 from egregora.database.duckdb_manager import temp_storage
-from egregora.database.exceptions import SequenceNotFoundError
+
 
 def test_sequence_parameterization_safety():
     """Verify sequence operations handle special characters safely."""
@@ -26,6 +24,7 @@ def test_sequence_parameterization_safety():
         # 3. Test next_sequence_value
         val = storage.next_sequence_value(tricky_name)
         assert val == 12
+
 
 def test_sequence_parameterization_regression():
     """Verify standard sequence operations work as expected."""

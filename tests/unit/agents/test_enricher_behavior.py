@@ -1,18 +1,11 @@
 import json
-import tempfile
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.agents.enricher import (
-    EnrichmentWorker,
-    schedule_enrichment,
-    EnrichmentOutput,
-    _normalize_slug
-)
+from egregora.agents.enricher import EnrichmentOutput, EnrichmentWorker, schedule_enrichment
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.context import PipelineContext
@@ -21,6 +14,7 @@ from egregora.orchestration.exceptions import CacheKeyNotFoundError
 # ---------------------------------------------------------------------------
 # Scheduling Tests
 # ---------------------------------------------------------------------------
+
 
 def test_schedule_enrichment_enqueue_url_tasks():
     """Verify that URL enrichment tasks are correctly scheduled."""
@@ -32,8 +26,8 @@ def test_schedule_enrichment_enqueue_url_tasks():
     # Mock Repository result
     mock_repo = MagicMock()
     candidates = [
-        ("http://example.com/1", {"ts": datetime(2023, 1, 1, tzinfo=timezone.utc), "source": "s1"}),
-        ("http://example.com/2", {"ts": datetime(2023, 1, 1, tzinfo=timezone.utc), "source": "s1"})
+        ("http://example.com/1", {"ts": datetime(2023, 1, 1, tzinfo=UTC), "source": "s1"}),
+        ("http://example.com/2", {"ts": datetime(2023, 1, 1, tzinfo=UTC), "source": "s1"}),
     ]
     mock_repo.get_url_enrichment_candidates.return_value = candidates
 
@@ -98,7 +92,7 @@ def test_schedule_enrichment_skips_existing_in_db():
     mock_repo = MagicMock()
     candidates = [
         ("http://example.com/new", {"ts": datetime.now(), "source": "s"}),
-        ("http://example.com/exists", {"ts": datetime.now(), "source": "s"})
+        ("http://example.com/exists", {"ts": datetime.now(), "source": "s"}),
     ]
     mock_repo.get_url_enrichment_candidates.return_value = candidates
 
@@ -129,6 +123,7 @@ def test_schedule_enrichment_skips_existing_in_db():
 # Execution Tests (EnrichmentWorker.run)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_worker_context():
     ctx = MagicMock(spec=PipelineContext)
@@ -142,29 +137,30 @@ def mock_worker_context():
     ctx.input_path = Path("/tmp/fake.zip")
     return ctx
 
+
 def test_worker_run_processes_url_batch(mock_worker_context):
     """Verify that run() fetches tasks and processes them."""
     # Setup
     worker = EnrichmentWorker(mock_worker_context)
 
     # Mock task fetch
-    task_payload = json.dumps({
-        "url": "http://example.com",
-        "message_metadata": {"ts": "2023-01-01T00:00:00", "source": "test"}
-    })
+    task_payload = json.dumps(
+        {"url": "http://example.com", "message_metadata": {"ts": "2023-01-01T00:00:00", "source": "test"}}
+    )
     tasks = [{"task_id": "t1", "payload": task_payload}]
 
-    mock_worker_context.task_store.fetch_pending.side_effect = [tasks, []] # URLs, then Media (empty)
+    mock_worker_context.task_store.fetch_pending.side_effect = [tasks, []]  # URLs, then Media (empty)
 
     # Mock execution methods to isolate flow testing
-    with patch.object(worker, "_process_url_batch", return_value=1) as mock_process_url, \
-         patch.object(worker, "_process_media_batch", return_value=0) as mock_process_media:
-
+    with (
+        patch.object(worker, "_process_url_batch", return_value=1) as mock_process_url,
+        patch.object(worker, "_process_media_batch", return_value=0) as mock_process_media,
+    ):
         count = worker.run()
 
         assert count == 1
         mock_process_url.assert_called_once_with(tasks)
-        mock_process_media.assert_not_called() # No media tasks returned
+        mock_process_media.assert_not_called()  # No media tasks returned
 
 
 def test_worker_run_processes_media_batch(mock_worker_context):
@@ -174,11 +170,12 @@ def test_worker_run_processes_media_batch(mock_worker_context):
     # Mock task fetch
     tasks = [{"task_id": "m1", "payload": "{}"}]
 
-    mock_worker_context.task_store.fetch_pending.side_effect = [[], tasks] # URLs (empty), then Media
+    mock_worker_context.task_store.fetch_pending.side_effect = [[], tasks]  # URLs (empty), then Media
 
-    with patch.object(worker, "_process_url_batch", return_value=0) as mock_process_url, \
-         patch.object(worker, "_process_media_batch", return_value=1) as mock_process_media:
-
+    with (
+        patch.object(worker, "_process_url_batch", return_value=0) as mock_process_url,
+        patch.object(worker, "_process_media_batch", return_value=1) as mock_process_media,
+    ):
         count = worker.run()
 
         assert count == 1
@@ -190,6 +187,7 @@ def test_worker_run_processes_media_batch(mock_worker_context):
 # Persistence Tests
 # ---------------------------------------------------------------------------
 
+
 def test_persist_url_results_success(mock_worker_context):
     """Verify successful persistence of URL enrichment results."""
     worker = EnrichmentWorker(mock_worker_context)
@@ -200,28 +198,25 @@ def test_persist_url_results_success(mock_worker_context):
         "_parsed_payload": {
             "url": "http://example.com",
             "message_metadata": {
-                "ts": datetime(2023, 1, 1, tzinfo=timezone.utc),
+                "ts": datetime(2023, 1, 1, tzinfo=UTC),
                 "tenant_id": "tenant1",
                 "source": "source1",
                 "thread_id": None,
                 "author_uuid": None,
-                "created_at": datetime(2023, 1, 1, tzinfo=timezone.utc),
-                "created_by_run": None
-            }
-        }
+                "created_at": datetime(2023, 1, 1, tzinfo=UTC),
+                "created_by_run": None,
+            },
+        },
     }
     output = EnrichmentOutput(
-        slug="example-slug",
-        markdown="# Example\n\nSummary",
-        title="Example Title",
-        tags=["tag1"]
+        slug="example-slug", markdown="# Example\n\nSummary", title="Example Title", tags=["tag1"]
     )
     results = [(task, output, None)]
 
     # Mock sink
     mock_sink = MagicMock()
     mock_worker_context.output_sink = mock_sink
-    mock_worker_context.library = None # ensure using sink
+    mock_worker_context.library = None  # ensure using sink
 
     # Act
     worker._persist_url_results(results)
@@ -255,11 +250,11 @@ def test_persist_media_results_success(mock_worker_context):
             "original_filename": "test.jpg",
             "media_type": "image/jpeg",
             "message_metadata": {
-                "ts": datetime(2023, 1, 1, tzinfo=timezone.utc),
-                "created_at": datetime(2023, 1, 1, tzinfo=timezone.utc),
-            }
+                "ts": datetime(2023, 1, 1, tzinfo=UTC),
+                "created_at": datetime(2023, 1, 1, tzinfo=UTC),
+            },
         },
-        "_staged_path": "/tmp/staged/test.jpg"
+        "_staged_path": "/tmp/staged/test.jpg",
     }
 
     # Mock result from batch execution
@@ -268,12 +263,9 @@ def test_persist_media_results_success(mock_worker_context):
     mock_res.tag = "m1"
     mock_res.error = None
     mock_res.response = {
-        "text": json.dumps({
-            "slug": "test-image",
-            "markdown": "# Test Image",
-            "title": "Test Image",
-            "tags": ["image"]
-        })
+        "text": json.dumps(
+            {"slug": "test-image", "markdown": "# Test Image", "title": "Test Image", "tags": ["image"]}
+        )
     }
 
     task_map = {"m1": task}
@@ -289,12 +281,12 @@ def test_persist_media_results_success(mock_worker_context):
         worker._persist_media_results([mock_res], task_map)
 
         # Verify
-        assert mock_sink.persist.call_count == 2 # 1 Media doc, 1 Enrichment doc
+        assert mock_sink.persist.call_count == 2  # 1 Media doc, 1 Enrichment doc
 
         # Check Media Doc
         media_doc = mock_sink.persist.call_args_list[0][0][0]
         assert media_doc.type == DocumentType.MEDIA
-        assert media_doc.metadata["filename"] == "test-image.jpg" # slug based
+        assert media_doc.metadata["filename"] == "test-image.jpg"  # slug based
         assert media_doc.metadata["source_path"] == "/tmp/staged/test.jpg"
 
         # Check Enrichment Doc
