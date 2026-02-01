@@ -58,7 +58,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
 
     doc_ids, vectors = backend.get_all_post_vectors()
     n_docs = len(doc_ids)
-    min_docs = config.taxonomy.min_docs
+    min_docs = 5
     if n_docs < min_docs:
         logger.info("Insufficient posts for clustering (<%d). Skipping taxonomy.", min_docs)
         return 0
@@ -67,14 +67,13 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     if config.taxonomy.num_clusters is not None:
         k = config.taxonomy.num_clusters
     else:
-        # k = n^exponent (default exponent=0.5 gives sqrt(n))
-        k = max(2, int(n_docs**config.taxonomy.cluster_exponent))
+        # k = sqrt(n) (exponent=0.5)
+        k = max(2, int(n_docs**0.5))
 
     logger.info(
-        "Clustering %d posts into %d semantic topics (exponent=%.2f)...",
+        "Clustering %d posts into %d semantic topics...",
         n_docs,
         k,
-        config.taxonomy.cluster_exponent,
     )
 
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
