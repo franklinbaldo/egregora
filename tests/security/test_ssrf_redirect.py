@@ -1,12 +1,15 @@
 import socket
-import pytest
 from unittest.mock import patch
-from egregora.security.dns import safe_dns_validation, SSRFValidationError
+
+import pytest
+
+from egregora.security.dns import SSRFValidationError, safe_dns_validation
 
 # Mock IP for safe.com
-SAFE_IP = "93.184.216.34" # example.com
+SAFE_IP = "93.184.216.34"  # example.com
 # Mock IP for evil.com
 EVIL_IP = "127.0.0.1"
+
 
 def mock_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     if host == "safe.com":
@@ -16,12 +19,12 @@ def mock_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     # Fallback for localhost etc if needed, though safe_dns_validation shouldn't be called on random things
     return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", 0))]
 
+
 def test_redirect_ssrf_bypass():
     """Test that a redirect to a private IP is blocked by safe_dns_validation."""
 
     # We need to patch the _original_getaddrinfo used by egregora.security.dns
     with patch("egregora.security.dns._original_getaddrinfo", side_effect=mock_getaddrinfo):
-
         # We expect SSRFValidationError because the redirect to evil.com should be caught
         with pytest.raises(SSRFValidationError, match="resolves to blocked IP"):
             with safe_dns_validation("http://safe.com"):

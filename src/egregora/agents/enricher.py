@@ -1321,6 +1321,38 @@ class EnrichmentWorker(BaseWorker):
         logger.info("[MediaEnricher] Single-call batch complete: %d/%d", len(results), len(requests))
         return results
 
+    def _apply_media_replacements_batch(self, replacements: list[tuple[str, str]]) -> None:
+        """Apply a batch of media reference replacements using a single nested UPDATE query.
+
+        Constructs a nested `replace()` expression to update all references in one pass,
+        filtered by a regex pattern matching any of the old references.
+        """
+        if not replacements:
+            return
+
+        try:
+            expr = "text"
+            params = []
+
+            # Construct nested replace: replace(replace(text, old1, new1), old2, new2)...
+            for old_ref, new_ref in replacements:
+                expr = f"replace({expr}, ?, ?)"
+                params.extend([old_ref, new_ref])
+
+            # Construct regex for WHERE clause: regexp_matches(text, 'old1|old2|...')
+            # Escape special characters in filenames to ensure safe regex
+            pattern = "|".join([re.escape(old) for old, _ in replacements])
+            params.append(pattern)
+
+            query = f"UPDATE messages SET text = {expr} WHERE regexp_matches(text, ?)"
+
+            self.ctx.storage.execute_sql(query, params)
+            logger.info("Applied batch update for %d media references", len(replacements))
+
+        except (duckdb.Error, Exception) as exc:
+            logger.warning("Failed to apply batch media replacements: %s", exc)
+            raise
+
     def _execute_media_individual(
         self,
         requests: list[dict[str, Any]],
@@ -1388,6 +1420,8 @@ class EnrichmentWorker(BaseWorker):
 
     def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
         new_rows = []
+        replacements: list[tuple[str, str]] = []
+        completed_task_ids: list[str] = []
         for res in results:
             task = task_map.get(res.tag)
             if not task:
@@ -1539,17 +1573,28 @@ class EnrichmentWorker(BaseWorker):
 
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
-                # Using SQL replace to update all occurrences
-                # Use parameterized queries to prevent SQL injection
-                try:
-                    # Update text column using parameterized query
-                    # Note: This updates ALL messages containing this ref.
-                    query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
-                except duckdb.Error as exc:
-                    logger.warning("Failed to update message references for %s: %s", original_ref, exc)
+                # Queue replacement for batch update
+                replacements.append((original_ref, new_path))
 
-            self.task_store.mark_completed(task["task_id"])
+            completed_task_ids.append(task["task_id"])
+
+        # Apply all media reference updates in a single batch query
+        if replacements:
+            try:
+                self._apply_media_replacements_batch(replacements)
+            except Exception as exc:
+                # If batch update fails, we must not mark tasks as completed.
+                # Re-raising ensures the worker (and orchestration) knows something went wrong.
+                # The tasks will be retried. File persistence (above) is idempotent.
+                logger.error("Batch media update failed; aborting task completion: %s", exc)
+                raise
+
+        if completed_task_ids:
+            if hasattr(self.task_store, "mark_completed_batch"):
+                self.task_store.mark_completed_batch(completed_task_ids)
+            else:
+                for tid in completed_task_ids:
+                    self.task_store.mark_completed(tid)
 
         if new_rows:
             try:
