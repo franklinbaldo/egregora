@@ -334,35 +334,4 @@ class MkDocsSiteScaffolder:
             logger.info("Created .egregora/.gitignore")
 
 
-def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tuple[Path, bool]:
-    """Ensure site_root contains an MkDocs configuration.
-
-    This function isolates scaffolding logic from the initialization layer,
-    allowing generic CLI commands to invoke adapter-specific setup without
-    circular dependencies or tight coupling to the 'init' package.
-
-    Args:
-        site_root: Root directory for the site.
-        site_name: Name for the site (defaults to directory name).
-
-    Returns:
-        tuple of (docs_dir, was_created)
-        - docs_dir: Directory where documentation content should be written.
-        - was_created: True if new site was created, False if existed.
-
-    """
-    site_root = site_root.expanduser().resolve()
-    if site_name is None:
-        site_name = site_root.name or "Egregora Archive"
-
-    scaffolder = MkDocsSiteScaffolder()
-    # scaffold_site returns (mkdocs_path, created)
-    # We allow exceptions to bubble up as they are handled by callers or cause failure
-    _, created = scaffolder.scaffold_site(site_root, site_name)
-
-    # Return docs_dir for compatibility with existing interface
-    site_paths = MkDocsPaths(site_root)
-    return (site_paths.docs_dir, created)
-
-
-__all__ = ["MkDocsSiteScaffolder", "ensure_mkdocs_project", "safe_yaml_load"]
+__all__ = ["MkDocsSiteScaffolder", "safe_yaml_load"]
