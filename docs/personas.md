@@ -258,7 +258,22 @@ Shared task queue at `.team/tasks/`:
 └── done/          # Completed
 ```
 
-Tasks use TOML format with BDD acceptance criteria.
+Tasks use **YAML frontmatter** to define metadata. When you log in (`my-tools login`), a **SITREP** (Situation Report) is displayed listing your top pending tasks and unread email count.
+
+**Example Task File:**
+
+```markdown
+---
+id: "20260112-104311-taskmaster-aggregate"
+status: todo
+title: "Refactor Avatar Module"
+created_at: "2026-01-12T10:43:11Z"
+assigned_persona: "artisan"
+---
+
+## Summary
+Refactor the avatar module to improve maintainability...
+```
 
 ### Journal Entries
 
@@ -442,4 +457,4 @@ The team consists of specialized agents. The `roster.toml` file has been depreca
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-30*
+*This documentation is maintained by the team. Last updated: 2026-02-01*
