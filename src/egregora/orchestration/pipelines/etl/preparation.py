@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
+import uuid
 from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from rich.console import Console
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
+from egregora.config.defaults import PipelineDefaults
 from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
 from egregora.config.settings import parse_date_arg, validate_timezone
 from egregora.data_primitives.document import OutputSink, UrlContext
@@ -236,6 +238,7 @@ def _process_commands_and_avatars(
         media_dir=ctx.media_dir,
         profiles_dir=ctx.profiles_dir,
         vision_model=vision_model,
+        avatar_namespace=uuid.UUID(ctx.config.profile.avatar_namespace_uuid),
         cache=ctx.cache.enrichment,
     )
     avatar_results = process_avatar_commands(
@@ -455,8 +458,8 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
 
     max_tokens = full_context_window_size if use_full_window else config.pipeline.max_prompt_tokens
 
-    avg_tokens_per_message = config.pipeline.avg_tokens_per_message
-    buffer_ratio = config.pipeline.buffer_ratio
+    avg_tokens_per_message = PipelineDefaults.AVG_TOKENS_PER_MESSAGE
+    buffer_ratio = PipelineDefaults.BUFFER_RATIO
     return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
 
 

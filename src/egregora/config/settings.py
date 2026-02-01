@@ -59,7 +59,7 @@ from egregora.config.exceptions import (
     InvalidTimezoneError,
     SiteNotFoundError,
 )
-from egregora.constants import SourceType, WindowUnit
+from egregora.constants import AVATAR_NAMESPACE_UUID, SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -337,17 +337,6 @@ class PipelineSettings(BaseModel):
         le=0.5,
         description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
     )
-    avg_tokens_per_message: int = Field(
-        default=PipelineDefaults.AVG_TOKENS_PER_MESSAGE,
-        ge=1,
-        description="Average tokens per message for window size estimation",
-    )
-    buffer_ratio: float = Field(
-        default=PipelineDefaults.BUFFER_RATIO,
-        ge=0.1,
-        le=1.0,
-        description="Buffer ratio for window size estimation",
-    )
     max_window_time: int | None = Field(
         default=None,
         ge=1,
@@ -605,12 +594,6 @@ class ReaderSettings(BaseModel):
         le=20,
         description="Number of pairwise comparisons per post for ELO ranking",
     )
-    k_factor: int = Field(
-        default=32,
-        ge=16,
-        le=64,
-        description="ELO K-factor controlling rating volatility (16=stable, 64=volatile)",
-    )
     database_path: str = Field(
         default=DEFAULT_READER_DB,
         description="Path to reader database for ELO ratings and comparison history",
@@ -621,8 +604,7 @@ class TaxonomySettings(BaseModel):
     """Semantic taxonomy generation settings.
 
     After posts are generated, clusters similar posts and assigns
-    consistent tags using LLM analysis. Uses K-Means clustering
-    with k = n^cluster_exponent (default: sqrt, exponent=0.5).
+    consistent tags using LLM analysis. Uses K-Means clustering.
     """
 
     enabled: bool = Field(
@@ -633,19 +615,7 @@ class TaxonomySettings(BaseModel):
         default=None,
         ge=2,
         le=100,
-        description="Fixed number of clusters. If None, uses formula: n^cluster_exponent",
-    )
-    cluster_exponent: float = Field(
-        default=0.5,
-        ge=0.1,
-        le=1.0,
-        description="Exponent for cluster count formula: k = n^exponent. Default 0.5 (sqrt). Use 0.368 (1/e) for fewer clusters.",
-    )
-    min_docs: int = Field(
-        default=5,
-        ge=2,
-        le=50,
-        description="Minimum documents required before clustering",
+        description="Fixed number of clusters. If None, uses formula: sqrt(n)",
     )
 
 
@@ -693,6 +663,10 @@ class ProfileSettings(BaseModel):
         ge=0,
         le=50,
         description="Maximum number of previous profile posts to include in LLM context.",
+    )
+    avatar_namespace_uuid: str = Field(
+        default=AVATAR_NAMESPACE_UUID,
+        description="UUID namespace for generating deterministic avatar IDs.",
     )
 
 
@@ -1114,7 +1088,7 @@ def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
 
     Args:
         date_str: Date string in YYYY-MM-DD format
-        arg_name: Name of the argument (for error messages)
+        _arg_name: Name of the argument (for error messages)
 
     Returns:
         date object in UTC

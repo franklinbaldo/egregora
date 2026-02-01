@@ -59,10 +59,11 @@ The brain of the system. It delegates:
 
 ### The Agents (`agents/`)
 Specialized workers that perform discrete cognitive tasks.
-- **Writer**: Converts chat windows into narrative posts.
+- **[Writer](Architecture-Writer-Agent.md)**: Converts chat windows into narrative posts. Implements the "Composition Root" pattern.
 - **Reader**: Evaluates and ranks posts using an Elo rating system (`agents/reader/`).
 - **Profile**: Updates author profiles based on new evidence.
-- **Banner**: Generates visual assets for posts.
+- **Banner**: Generates visual assets for posts (Async via TaskStore).
+- **Enricher**: Handles media and URL enrichment. Currently bifurcating into a monolithic worker (`enricher.py`) and specialized functional agents (`enrichment.py`).
 
 ### The Sinks (`output_sinks/`)
 Pluggable destinations for the generated content. Currently focused on MkDocs, but architected to support Notion, SQL, or other CMSs in the future.
@@ -75,8 +76,9 @@ Early in the Symbiote Era, an attempt was made to move execution logic to a dedi
 - **Lore:** The `[Taskmaster]` tag persists in comments as a reminder of the refactoring work that remains (e.g., validation logic, complexity reduction).
 
 ### The Illusion of Concurrency (`enricher.py`)
-- **Status:** Identified (Risk).
-- **Lore:** The system attempts to scale enrichment concurrency based on the number of available API keys (`get_google_api_keys()`), effectively promising load balancing. However, the individual execution threads (`_enrich_single_url`) rely on the singular `get_google_api_key()`, causing all concurrent threads to hammer the primary key. Only the "Batch All" strategy currently utilizes true `ModelKeyRotator` resilience.
+- **Status:** In Progress (Mitigation).
+- **Lore:** The system attempts to scale enrichment concurrency based on the number of available API keys. The monolithic `enricher.py` suffered from thread-safety issues with key rotation.
+- **Evolution:** The new `enrichment.py` module represents the first step in decomposing this monolith into smaller, stateless functional agents that are easier to scale and test.
 
 ## 📈 Evolution from Batch Era
 

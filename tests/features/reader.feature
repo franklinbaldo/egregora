@@ -48,14 +48,6 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
     And "beta" rating should decrease
     And the sum of rating changes should equal zero
 
-  Scenario: Rating changes use K-factor for adjustment magnitude
-    Given post "strong" has an ELO rating of 1600
-    And post "weak" has an ELO rating of 1400
-    And the K-factor is set to 32
-    When "weak" defeats "strong" (upset victory)
-    Then "weak" should gain more points than if it defeated an equal opponent
-    And "strong" should lose more points than if it lost to an equal opponent
-
   Scenario: Tie results in no rating change when ratings are equal
     Given post "post-x" has an ELO rating of 1550
     And post "post-y" has an ELO rating of 1550
@@ -218,12 +210,6 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
     When I attempt to run reader evaluation
     Then the evaluation should be skipped
     And a message should indicate the reader is disabled
-
-  Scenario: K-factor can be configured
-    Given the reader is configured with k_factor: 64
-    When posts are compared
-    Then ELO rating changes should use K-factor of 64
-    And larger rating swings should occur compared to K=32
 
   Scenario: Comparisons per post can be configured
     Given the reader is configured with comparisons_per_post: 4
