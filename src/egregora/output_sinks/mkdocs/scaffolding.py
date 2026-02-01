@@ -62,7 +62,13 @@ class MkDocsSiteScaffolder:
         egregora_mkdocs = site_root / ".egregora" / "mkdocs.yml"
         return egregora_mkdocs.exists()
 
-    def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
+    def scaffold_site(
+        self,
+        site_root: Path,
+        site_name: str,
+        context_overrides: dict[str, Any] | None = None,
+        **_kwargs: object,
+    ) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure."""
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
@@ -104,6 +110,9 @@ class MkDocsSiteScaffolder:
                 "overrides_dir": "overrides",
                 "posts": [],
             }
+
+            if context_overrides:
+                context.update(context_overrides)
 
             if not site_exists:
                 mkdocs_template = env.get_template("mkdocs.yml.jinja")
