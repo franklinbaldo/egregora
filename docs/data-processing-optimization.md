@@ -22,9 +22,8 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 
 ## Prioritized Optimizations
 
-- **Profile and Refactor `src/egregora/transformations/enrichment.py`.**
-  - **Rationale:** Similar to windowing, enrichment might contain row-by-row operations that can be vectorized.
-  - **Expected Impact:** Improved throughput for the initial data loading phase.
+- **Next: Profile `src/egregora/agents/profile/generator.py`**
+  - **Rationale:** Identify if imperative grouping logic for large datasets can be improved.
 
 ## Completed Optimizations
 
@@ -57,6 +56,11 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Date:** 2026-03-01
   - **Change:** Implemented `enqueue_batch` in `TaskStore` and updated `EnrichmentWorker` to collect tasks and insert them in a single batch operation, replacing the N+1 insertion loop.
   - **Impact:** Benchmark showed **835x speedup** (27,951ms -> 33ms for 1000 tasks).
+
+- **Refactored `combine_with_enrichment_rows` to be Declarative.**
+  - **Date:** 2026-03-XX
+  - **Change:** Replaced the imperative Python loop for row normalization (O(N*M)) with `ibis.memtable` + mutation. The new implementation delegates schema enforcement and type coercion to Ibis/backend, avoiding row-by-row iteration.
+  - **Impact:** Benchmark showed **4x speedup** (0.30s -> 0.07s for 100k rows) and simplified the codebase.
 
 ## Optimization Strategy
 
