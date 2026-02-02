@@ -53,8 +53,23 @@ def combine_with_enrichment_rows(
     messages_table_filtered = messages_table_filtered.cast(schema)
 
     if new_rows:
-        normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
-        enrichment_table = ibis.memtable(normalized_rows).cast(schema)
+        # Create memtable from rows (infer schema from present data)
+        enrichment_table = ibis.memtable(new_rows)
+
+        # Identify missing columns and add them as explicit NULLs
+        # This prevents PyArrow errors when converting sparse data (e.g. missing timestamps)
+        missing_cols = {
+            col: ibis.null().cast(dtype)
+            for col, dtype in schema.items()
+            if col not in enrichment_table.columns
+        }
+
+        if missing_cols:
+            enrichment_table = enrichment_table.mutate(**missing_cols)
+
+        # Select only schema columns (drops extras) and cast to ensure types
+        enrichment_table = enrichment_table.select(schema.names).cast(schema)
+
         combined = messages_table_filtered.union(enrichment_table, distinct=False)
 
         sort_col = "ts" if "ts" in schema.names else "timestamp"
