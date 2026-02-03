@@ -197,3 +197,16 @@ class TestBannerBatchProcessor:
         assert results[0].success is True
         assert results[0].document is not None
         assert results[0].document.metadata["task_id"] == sample_task_entry.task_id
+
+    def test_process_tasks_with_none_provider_result(self, sample_task_entry: BannerTaskEntry):
+        """Provider returns None without raising exception (fallback case)."""
+        mock_provider = Mock()
+        mock_provider.generate.return_value = None  # Simulate unexpected None return
+
+        processor = BannerBatchProcessor(provider=mock_provider)
+        results = processor.process_tasks([sample_task_entry])
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert results[0].error == "Provider returned None without raising exception"
+        assert results[0].error_code == "BannerError"
