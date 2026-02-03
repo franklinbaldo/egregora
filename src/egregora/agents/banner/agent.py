@@ -93,7 +93,11 @@ def _generate_banner_image(
         return BannerOutput(document=document, debug_text=result.debug_text)
 
     except google_exceptions.APIError as e:
-        logger.warning("Banner image generation failed (will retry if enabled) for post '%s': %s", input_data.post_title, e)
+        logger.warning(
+            "Banner image generation failed (will retry if enabled) for post '%s': %s",
+            input_data.post_title,
+            e,
+        )
         raise
 
 
@@ -129,7 +133,8 @@ def generate_banner(
 
     """
     if not is_banner_generation_available():
-        raise BannerConfigurationError("Banner generation is not available. Please set GOOGLE_API_KEY.")
+        msg = "Banner generation is not available. Please set GOOGLE_API_KEY."
+        raise BannerConfigurationError(msg)
 
     # Client reads GOOGLE_API_KEY from environment automatically
     config = EgregoraConfig()
@@ -160,7 +165,8 @@ def generate_banner(
         raise RuntimeError(msg)
     except google_exceptions.APIError as e:
         logger.exception("Banner generation failed after retries")
-        raise BannerGenerationError(f"Generation failed after retries: {e}") from e
+        msg = f"Generation failed after retries: {e}"
+        raise BannerGenerationError(msg) from e
 
 
 def is_banner_generation_available() -> bool:

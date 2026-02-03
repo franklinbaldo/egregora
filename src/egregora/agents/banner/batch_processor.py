@@ -187,7 +187,8 @@ class BannerBatchProcessor:
             return BannerGenerationResult(task, document=document)
 
         # Should be unreachable if provider is set, but as a fallback:
-        raise BannerError("Provider returned None without raising exception")
+        msg = "Provider returned None without raising exception"
+        raise BannerError(msg)
 
     def _generate_with_default(
         self, task: BannerTaskEntry, banner_input: BannerInput

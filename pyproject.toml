@@ -120,6 +120,7 @@ test = [
     "syrupy",
     "respx",
     "moto",
+    "playwright",
 ]
 
 # Convenience group: all dependencies for development
