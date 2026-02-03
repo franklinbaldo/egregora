@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.agents.banner.exceptions import BannerGenerationError, BannerNoImageError
+from egregora.agents.banner.exceptions import BannerNoImageError
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 
@@ -120,3 +120,29 @@ def test_gemini_provider_handles_batch_failure():
 
     with pytest.raises(Exception, match="API call failed: Something went wrong"):
         provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))
+
+
+def test_gemini_provider_raises_error_on_bad_structure(_mock_httpx):
+    # Mock response to raise AttributeError when accessing content
+    client = MagicMock()
+
+    class BrokenCandidate:
+        @property
+        def content(self):
+            msg = "broken content"
+            raise AttributeError(msg)
+
+    mock_response = MagicMock()
+    # Ensure candidates is a list so 'if response.candidates' passes
+    mock_response.candidates = [BrokenCandidate()]
+
+    client.models.generate_content.return_value = mock_response
+
+    provider = GeminiImageGenerationProvider(client=client, model="models/test")
+
+    from egregora.agents.banner.exceptions import BannerGenerationError
+
+    with pytest.raises(BannerGenerationError, match="Unexpected response structure"):
+        provider.generate(
+            ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio=None)
+        )

@@ -38,13 +38,19 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
 
         # Extract image from response parts
         try:
-            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            if (
+                response.candidates
+                and response.candidates[0].content
+                and response.candidates[0].content.parts
+            ):
                 for part in response.candidates[0].content.parts:
                     if part.inline_data:
                         return ImageGenerationResult(
                             image_bytes=part.inline_data.data, mime_type=part.inline_data.mime_type
                         )
         except (AttributeError, IndexError) as e:
-            raise BannerGenerationError(f"Unexpected response structure: {e}") from e
+            msg = f"Unexpected response structure: {e}"
+            raise BannerGenerationError(msg) from e
 
-        raise BannerNoImageError("No image data found in response")
+        msg = "No image data found in response"
+        raise BannerNoImageError(msg)
