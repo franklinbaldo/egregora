@@ -21,9 +21,7 @@ def test_handle_journal_error_logs_critical():
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
         with pytest.raises(ValueError):
-            boundary.handle_journal_error(
-                ValueError("Journal error"), context="test_context"
-            )
+            boundary.handle_journal_error(ValueError("Journal error"), context="test_context")
 
         mock_logger.critical.assert_called_once()
         call_args = mock_logger.critical.call_args[0][0]
@@ -56,9 +54,7 @@ def test_handle_writer_error_logs_error():
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
         with pytest.raises(ValueError):
-            boundary.handle_writer_error(
-                ValueError("Writer error"), context="writer_test"
-            )
+            boundary.handle_writer_error(ValueError("Writer error"), context="writer_test")
 
         mock_logger.error.assert_called_once()
         call_args = mock_logger.error.call_args[0][0]
@@ -89,9 +85,7 @@ def test_handle_enrichment_error_logs_warning():
     """Verify enrichment errors log at warning level."""
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
-        boundary.handle_enrichment_error(
-            ValueError("Enrichment error"), context="enrich_test"
-        )
+        boundary.handle_enrichment_error(ValueError("Enrichment error"), context="enrich_test")
 
         mock_logger.warning.assert_called_once()
         call_args = mock_logger.warning.call_args[0][0]
@@ -103,9 +97,7 @@ def test_handle_enrichment_error_prints_to_console():
     """Verify enrichment errors print warning to console."""
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.console.print") as mock_print:
-        boundary.handle_enrichment_error(
-            ValueError("Enrichment error"), context="test"
-        )
+        boundary.handle_enrichment_error(ValueError("Enrichment error"), context="test")
 
         mock_print.assert_called_once()
         call_args = str(mock_print.call_args)
@@ -122,9 +114,7 @@ def test_handle_profile_error_logs_warning():
     """Verify profile errors log at warning level."""
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
-        boundary.handle_profile_error(
-            ValueError("Profile error"), context="profile_test"
-        )
+        boundary.handle_profile_error(ValueError("Profile error"), context="profile_test")
 
         mock_logger.warning.assert_called_once()
         call_args = mock_logger.warning.call_args[0][0]
@@ -153,9 +143,7 @@ def test_handle_command_error_logs_warning():
     """Verify command errors log at warning level."""
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
-        boundary.handle_command_error(
-            ValueError("Command error"), context="command_test"
-        )
+        boundary.handle_command_error(ValueError("Command error"), context="command_test")
 
         mock_logger.warning.assert_called_once()
         call_args = mock_logger.warning.call_args[0][0]
@@ -186,9 +174,7 @@ def test_handle_output_error_logs_critical():
     boundary = DefaultErrorBoundary()
     with patch("egregora.orchestration.error_boundary.logger") as mock_logger:
         with pytest.raises(ValueError):
-            boundary.handle_output_error(
-                ValueError("Output error"), context="output_test"
-            )
+            boundary.handle_output_error(ValueError("Output error"), context="output_test")
 
         mock_logger.critical.assert_called_once()
         call_args = mock_logger.critical.call_args[0][0]
