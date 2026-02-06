@@ -474,7 +474,7 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 [tool.deptry.per_rule_ignores]
 DEP001 = ["google", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
 DEP002 = [
-    "protobuf",
+    "protobuf>=6.33.5",
     "egregora",
     "grpcio-status",
     "mkdocs",
