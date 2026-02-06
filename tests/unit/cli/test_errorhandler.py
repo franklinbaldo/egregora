@@ -106,7 +106,7 @@ def test_handle_cli_errors_site_structure_error():
         with pytest.raises(typer.Exit) as excinfo:
             with handle_cli_errors(debug=False):
                 msg = "Site structure problem"
-                raise SiteStructureError(msg)
+                raise SiteStructureError(path="/test/site", reason=msg)
 
         assert excinfo.value.exit_code == 1
         # Check that print was called
@@ -264,4 +264,4 @@ def test_handle_cli_errors_site_structure_error_debug_mode():
     with pytest.raises(SiteStructureError, match="Site structure error"):
         with handle_cli_errors(debug=True):
             msg = "Site structure error"
-            raise SiteStructureError(msg)
+            raise SiteStructureError(path="/test/site", reason=msg)
