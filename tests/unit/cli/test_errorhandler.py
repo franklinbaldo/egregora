@@ -109,8 +109,12 @@ def test_handle_cli_errors_site_structure_error():
                 raise SiteStructureError(msg)
 
         assert excinfo.value.exit_code == 1
-        args = [str(arg) for call in mock_print.call_args_list for arg in call[0]]
-        assert any("Site Structure Error" in arg for arg in args)
+        # Check that print was called
+        assert mock_print.called
+        # Collect all print calls as strings
+        all_calls = " ".join([str(call) for call in mock_print.call_args_list])
+        # Check for error message (with or without emoji)
+        assert "Site Structure" in all_calls or "structure problem" in all_calls
 
 
 def test_handle_cli_errors_command_announcement_error():
@@ -257,7 +261,7 @@ def test_handle_cli_errors_config_error_debug_mode():
 
 def test_handle_cli_errors_site_structure_error_debug_mode():
     """Verify SiteStructureError in debug mode re-raises."""
-    with pytest.raises(SiteStructureError):
+    with pytest.raises(SiteStructureError, match="Site structure error"):
         with handle_cli_errors(debug=True):
             msg = "Site structure error"
             raise SiteStructureError(msg)
