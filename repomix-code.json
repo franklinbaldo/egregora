@@ -1,0 +1,34 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "style": "markdown",
+    "parsableStyle": false,
+    "compress": true,
+    "fileSummary": true,
+    "directoryStructure": true,
+    "files": true,
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "showLineNumbers": false
+  },
+  "include": [
+    "pyproject.toml",
+    "uv.lock",
+    "src/egregora/**"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDotIgnore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "**/.venv/**",
+      "**/site/**",
+      "**/.demo-site/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}
