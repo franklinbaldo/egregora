@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -281,7 +281,7 @@ def test_all_error_types_propagate_correctly():
         boundary.handle_journal_error(RuntimeError("runtime error"))
 
     with pytest.raises(IOError):
-        boundary.handle_writer_error(IOError("io error"))
+        boundary.handle_writer_error(OSError("io error"))
 
     with pytest.raises(ConnectionError):
         boundary.handle_output_error(ConnectionError("connection error"))
