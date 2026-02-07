@@ -19,6 +19,25 @@ from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.security.zip import validate_zip_contents
 from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Tune pytest-cov thresholds per test suite.
+
+    We keep a strict project-wide coverage threshold (see ``[tool.coverage.report]``)
+    for unit tests, but E2E tests intentionally exercise only a slice of the codebase.
+    Enforcing the same fail-under there makes the CI job fail despite all tests passing.
+    """
+
+    # NOTE: The GitHub Actions E2E job runs `pytest tests/e2e/ ...`.
+    args = " ".join(config.invocation_params.args)
+    if "tests/e2e" not in args:
+        return
+
+    # pytest-cov registers `--cov-fail-under` as `config.option.cov_fail_under`.
+    # Override it to disable the failure threshold for the E2E suite.
+    if hasattr(config.option, "cov_fail_under"):
+        config.option.cov_fail_under = 0
+
 try:
     import ibis
     from ibis.common.exceptions import IbisError
