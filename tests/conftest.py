@@ -29,14 +29,22 @@ def pytest_configure(config: pytest.Config) -> None:
     """
 
     # NOTE: The GitHub Actions E2E job runs `pytest tests/e2e/ ...`.
-    args = " ".join(config.invocation_params.args)
-    if "tests/e2e" not in args:
+    # Depending on the pytest version, the test paths show up in `config.args` and/or
+    # `config.invocation_params.args`, so we check both.
+    args = [*map(str, getattr(config, "args", ()) or ()), *map(str, config.invocation_params.args)]
+    if not any(arg.startswith("tests/e2e") for arg in args):
         return
 
     # pytest-cov registers `--cov-fail-under` as `config.option.cov_fail_under`.
-    # Override it to disable the failure threshold for the E2E suite.
     if hasattr(config.option, "cov_fail_under"):
         config.option.cov_fail_under = 0
+
+    # pytest-cov caches CLI options early (plugin name: `_cov`).
+    # Override the cached value too, otherwise coverage still fails in CI.
+    cov_plugin = config.pluginmanager.get_plugin("_cov")
+    if cov_plugin is not None and hasattr(cov_plugin, "options"):
+        cov_plugin.options.cov_fail_under = 0
+
 
 try:
     import ibis
