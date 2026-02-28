@@ -25,7 +25,7 @@ dependencies = [
     "python-dateutil",
     "pydantic-ai>=1.48.0",
     "scikit-learn",
-    "lancedb==0.27.1",
+    "lancedb==0.29.2",
     "pillow",
     "ratelimit",
     # Site generation dependencies (for demo command)
