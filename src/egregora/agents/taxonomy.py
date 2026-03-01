@@ -1,10 +1,10 @@
 """Pydantic-AI agent for generating semantic taxonomy from content clusters."""
-# TODO: [Taskmaster] Move function-level imports to the top of the file
-# TODO: [Taskmaster] Add docstrings to Pydantic models
 # TODO: [Taskmaster] Refactor brittle model name prefix stripping
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from egregora.llm.api_keys import get_google_api_key
 
@@ -33,9 +33,6 @@ class GlobalTaxonomyResult(BaseModel):
 
 def create_global_taxonomy_agent(model_name: str) -> Agent[None, GlobalTaxonomyResult]:
     """Create the global taxonomy agent with fallback support."""
-    from pydantic_ai.models.google import GoogleModel
-    from pydantic_ai.providers.google import GoogleProvider
-
     provider = GoogleProvider(api_key=get_google_api_key())
     model = GoogleModel(
         model_name.removeprefix("google-gla:"),
