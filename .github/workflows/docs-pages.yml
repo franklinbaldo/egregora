@@ -96,7 +96,7 @@ jobs:
           cp /tmp/bundles/*.bundle.md site/bundles/
 
       - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./site
 
